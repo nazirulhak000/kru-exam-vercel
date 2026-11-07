@@ -12,6 +12,7 @@ const KEYS = {
   EDITED_SEEDS: "kru_exam_edited_seeds_v1",
   DELETED_QUESTION_IDS: "kru_exam_deleted_ids_v1",
   ATTEMPTS_HISTORY: "kru_exam_attempts_v1",
+  HISTORY_CLEARED_AT: "kru_exam_history_cleared_at_v1",
   MISTAKE_RECORDS: "kru_exam_mistakes_v1",
   ACTIVE_SESSION: "kru_exam_active_session_v1",
   GEMINI_API_KEY: "kru_exam_gemini_api_key_v1",
@@ -74,15 +75,34 @@ export function getAllQuestions(): QuestionItem[] {
   return [...custom, ...seeds];
 }
 
+function normalizeQuestionText(text: string): string {
+  return (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 export function addCustomQuestions(newQuestions: QuestionItem[]): number {
   if (!isBrowser()) return 0;
-  const existing = getCustomQuestions();
-  const existingIds = new Set(existing.map((q) => q.id));
-  const dedupedNew = newQuestions.filter((q) => !existingIds.has(q.id));
-  const combined = [...dedupedNew, ...existing];
+  const existingCustom = getCustomQuestions();
+  const allCurrent = getAllQuestions();
+
+  const existingIds = new Set(existingCustom.map((q) => q.id));
+  const existingTexts = new Set(
+    allCurrent.map((q) => normalizeQuestionText(q.question))
+  );
+
+  const dedupedNew: QuestionItem[] = [];
+  for (const q of newQuestions) {
+    const normText = normalizeQuestionText(q.question);
+    if (!q.id || !normText) continue;
+    if (existingIds.has(q.id) || existingTexts.has(normText)) continue;
+    existingIds.add(q.id);
+    existingTexts.add(normText);
+    dedupedNew.push(q);
+  }
+
+  const combined = [...dedupedNew, ...existingCustom];
   localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(combined));
   void pushLocalStateToCloud();
-  return newQuestions.length;
+  return dedupedNew.length;
 }
 
 export function updateQuestion(updated: QuestionItem): void {
@@ -142,6 +162,12 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
   // Update mistake records based on this attempt
   const mistakes = getMistakeRecordsMap();
   attempt.answers.forEach((ans) => {
+    // ในโหมดฝึกซ้อมหรือทบทวนข้อผิด หากกดส่งกระดาษคำตอบก่อนทำถึงข้อนั้น (selectedIndex === null)
+    // ไม่ควรนับว่าตอบผิดหรือล้างสถานะความแม่นยำของข้อที่ยังไม่ได้ทำ
+    if (ans.selectedIndex === null && attempt.mode !== "exam") {
+      return;
+    }
+
     const prev = mistakes[ans.questionId] || {
       questionId: ans.questionId,
       wrongCount: 0,
@@ -174,6 +200,7 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
 export function clearExamAttempts(): void {
   if (!isBrowser()) return;
   localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
+  localStorage.setItem(KEYS.HISTORY_CLEARED_AT, new Date().toISOString());
   void pushLocalStateToCloud();
 }
 
@@ -203,10 +230,30 @@ export function toggleBookmarkQuestion(questionId: string): boolean {
     bookmarked: false,
   };
   rec.bookmarked = !rec.bookmarked;
+  if (rec.bookmarked) {
+    rec.mastered = false;
+  }
+  rec.lastAttemptAt = new Date().toISOString();
   map[questionId] = rec;
   localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(map));
   void pushLocalStateToCloud();
   return rec.bookmarked;
+}
+
+export function setMistakeMastered(
+  questionId: string,
+  mastered: boolean
+): void {
+  if (!isBrowser()) return;
+  const map = getMistakeRecordsMap();
+  const rec = map[questionId];
+  if (!rec) return;
+  rec.mastered = mastered;
+  rec.consecutiveCorrect = mastered ? Math.max(2, rec.consecutiveCorrect) : 0;
+  rec.lastAttemptAt = new Date().toISOString();
+  map[questionId] = rec;
+  localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(map));
+  void pushLocalStateToCloud();
 }
 
 export function getMistakeQuestions(includeMastered = false): QuestionItem[] {
@@ -216,11 +263,9 @@ export function getMistakeQuestions(includeMastered = false): QuestionItem[] {
   return allQuestions.filter((q) => {
     const rec = mistakeMap[q.id];
     if (!rec) return false;
-    if (rec.bookmarked) return true;
-    if (rec.wrongCount > 0) {
-      return includeMastered ? true : !rec.mastered;
-    }
-    return false;
+    const isTracked = rec.wrongCount > 0 || rec.bookmarked;
+    if (!isTracked) return false;
+    return includeMastered ? true : !rec.mastered;
   });
 }
 
@@ -273,9 +318,13 @@ export interface ReadinessStats {
 
 export function getReadinessStats(): ReadinessStats {
   const allQuestions = getAllQuestions();
-  const customQuestions = getCustomQuestions();
+  const deletedIds = new Set(getDeletedQuestionIds());
+  const customQuestions = getCustomQuestions().filter(
+    (q) => !deletedIds.has(q.id)
+  );
   const attempts = getExamAttempts();
   const mistakeMap = getMistakeRecordsMap();
+  const validQuestionIds = new Set(allQuestions.map((q) => q.id));
 
   const totalAttempts = attempts.length;
   const passedAttempts = attempts.filter((a) => a.passed).length;
@@ -289,8 +338,9 @@ export function getReadinessStats(): ReadinessStats {
   let activeMistakesCount = 0;
   let masteredMistakesCount = 0;
   Object.values(mistakeMap).forEach((m) => {
+    if (!validQuestionIds.has(m.questionId)) return;
     if (m.wrongCount > 0 || m.bookmarked) {
-      if (m.mastered && !m.bookmarked) {
+      if (m.mastered) {
         masteredMistakesCount++;
       } else {
         activeMistakesCount++;
@@ -388,6 +438,8 @@ export function importAllDataFromJson(jsonStr: string): {
     if (data.mistakes && typeof data.mistakes === "object") {
       localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(data.mistakes));
     }
+    void pushLocalStateToCloud();
+    window.dispatchEvent(new Event("kru-cloud-synced"));
     return {
       success: true,
       message: "นำเข้าข้อมูลคลังข้อสอบและประวัติการสอบสำเร็จเรียบร้อย!",
@@ -481,6 +533,7 @@ export async function pushLocalStateToCloud(): Promise<{
     const payload = {
       version: 1,
       updatedAt: new Date().toISOString(),
+      historyClearedAt: localStorage.getItem(KEYS.HISTORY_CLEARED_AT) || "",
       customQuestions: getCustomQuestions(),
       editedSeeds: getEditedSeedMap(),
       deletedIds: getDeletedQuestionIds(),
@@ -579,21 +632,34 @@ export async function syncWithCloudDatabase(): Promise<{
       ...localEdited,
     };
 
-    // 4. Merge exam attempts (Union by ID, sort newest first)
+    // 4. Merge exam attempts (Union by ID, respecting historyClearedAt, sort newest first)
+    const localClearedAt = localStorage.getItem(KEYS.HISTORY_CLEARED_AT) || "";
+    const remoteClearedAt =
+      typeof remote.historyClearedAt === "string" ? remote.historyClearedAt : "";
+    const effectiveClearedAt =
+      localClearedAt > remoteClearedAt ? localClearedAt : remoteClearedAt;
+    if (effectiveClearedAt) {
+      localStorage.setItem(KEYS.HISTORY_CLEARED_AT, effectiveClearedAt);
+    }
+
     const attemptMap = new Map<string, ExamAttempt>();
     if (Array.isArray(remote.attempts)) {
       remote.attempts.forEach((a: ExamAttempt) => {
-        if (a?.id) attemptMap.set(a.id, a);
+        if (a?.id && (!effectiveClearedAt || (a.date || "") > effectiveClearedAt)) {
+          attemptMap.set(a.id, a);
+        }
       });
     }
     localAttempts.forEach((a) => {
-      if (a?.id) attemptMap.set(a.id, a);
+      if (a?.id && (!effectiveClearedAt || (a.date || "") > effectiveClearedAt)) {
+        attemptMap.set(a.id, a);
+      }
     });
     const mergedAttempts = Array.from(attemptMap.values())
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
       .slice(0, 100);
 
-    // 5. Merge mistake records
+    // 5. Merge mistake records (newest lastAttemptAt wins for status flags)
     const remoteMistakes: Record<string, MistakeRecord> =
       remote.mistakes && typeof remote.mistakes === "object"
         ? (remote.mistakes as Record<string, MistakeRecord>)
@@ -604,19 +670,19 @@ export async function syncWithCloudDatabase(): Promise<{
       if (!remRec) {
         mergedMistakes[qId] = localRec;
       } else {
+        const isLocalNewer =
+          (localRec.lastAttemptAt || "") >= (remRec.lastAttemptAt || "");
+        const newerRec = isLocalNewer ? localRec : remRec;
         mergedMistakes[qId] = {
           questionId: qId,
-          wrongCount: Math.max(localRec.wrongCount || 0, remRec.wrongCount || 0),
-          consecutiveCorrect: Math.max(
-            localRec.consecutiveCorrect || 0,
-            remRec.consecutiveCorrect || 0
+          wrongCount: Math.max(
+            localRec.wrongCount || 0,
+            remRec.wrongCount || 0
           ),
-          mastered: Boolean(localRec.mastered || remRec.mastered),
-          lastAttemptAt:
-            (localRec.lastAttemptAt || "") > (remRec.lastAttemptAt || "")
-              ? localRec.lastAttemptAt
-              : remRec.lastAttemptAt,
-          bookmarked: Boolean(localRec.bookmarked || remRec.bookmarked),
+          consecutiveCorrect: newerRec.consecutiveCorrect || 0,
+          mastered: Boolean(newerRec.mastered),
+          lastAttemptAt: newerRec.lastAttemptAt,
+          bookmarked: Boolean(newerRec.bookmarked),
         };
       }
     });
@@ -637,17 +703,22 @@ export async function syncWithCloudDatabase(): Promise<{
       localStorage.setItem(KEYS.CF_DB_ID, result.databaseId);
     }
 
-    // If local had items not in remote, push merged state back to Cloud
+    // If local had items or changes not in remote, push merged state back to Cloud
     const remoteCustomCount = Array.isArray(remote.customQuestions)
       ? remote.customQuestions.length
       : 0;
     const remoteAttemptCount = Array.isArray(remote.attempts)
       ? remote.attempts.length
       : 0;
+    const remoteDeletedCount = Array.isArray(remote.deletedIds)
+      ? remote.deletedIds.length
+      : 0;
 
     if (
       mergedCustom.length > remoteCustomCount ||
-      mergedAttempts.length > remoteAttemptCount
+      mergedAttempts.length !== remoteAttemptCount ||
+      mergedDeleted.length > remoteDeletedCount ||
+      localClearedAt > remoteClearedAt
     ) {
       await pushLocalStateToCloud();
     }

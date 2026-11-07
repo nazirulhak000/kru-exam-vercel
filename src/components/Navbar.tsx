@@ -147,10 +147,10 @@ export default function Navbar() {
                   ก
                 </span>
                 <span className="font-title font-medium text-[16px] leading-none text-paper-ink">
-                  KruExam
+                  KruBanjoo
                 </span>
                 <span className="hidden sm:inline-block text-[12px] text-paper-muted pl-2 border-l border-[#1f1b16]/[0.12]">
-                  คลังข้อสอบครูผู้ช่วย
+                  ครูบรรจุ • คลังข้อสอบครูผู้ช่วย
                 </span>
               </Link>
 

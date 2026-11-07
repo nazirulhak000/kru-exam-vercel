@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบคลังข้อสอบ & สุ่มทำแบบทดสอบบรรจุครูผู้ช่วย (ภาค ก & ภาค ข)</title>
+  <!-- Google Fonts: Prompt & Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            title: ['Prompt', 'sans-serif'],
+            sans: ['Sarabun', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="goToHome()">
+        <div class="w-10 h-10 rounded-xl bg-blue-600/80 backdrop-blur flex items-center justify-center border border-white/20 shadow-inner">
+          <i class="fa-solid fa-graduation-cap text-xl text-amber-300"></i>
+        </div>
+        <div>
+          <h1 class="font-title font-bold text-lg md:text-xl tracking-tight leading-tight flex items-center gap-2">
+            ครูผู้ช่วย Exam Pro <span class="text-[10px] bg-amber-400 text-slate-900 font-bold px-2 py-0.5 rounded-full uppercase">ระบบสุ่มข้อสอบ</span>
+          </h1>
+          <p class="text-xs text-blue-200">คลังข้อสอบ สพฐ. & ก.ค.ศ. พร้อมเฉลยละเอียดและลิงก์ดาวน์โหลด PDF</p>
+        </div>
+      </div>
+
+      <!-- Quick Timer / Exit Widget -->
+      <div id="header-widget" class="hidden items-center space-x-3">
+        <div class="flex items-center bg-slate-900/80 border border-blue-400/30 px-3 py-1.5 rounded-lg shadow-sm">
+          <i class="fa-regular fa-clock text-amber-300 mr-2"></i>
+          <span id="timer-display" class="font-title font-semibold text-sm tracking-wider text-amber-200">00:00</span>
+        </div>
+        <button onclick="confirmExitExam()" class="text-xs bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition font-medium">
+          <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> เลิกทำ
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs (Home / PDF Resources) -->
+  <div class="bg-white border-b border-slate-200 shadow-xs">
+    <div class="max-w-6xl mx-auto px-4 flex space-x-8 text-sm font-semibold">
+      <button onclick="switchTab('quiz')" id="tab-btn-quiz" class="py-3 border-b-2 border-blue-600 text-blue-600 flex items-center gap-2">
+        <i class="fa-solid fa-shuffle"></i> จำลองทำแบบทดสอบ (สุ่มข้อสอบ)
+      </button>
+      <button onclick="switchTab('pdf')" id="tab-btn-pdf" class="py-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2">
+        <i class="fa-solid fa-file-pdf text-red-500"></i> แหล่งดาวน์โหลดแนวข้อสอบ PDF ฟรี
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6">
+
+    <!-- TAB 1: QUIZ SYSTEM -->
+    <div id="tab-content-quiz">
+      
+      <!-- Screen 1: Config & Generator -->
+      <section id="screen-home" class="space-y-6">
+        <!-- Hero Banner -->
+        <div class="bg-gradient-to-br from-indigo-950 via-blue-900 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+          <div class="absolute -right-8 -bottom-10 opacity-10 text-white pointer-events-none">
+            <i class="fa-solid fa-brain text-[220px]"></i>
+          </div>
+          <div class="relative z-10 max-w-2xl">
+            <div class="inline-flex items-center gap-2 bg-blue-500/30 border border-blue-400/40 text-blue-200 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider mb-3">
+              <i class="fa-solid fa-database text-amber-300"></i> คลังข้อสอบอัปเดต 50+ ข้อ พร้อมเฉลยวิเคราะห์
+            </div>
+            <h2 class="text-2xl md:text-3xl font-title font-bold mb-3 leading-snug">
+              ระบบสุ่มข้อสอบบรรจุข้าราชการครู (Random Generator)
+            </h2>
+            <p class="text-blue-100 text-sm md:text-base leading-relaxed mb-6 font-light">
+              ฝึกทำข้อสอบแบบสุ่มไม่ซ้ำข้อ พร้อมสลับช้อยส์ ก-ข-ค-ง ป้องกันการจำตำแหน่ง ครอบคลุมกฎหมายการศึกษา พ.ร.บ.ระเบียบข้าราชการครู จิตวิทยา การวัดผล และการคิดวิเคราะห์
+            </p>
+            <div class="flex flex-wrap gap-4 text-xs text-blue-200 font-medium">
+              <div class="flex items-center"><i class="fa-solid fa-shuffle text-emerald-400 mr-1.5"></i> สุ่มโจทย์ &amp; สลับช้อยส์</div>
+              <div class="flex items-center"><i class="fa-solid fa-clock text-amber-300 mr-1.5"></i> จับเวลาจริงตามมาตรฐาน</div>
+              <div class="flex items-center"><i class="fa-solid fa-award text-yellow-300 mr-1.5"></i> เกณฑ์ผ่าน 60% สพฐ.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exam Configuration Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <h3 class="text-lg font-title font-bold text-slate-800 flex items-center">
+              <i class="fa-solid fa-sliders text-blue-600 mr-2"></i> กำหนดค่าการสุ่มข้อสอบ
+            </h3>
+            <span class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg">
+              จำนวนข้อสอบในคลังทั้งหมด: <strong class="text-blue-600 font-bold" id="total-pool-count">50</strong> ข้อ
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Left: Category Selection -->
+            <div class="space-y-3">
+              <label class="block text-sm font-semibold text-slate-700">1. เลือกหมวดหมู่วิชา</label>
+              <div class="space-y-2">
+                <label class="flex items-center p-3 rounded-xl border border-slate-200 hover:bg-blue-50 cursor-pointer transition">
+                  <input type="radio" name="exam_cat" value="all" checked class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                  <div class="ml-3">
+                    <div class="text-sm font-semibold text-slate-800">รวมทุกหมวด (สุ่มผสม ภาค ก และ ภาค ข)</div>
+                    <div class="text-xs text-slate-500">จำลองการสอบจริง สุ่มจากคลังข้อสอบทั้งหมด 50 ข้อ</div>
+                  </div>
+                </label>
+
+                <label class="flex items-center p-3 rounded-xl border border-slate-200 hover:bg-blue-50 cursor-pointer transition">
+                  <input type="radio" name="exam_cat" value="law" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                  <div class="ml-3">
+                    <div class="text-sm font-semibold text-slate-800">หมวดที่ 1: กฎหมายการศึกษา &amp; พ.ร.บ. สำคัญ</div>
+                    <div class="text-xs text-slate-500">พ.ร.บ.การศึกษาแห่งชาติ, พ.ร.บ.ครูฯ 2547, คุรุสภา, คุ้มครองเด็ก</div>
+                  </div>
+                </label>
+
+                <label class="flex items-center p-3 rounded-xl border border-slate-200 hover:bg-blue-50 cursor-pointer transition">
+                  <input type="radio" name="exam_cat" value="gov" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                  <div class="ml-3">
+                    <div class="text-sm font-semibold text-slate-800">หมวดที่ 2: การเป็นข้าราชการที่ดี &amp; วินัยข้าราชการ</div>
+                    <div class="text-xs text-slate-500">ระเบียบบริหารราชการแผ่นดิน, บริหารบ้านเมืองที่ดี, จริยธรรม</div>
+                  </div>
+                </label>
+
+                <label class="flex items-center p-3 rounded-xl border border-slate-200 hover:bg-blue-50 cursor-pointer transition">
+                  <input type="radio" name="exam_cat" value="pedagogy" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                  <div class="ml-3">
+                    <div class="text-sm font-semibold text-slate-800">หมวดที่ 3: วิชาชีพครู &amp; การจัดการเรียนรู้ (ภาค ข)</div>
+                    <div class="text-xs text-slate-500">จิตวิทยา, การวัดผลประเมินผล, วิจัยในชั้นเรียน, Active Learning</div>
+                  </div>
+                </label>
+
+                <label class="flex items-center p-3 rounded-xl border border-slate-200 hover:bg-blue-50 cursor-pointer transition">
+                  <input type="radio" name="exam_cat" value="general" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                  <div class="ml-3">
+                    <div class="text-sm font-semibold text-slate-800">หมวดที่ 4: ความสามารถทั่วไป &amp; คิดวิเคราะห์</div>
+                    <div class="text-xs text-slate-500">อนุกรม, ตรรกศาสตร์, ภาษาไทยสะกดคำ, ภาษาอังกฤษสื่อสาร</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Right: Random Count & Test Mode -->
+            <div class="space-y-4 flex flex-col justify-between">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">2. จำนวนข้อที่ต้องการสุ่มทำ</label>
+                <div class="grid grid-cols-4 gap-2 mb-4">
+                  <button type="button" onclick="setQuestionCount(10)" id="btn-count-10" class="py-2.5 px-2 border-2 border-slate-200 hover:border-blue-400 rounded-xl text-center transition font-semibold text-xs">
+                    ⚡ 10 ข้อ
+                  </button>
+                  <button type="button" onclick="setQuestionCount(20)" id="btn-count-20" class="py-2.5 px-2 border-2 border-blue-600 bg-blue-50 text-blue-700 rounded-xl text-center transition font-semibold text-xs">
+                    🎯 20 ข้อ
+                  </button>
+                  <button type="button" onclick="setQuestionCount(35)" id="btn-count-35" class="py-2.5 px-2 border-2 border-slate-200 hover:border-blue-400 rounded-xl text-center transition font-semibold text-xs">
+                    📝 35 ข้อ
+                  </button>
+                  <button type="button" onclick="setQuestionCount('all')" id="btn-count-all" class="py-2.5 px-2 border-2 border-slate-200 hover:border-blue-400 rounded-xl text-center transition font-semibold text-xs">
+                    📚 ทั้งหมด
+                  </button>
+                </div>
+
+                <label class="block text-sm font-semibold text-slate-700 mb-2">3. โหมดการทดสอบ</label>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                  <button type="button" id="btn-mode-practice" onclick="selectMode('practice')" class="p-3 border-2 border-blue-600 bg-blue-50 rounded-xl text-left transition">
+                    <div class="flex items-center text-blue-600 font-semibold text-sm mb-1">
+                      <i class="fa-solid fa-lightbulb mr-2"></i> โหมดฝึกซ้อม
+                    </div>
+                    <div class="text-xs text-slate-600">ตอบปุ๊บ รู้เฉลยละเอียดทันที ไม่จับเวลาเร่งรีบ</div>
+                  </button>
+
+                  <button type="button" id="btn-mode-exam" onclick="selectMode('exam')" class="p-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl text-left transition">
+                    <div class="flex items-center text-slate-700 font-semibold text-sm mb-1">
+                      <i class="fa-solid fa-stopwatch mr-2"></i> โหมดจำลองสอบจริง
+                    </div>
+                    <div class="text-xs text-slate-500">มีตัวจับเวลาถอยหลัง ตัดเกรดเมื่อส่งคำตอบ</div>
+                  </button>
+                </div>
+
+                <!-- Random options checkboxes -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                  <label class="flex items-center cursor-pointer select-none">
+                    <input type="checkbox" id="chk-shuffle-q" checked class="w-4 h-4 text-blue-600 rounded">
+                    <span class="ml-2 font-medium text-slate-700">สุ่มลำดับคำถามทุกครั้ง (Randomize Questions)</span>
+                  </label>
+                  <label class="flex items-center cursor-pointer select-none">
+                    <input type="checkbox" id="chk-shuffle-opt" checked class="w-4 h-4 text-blue-600 rounded">
+                    <span class="ml-2 font-medium text-slate-700">สลับตำแหน่งตัวเลือก ก, ข, ค, ง (Shuffle Choices)</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Start Button -->
+              <button onclick="startQuiz()" class="w-full py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-title font-semibold text-base shadow-lg shadow-blue-500/25 transition transform active:scale-[0.98] flex items-center justify-center">
+                <i class="fa-solid fa-shuffle mr-2"></i> สุ่มข้อสอบและเริ่มทำทันที
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Record Card -->
+        <div id="history-box" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-title font-bold text-slate-800 flex items-center">
+              <i class="fa-solid fa-chart-line text-blue-600 mr-2"></i> ประวัติการฝึกทำข้อสอบของคุณ
+            </h4>
+            <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-red-500">ล้างประวัติ</button>
+          </div>
+          <div id="history-list" class="space-y-2 text-xs"></div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Active Exam Screen -->
+      <section id="screen-quiz" class="hidden space-y-4">
+        <!-- Progress Bar & Category Header -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div class="flex items-center space-x-3">
+            <span id="badge-category" class="text-xs px-2.5 py-1 rounded-md font-medium bg-blue-100 text-blue-800">
+              หมวดข้อสอบ
+            </span>
+            <span class="text-xs font-medium text-slate-500">
+              ข้อที่ <span id="current-q-index" class="font-bold text-slate-800 text-sm">1</span> จากทั้งหมด <span id="total-q-count" class="font-bold text-slate-800 text-sm">20</span> ข้อ
+            </span>
+          </div>
+
+          <div class="flex items-center space-x-3 w-full md:w-64">
+            <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+              <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 5%"></div>
+            </div>
+            <span id="progress-percentage" class="text-xs font-semibold text-slate-600 min-w-[35px] text-right">5%</span>
+          </div>
+        </div>
+
+        <!-- Question Box -->
+        <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200">
+          <div class="mb-6">
+            <div class="flex items-start">
+              <span class="inline-flex items-center justify-center bg-blue-600 text-white font-title font-bold text-sm min-w-[28px] h-7 rounded-lg mr-3 mt-0.5">
+                ข้อ <span id="q-number-badge">1</span>
+              </span>
+              <h3 id="question-text" class="text-base md:text-lg font-semibold text-slate-900 leading-relaxed">
+                กำลังโหลดคำถาม...
+              </h3>
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div id="options-container" class="space-y-3 mb-6"></div>
+
+          <!-- Explanation Box -->
+          <div id="explanation-box" class="hidden p-4 rounded-2xl bg-amber-50 border border-amber-200 text-slate-800 mb-6 transition-all duration-300">
+            <div class="flex items-center mb-1 font-semibold text-amber-900 text-sm">
+              <i class="fa-solid fa-circle-info mr-2 text-amber-600"></i> เฉลยและแนวคิดทางกฎหมาย/ทฤษฎี:
+            </div>
+            <p id="explanation-text" class="text-sm leading-relaxed text-slate-700"></p>
+          </div>
+
+          <!-- Navigation Controls -->
+          <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <button id="btn-prev" onclick="navigateQuestion(-1)" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center">
+              <i class="fa-solid fa-chevron-left mr-1.5"></i> ข้อก่อนหน้า
+            </button>
+
+            <div class="flex items-center space-x-2">
+              <button id="btn-next" onclick="navigateQuestion(1)" class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition flex items-center shadow-sm">
+                ข้อถัดไป <i class="fa-solid fa-chevron-right ml-1.5"></i>
+              </button>
+              <button id="btn-finish" onclick="confirmSubmitExam()" class="hidden px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition flex items-center shadow-md shadow-emerald-500/20">
+                <i class="fa-solid fa-check-double mr-1.5"></i> ส่งคำตอบตรวจคะแนน
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Question Grid Navigator -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-xs font-semibold text-slate-700">ผังข้อสอบ (คลิกข้ามข้อได้อิสระ)</div>
+            <div class="flex items-center space-x-3 text-[11px] text-slate-500">
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-blue-600 mr-1"></span> ตอบแล้ว</span>
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-slate-200 mr-1"></span> ยังไม่ตอบ</span>
+            </div>
+          </div>
+          <div id="question-nav-grid" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar"></div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Results & Analytics Screen -->
+      <section id="screen-result" class="hidden space-y-6">
+        <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200 text-center">
+          <div id="result-icon-container" class="w-20 h-20 mx-auto rounded-full flex items-center justify-center text-3xl mb-4 shadow-inner"></div>
+
+          <h2 id="result-headline" class="text-2xl font-title font-bold text-slate-800 mb-1">
+            สรุปผลคะแนนการทดสอบ
+          </h2>
+          <p id="result-subtext" class="text-sm text-slate-500 mb-6"></p>
+
+          <div class="max-w-xs mx-auto bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
+            <div class="text-xs uppercase font-semibold text-slate-400 tracking-wider mb-1">คะแนนที่คุณทำได้</div>
+            <div class="text-4xl font-title font-bold text-blue-600 mb-1">
+              <span id="score-earned">0</span> / <span id="score-total">0</span>
+            </div>
+            <div class="text-sm font-semibold" id="score-percent-badge">
+              คิดเป็น 0%
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 max-w-md mx-auto mb-8 text-center">
+            <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+              <div class="text-emerald-600 font-bold text-lg" id="stat-correct">0</div>
+              <div class="text-[11px] text-emerald-800">ตอบถูก</div>
+            </div>
+            <div class="p-3 bg-red-50 border border-red-100 rounded-xl">
+              <div class="text-red-600 font-bold text-lg" id="stat-wrong">0</div>
+              <div class="text-[11px] text-red-800">ตอบผิด</div>
+            </div>
+            <div class="p-3 bg-slate-100 border border-slate-200 rounded-xl">
+              <div class="text-slate-600 font-bold text-lg" id="stat-time">00:00</div>
+              <div class="text-[11px] text-slate-600">เวลาที่ใช้</div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-center gap-3">
+            <button onclick="reviewAllAnswers()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition shadow-md shadow-blue-500/20">
+              <i class="fa-solid fa-list-check mr-2"></i> ดูเฉลยละเอียดทุกข้อ
+            </button>
+            <button onclick="reviewWrongAnswersOnly()" id="btn-review-wrong" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition shadow-md shadow-amber-500/20">
+              <i class="fa-solid fa-triangle-exclamation mr-2"></i> ดูเฉพาะข้อที่ตอบผิด
+            </button>
+            <button onclick="startQuiz()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition shadow-md shadow-emerald-500/20">
+              <i class="fa-solid fa-shuffle mr-2"></i> สุ่มชุดใหม่ทำอีกครั้ง
+            </button>
+            <button onclick="goToHome()" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition">
+              <i class="fa-solid fa-house mr-2"></i> กลับหน้าหลัก
+            </button>
+          </div>
+        </div>
+
+        <!-- Detailed Review Section -->
+        <div id="review-section" class="hidden space-y-4">
+          <h3 class="text-lg font-title font-bold text-slate-800 flex items-center justify-between">
+            <span><i class="fa-solid fa-book-open-reader text-blue-600 mr-2"></i> ทบทวนเฉลยอย่างละเอียด</span>
+            <span id="review-filter-label" class="text-xs px-2.5 py-1 bg-slate-100 rounded-md text-slate-600 font-normal">แสดงทั้งหมด</span>
+          </h3>
+          <div id="review-items-container" class="space-y-4"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 2: PDF RESOURCES -->
+    <div id="tab-content-pdf" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <h3 class="text-lg font-title font-bold text-slate-800 mb-2 flex items-center">
+          <i class="fa-solid fa-file-pdf text-red-500 mr-2"></i> แหล่งรวบรวมไฟล์ข้อสอบและสรุปเนื้อหา PDF (ดาวน์โหลดฟรี)
+        </h3>
+        <p class="text-sm text-slate-500 mb-6">
+          คัดสรรแหล่งแจกไฟล์ PDF แนวข้อสอบจริง กฎหมายฉบับเต็ม และสรุปเนื้อหาครูผู้ช่วย สพฐ. จากสถาบันและเว็บไซต์การศึกษาชั้นนำ
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Resource 1 -->
+          <div class="p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition bg-slate-50/50">
+            <div class="flex items-start justify-between mb-2">
+              <div class="font-semibold text-slate-800 text-sm">
+                <i class="fa-solid fa-bookmark text-blue-600 mr-1.5"></i> คลังข้อสอบครูผู้ช่วย ครูเชียงราย
+              </div>
+              <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold uppercase">PDF ฟรี</span>
+            </div>
+            <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+              รวมแนวข้อสอบ ภาค ก และ ภาค ข จัดหน้า A4 พิมพ์อ่านง่าย มีเฉลยและเหตุผลประกอบท้ายชุด
+            </p>
+            <a href="https://www.kruchiangrai.net/" target="_blank" rel="noopener" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800">
+              เข้าสู่หน้าดาวน์โหลด <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+            </a>
+          </div>
+
+          <!-- Resource 2 -->
+          <div class="p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition bg-slate-50/50">
+            <div class="flex items-start justify-between mb-2">
+              <div class="font-semibold text-slate-800 text-sm">
+                <i class="fa-solid fa-bookmark text-blue-600 mr-1.5"></i> เว็บไซต์ครูวันดี (Kruwandee)
+              </div>
+              <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold uppercase">อัปเดตต่อเนื่อง</span>
+            </div>
+            <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+              ศูนย์รวมประกาศสอบ เกณฑ์ ก.ค.ศ. ล่าสุด สรุป พ.ร.บ. การศึกษา และข้อสอบวิชาเอกทุกสาขา
+            </p>
+            <a href="https://www.kruwandee.com/" target="_blank" rel="noopener" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800">
+              เข้าสู่หน้าดาวน์โหลด <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+            </a>
+          </div>
+
+          <!-- Resource 3 -->
+          <div class="p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition bg-slate-50/50">
+            <div class="flex items-start justify-between mb-2">
+              <div class="font-semibold text-slate-800 text-sm">
+                <i class="fa-solid fa-bookmark text-blue-600 mr-1.5"></i> TruePlookpanya Examination
+              </div>
+              <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold uppercase">แบบทดสอบออนไลน์</span>
+            </div>
+            <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+              คลังข้อสอบวิชาชีพครู ความรู้ทั่วไป และภาษาอังกฤษ มีการจับเวลาและคิดคะแนนแบบมาตรฐาน
+            </p>
+            <a href="https://www.trueplookpanya.com/examination" target="_blank" rel="noopener" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800">
+              เข้าสู่หน้าดาวน์โหลด <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+            </a>
+          </div>
+
+          <!-- Resource 4 -->
+          <div class="p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-sm transition bg-slate-50/50">
+            <div class="flex items-start justify-between mb-2">
+              <div class="font-semibold text-slate-800 text-sm">
+                <i class="fa-solid fa-bookmark text-blue-600 mr-1.5"></i> เว็บไซต์การศึกษาไทย (Kanseuksa)
+              </div>
+              <span class="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold uppercase">ครบทุกวิชาเอก</span>
+            </div>
+            <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+              แจกไฟล์ PDF แนวข้อสอบเฉพาะทาง เช่น เอกปฐมวัย, เอกภาษาไทย, เอกคณิตศาสตร์, เอกคอมพิวเตอร์
+            </p>
+            <a href="https://www.google.com/search?q=แนวข้อสอบครูผู้ช่วย+การศึกษาไทย+pdf" target="_blank" rel="noopener" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800">
+              ค้นหาไฟล์เอกสาร <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Download & Study Advice -->
+        <div class="mt-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+          <strong><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> คำแนะนำในการฝึกด้วยไฟล์ PDF:</strong>
+          เมื่อดาวน์โหลดไฟล์ PDF มาแล้ว ควรฝึกจับเวลาทำข้อสอบรอบแรกโดยไม่เปิดดูเฉลย จากนั้นจึงมาตรวจคำตอบและจดโน้ตสรุป "จุดที่มักโดนหลอก" และ "มาตรากฎหมายสำคัญ" เพื่ออุดรอยรั่วก่อนลงสนามจริง
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
+    แบบทดสอบเตรียมสอบบรรจุข้าราชการครูและบุคลากรทางการศึกษา (ครูผู้ช่วย สพฐ.) • ระบบสุ่มอัตโนมัติ (Random Generator)
+  </footer>
+
+  <!-- Complete 50-Question Pool & Logic -->
+  <script>
+    const MASTER_EXAM_POOL = [
+      // ==========================================
+      // หมวดที่ 1: กฎหมายการศึกษา & พ.ร.บ. สำคัญ (law)
+      // ==========================================
+      {
+        id: 1,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ตามพระราชบัญญัติการศึกษาแห่งชาติ พ.ศ. 2542 และที่แก้ไขเพิ่มเติม \"การจัดการศึกษาต้องเป็นไปเพื่อพัฒนาคนไทยให้เป็นมนุษย์ที่สมบูรณ์ทั้งร่างกาย จิตใจ สติปัญญา ความรู้ และคุณธรรม\" ระบุไว้ในมาตราใด?",
+        options: ["มาตรา 6", "มาตรา 7", "มาตรา 8", "มาตรา 9"],
+        answer: 0,
+        explanation: "มาตรา 6 แห่ง พ.ร.บ.การศึกษาแห่งชาติ พ.ศ. 2542 กำหนดความมุ่งหมายของการจัดการศึกษาเพื่อพัฒนาคนไทยให้เป็นมนุษย์ที่สมบูรณ์"
+      },
+      {
+        id: 2,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "การจัดการศึกษาตาม พ.ร.บ.การศึกษาแห่งชาติ พ.ศ. 2542 มีกี่รูปแบบ?",
+        options: [
+          "2 รูปแบบ คือ ในระบบ และ นอกระบบ",
+          "3 รูปแบบ คือ ในระบบ นอกระบบ และ ตามอัธยาศัย",
+          "3 รูปแบบ คือ ขั้นพื้นฐาน อุดมศึกษา และ อาชีวศึกษา",
+          "4 รูปแบบ คือ ในระบบ นอกระบบ อัธยาศัย และ การศึกษาพิเศษ"
+        ],
+        answer: 1,
+        explanation: "มาตรา 15 แบ่งการจัดการศึกษาเป็น 3 รูปแบบ ได้แก่ 1. การศึกษาในระบบ (Formal Education) 2. การศึกษานอกระบบ (Non-formal Education) 3. การศึกษาตามอัธยาศัย (Informal Education)"
+      },
+      {
+        id: 3,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ตาม พ.ร.บ. การศึกษาภาคบังคับ พ.ศ. 2545 เด็กต้องเข้าเรียนการศึกษาภาคบังคับเมื่อใด?",
+        options: [
+          "อายุย่างเข้าปีที่ 6 จนถึงอายุย่างเข้าปีที่ 15",
+          "อายุย่างเข้าปีที่ 7 จนถึงอายุย่างเข้าปีที่ 16",
+          "อายุครบ 7 ปีบริบูรณ์ จนถึงอายุ 15 ปีบริบูรณ์",
+          "อายุย่างเข้าปีที่ 6 จนถึงอายุย่างเข้าปีที่ 18"
+        ],
+        answer: 1,
+        explanation: "ตามมาตรา 6 พ.ร.บ.การศึกษาภาคบังคับ พ.ศ. 2545 เด็กมีอายุย่างเข้าปีที่ 7 จนถึงอายุย่างเข้าปีที่ 16 ต้องเข้าเรียนในสถานศึกษาขั้นพื้นฐาน"
+      },
+      {
+        id: 4,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ผู้ปกครองที่ไม่ส่งเด็กเข้าเรียนในสถานศึกษาภาคบังคับตามกฎหมาย ต้องระวางโทษอย่างไร?",
+        options: [
+          "ปรับไม่เกิน 1,000 บาท",
+          "ปรับไม่เกิน 2,000 บาท",
+          "ปรับไม่เกิน 5,000 บาท",
+          "ปรับไม่เกิน 10,000 บาท หรือจำคุกไม่เกิน 1 เดือน"
+        ],
+        answer: 0,
+        explanation: "มาตรา 13 แห่ง พ.ร.บ.การศึกษาภาคบังคับ ระบุว่า ผู้ปกครองไม่ส่งเด็กเข้าเรียน ต้องระวางโทษปรับไม่เกินหนึ่งพันบาท (ส่วนผู้ที่ไม่ใช่ผู้ปกครองแต่ขัดขวางหรือไม่อำนวยความสะดวก ปรับไม่เกินหนึ่งหมื่นบาท)"
+      },
+      {
+        id: 5,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "องค์กรวิชาชีพครูตาม พ.ร.บ. สภาครูและบุคลากรทางการศึกษา พ.ศ. 2546 คือองค์กรใด และมีฐานะเป็นอะไร?",
+        options: [
+          "คุรุสภา มีฐานะเป็นนิติบุคคลในกำกับของกระทรวงศึกษาธิการ",
+          "คุรุสภา มีฐานะเป็นส่วนราชการระดับกรม",
+          "สำนักงาน ก.ค.ศ. มีฐานะเป็นองค์กรอิสระตามรัฐธรรมนูญ",
+          "สพฐ. มีฐานะเป็นนิติบุคคลระดับทบวง"
+        ],
+        answer: 0,
+        explanation: "คุรุสภา เป็นสภาครูและบุคลากรทางการศึกษา มีฐานะเป็นนิติบุคคลในกำกับของกระทรวงศึกษาธิการ มีหน้าที่ออกและเพิกถอนใบอนุญาตประกอบวิชาชีพ"
+      },
+      {
+        id: 6,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ใบอนุญาตประกอบวิชาชีพทางการศึกษามีกี่ประเภท?",
+        options: [
+          "2 ประเภท (ครู, ผู้บริหารสถานศึกษา)",
+          "3 ประเภท (ครู, ผู้บริหารสถานศึกษา, ผู้บริหารการศึกษา)",
+          "4 ประเภท (ครู, ผู้บริหารสถานศึกษา, ผู้บริหารการศึกษา, ศึกษานิเทศก์)",
+          "5 ประเภท (ครู, อาจารย์, ผู้บริหารสถานศึกษา, ผู้บริหารการศึกษา, ศึกษานิเทศก์)"
+        ],
+        answer: 2,
+        explanation: "ใบอนุญาตประกอบวิชาชีพทางการศึกษาควบคุมมี 4 ประเภท ได้แก่ 1. ครู 2. ผู้บริหารสถานศึกษา 3. ผู้บริหารการศึกษา 4. ศึกษานิเทศก์"
+      },
+      {
+        id: 7,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ตำแหน่งใดต่อไปนี้ตามกฎหมายได้รับการยกเว้น \"ไม่ต้องมี\" ใบอนุญาตประกอบวิชาชีพครู?",
+        options: [
+          "ครูผู้ช่วยในโรงเรียนสังกัด สพฐ.",
+          "ครูโรงเรียนเอกชน",
+          "คณาจารย์ในระดับอุดมศึกษาระดับปริญญา",
+          "ศึกษานิเทศก์ประจำเขตพื้นที่การศึกษา"
+        ],
+        answer: 2,
+        explanation: "พ.ร.บ.สภาครูฯ ยกเว้นคณาจารย์ในระดับอุดมศึกษาระดับปริญญา และผู้จัดการศึกษาตามอัธยาศัย ไม่ต้องมีใบอนุญาตประกอบวิชาชีพ"
+      },
+      {
+        id: 8,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "โทษทางวินัยของข้าราชการครูและบุคลากรทางการศึกษา มีทั้งหมดกี่สถาน?",
+        options: [
+          "4 สถาน คือ ภาคทัณฑ์ ตัดเงินเดือน ปลดออก ไล่ออก",
+          "5 สถาน คือ ภาคทัณฑ์ ภาคเสณฑ์ ตัดเงินเดือน ปลดออก ไล่ออก",
+          "5 สถาน คือ ภาคทัณฑ์ ตัดเงินเดือน ลดเงินเดือน ปลดออก ไล่ออก",
+          "6 สถาน คือ ว่ากล่าวตักเตือน ภาคทัณฑ์ ตัดเงินเดือน ลดเงินเดือน ปลดออก ไล่ออก"
+        ],
+        answer: 2,
+        explanation: "ตามมาตรา 96 พ.ร.บ.ระเบียบข้าราชการครูและบุคลากรทางการศึกษา พ.ศ. 2547 มี 5 สถาน: 1. ภาคทัณฑ์ 2. ตัดเงินเดือน 3. ลดเงินเดือน 4. ปลดออก 5. ไล่ออก"
+      },
+      {
+        id: 9,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "โทษทางวินัยข้อใดที่ถือว่าเป็น \"โทษทางวินัยอย่างร้ายแรง\"?",
+        options: [
+          "ตัดเงินเดือน และ ลดเงินเดือน",
+          "ลดเงินเดือน และ ปลดออก",
+          "ปลดออก และ ไล่ออก",
+          "ภาคทัณฑ์ ตัดเงินเดือน และ ลดเงินเดือน"
+        ],
+        answer: 2,
+        explanation: "โทษทางวินัยไม่ร้ายแรงมี 3 สถาน (ภาคทัณฑ์, ตัดเงินเดือน, ลดเงินเดือน) ส่วนโทษวินัยอย่างร้ายแรงมี 2 สถาน (ปลดออก, ไล่ออก)"
+      },
+      {
+        id: 10,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ตาม พ.ร.บ. คุ้มครองเด็ก พ.ศ. 2546 คำว่า \"เด็ก\" หมายความถึงบุคคลซึ่งมีอายุต่ำกว่ากี่ปีบริบูรณ์?",
+        options: [
+          "ต่ำกว่า 15 ปีบริบูรณ์",
+          "ต่ำกว่า 18 ปีบริบูรณ์ แต่ไม่รวมถึงผู้ที่บรรลุนิติภาวะด้วยการสมรส",
+          "ต่ำกว่า 18 ปีบริบูรณ์ รวมทั้งผู้ที่บรรลุนิติภาวะด้วยการสมรส",
+          "ต่ำกว่า 20 ปีบริบูรณ์"
+        ],
+        answer: 1,
+        explanation: "มาตรา 4 พ.ร.บ.คุ้มครองเด็ก พ.ศ. 2546 'เด็ก' หมายความว่า บุคคลซึ่งมีอายุต่ำกว่า 18 ปีบริบูรณ์ แต่ไม่รวมถึงผู้ที่บรรลุนิติภาวะด้วยการสมรส"
+      },
+      {
+        id: 11,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "แผนการจัดการศึกษาเฉพาะบุคคลสำหรับคนพิการ เรียกว่าอะไร?",
+        options: [
+          "IP (Individual Plan)",
+          "IEP (Individualized Education Program)",
+          "IFSP (Individualized Family Service Plan)",
+          "ITP (Individualized Transition Plan)"
+        ],
+        answer: 1,
+        explanation: "IEP (Individualized Education Program) คือ แผนการจัดการศึกษาเฉพาะบุคคล ซึ่งกำหนดแนวทางการจัดการศึกษาที่สอดคล้องกับความต้องการจำเป็นพิเศษของคนพิการแต่ละบุคคล"
+      },
+      {
+        id: 12,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "ผู้ใดประกอบวิชาชีพควบคุมโดยไม่ได้รับใบอนุญาตประกอบวิชาชีพ มีโทษทางอาญาอย่างไร?",
+        options: [
+          "จำคุกไม่เกิน 1 ปี หรือปรับไม่เกิน 20,000 บาท หรือทั้งจำทั้งปรับ",
+          "จำคุกไม่เกิน 2 ปี หรือปรับไม่เกิน 40,000 บาท หรือทั้งจำทั้งปรับ",
+          "จำคุกไม่เกิน 3 ปี หรือปรับไม่เกิน 60,000 บาท หรือทั้งจำทั้งปรับ",
+          "ปรับไม่เกิน 50,000 บาท สถานเดียว"
+        ],
+        answer: 0,
+        explanation: "พ.ร.บ.สภาครูฯ กำหนดว่า ผู้ใดประกอบวิชาชีพควบคุมโดยไม่ได้รับใบอนุญาต ต้องระวางโทษจำคุกไม่เกิน 1 ปี หรือปรับไม่เกิน 20,000 บาท หรือทั้งจำทั้งปรับ"
+      },
+
+      // ==========================================
+      // หมวดที่ 2: การเป็นข้าราชการที่ดี & วินัย (gov)
+      // ==========================================
+      {
+        id: 13,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "การจัดระเบียบบริหารราชการแผ่นดินของไทย แบ่งออกเป็น 3 ส่วน คือข้อใด?",
+        options: [
+          "ราชการส่วนกลาง, ราชการส่วนภูมิภาค, ราชการส่วนท้องถิ่น",
+          "ราชการส่วนกลาง, รัฐวิสาหกิจ, องค์การมหาชน",
+          "ฝ่ายบริหาร, ฝ่ายนิติบัญญัติ, ฝ่ายตุลาการ",
+          "ราชการส่วนกลาง, ราชการส่วนนครบาล, ราชการส่วนชนบท"
+        ],
+        answer: 0,
+        explanation: "พ.ร.บ. ระเบียบบริหารราชการแผ่นดิน พ.ศ. 2534 มาตรา 4 แบ่งเป็น: 1. ส่วนกลาง (กระทรวง ทบวง กรม) 2. ส่วนภูมิภาค (จังหวัด อำเภอ) 3. ส่วนท้องถิ่น (อบจ. เทศบาล อบต. กทม. เมืองพัทยา)"
+      },
+      {
+        id: 14,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "เป้าหมายหลักประการแรกของการบริหารกิจการบ้านเมืองที่ดี ตาม พ.ร.ฎ. ว่าด้วยหลักเกณฑ์และวิธีการบริหารกิจการบ้านเมืองที่ดี พ.ศ. 2546 คือข้อใด?",
+        options: [
+          "เกิดประโยชน์สุขของประชาชน",
+          "เกิดผลสัมฤทธิ์ต่อภารกิจของรัฐ",
+          "มีประสิทธิภาพและความคุ้มค่าในเชิงภารกิจ",
+          "ไม่มีขั้นตอนการปฏิบัติงานเกินความจำเป็น"
+        ],
+        answer: 0,
+        explanation: "มาตรา 6 กำหนดเป้าหมายแรกและเป็นหัวใจสำคัญสูงสุด คือ 'เกิดประโยชน์สุขของประชาชน'"
+      },
+      {
+        id: 15,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "ข้าราชการครูละทิ้งหน้าที่ราชการติดต่อในคราวเดียวกันเกินกี่วัน โดยไม่มีเหตุผลอันสมควร ถือเป็นความผิดวินัยอย่างร้ายแรง?",
+        options: [
+          "เกินกว่า 7 วัน",
+          "เกินกว่า 10 วัน",
+          "เกินกว่า 15 วัน",
+          "เกินกว่า 30 วัน"
+        ],
+        answer: 2,
+        explanation: "มาตรา 87 แห่ง พ.ร.บ.ระเบียบข้าราชการครูฯ กำหนดว่า การละทิ้งหน้าที่ราชการติดต่อในคราวเดียวกันเกินกว่า 15 วัน โดยไม่มีเหตุผลอันสมควร เป็นความผิดวินัยอย่างร้ายแรง"
+      },
+      {
+        id: 16,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "ข้อใดกล่าวถูกต้องเกี่ยวกับสิทธิรับบำเหน็จบำนาญของผู้ถูกลงโทษ \"ปลดออก\" และ \"ไล่ออก\"?",
+        options: [
+          "ปลดออกมีสิทธิได้รับบำเหน็จบำนาญเสมือนลาออก ส่วนไล่ออกไม่มีสิทธิได้รับ",
+          "ไล่ออกมีสิทธิได้รับบำเหน็จบำนาญกึ่งหนึ่ง ส่วนปลดออกได้เต็มจำนวน",
+          "ทั้งสองกรณีถูกตัดสิทธิรับบำเหน็จบำนาญทั้งหมดเหมือนกัน",
+          "ปลดออกได้รับเฉพาะบำเหน็จ ส่วนไล่ออกไม่ได้รับอะไรเลย"
+        ],
+        answer: 0,
+        explanation: "ผู้ถูกลงโทษ 'ปลดออก' มีสิทธิได้รับบำเหน็จบำนาญเสมือนว่าเป็นผู้ลาออกจากราชการ แต่ 'ไล่ออก' ไม่มีสิทธิได้รับบำเหน็จบำนาญใดๆ ทั้งสิ้น"
+      },
+      {
+        id: 17,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "หลักธรรมาภิบาล (Good Governance) หรือหลักการบริหารจัดการที่ดี ประกอบด้วยกี่หลักการสำคัญตามระเบียบสำนักนายกรัฐมนตรี?",
+        options: [
+          "4 หลัก",
+          "6 หลัก (นิติธรรม, คุณธรรม, โปร่งใส, มีส่วนร่วม, รับผิดชอบ, คุ้มค่า)",
+          "8 หลัก",
+          "10 หลัก"
+        ],
+        answer: 1,
+        explanation: "หลักธรรมาภิบาล 6 หลักสากลของไทย ได้แก่ 1. หลักนิติธรรม 2. หลักคุณธรรม 3. หลักความโปร่งใส 4. หลักการมีส่วนร่วม 5. หลักความรับผิดชอบ 6. หลักความคุ้มค่า"
+      },
+      {
+        id: 18,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "ตามมาตรฐานจริยธรรมของข้าราชการ ข้อใดคือการยึดถือประโยชน์ส่วนรวมเหนือประโยชน์ส่วนตน?",
+        options: [
+          "การไม่นำทรัพย์สินของราชการไปใช้ในกิจการส่วนตัว",
+          "การทำงานล่วงเวลาเพื่อขอรับค่าตอบแทนเพิ่ม",
+          "การให้ความช่วยเหลือญาติพี่น้องก่อนประชาชนทั่วไป",
+          "การปฏิเสธการให้บริการประชาชนในเวลาราชการ"
+        ],
+        answer: 0,
+        explanation: "การยึดมั่นประโยชน์ส่วนรวมเหนือประโยชน์ส่วนตน หมายถึง การไม่กระทำการอันเป็นการขัดกันระหว่างประโยชน์ส่วนบุคคลกับประโยชน์ส่วนรวม เช่น ไม่นำทรัพย์สิน รถยนต์ หรืออุปกรณ์ราชการไปใช้เพื่อประโยชน์ส่วนตน"
+      },
+      {
+        id: 19,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "คำสั่งทางปกครองที่ไม่ชอบด้วยกฎหมาย เจ้าหน้าที่หรือผู้มีสิทธิสามารถยื่นอุทธรณ์ได้ภายในกี่วัน นับแต่วันที่ได้รับแจ้งคำสั่ง?",
+        options: [
+          "7 วัน",
+          "15 วัน",
+          "30 วัน",
+          "60 วัน"
+        ],
+        answer: 1,
+        explanation: "ตาม พ.ร.บ.วิธีปฏิบัติราชการทางปกครอง พ.ศ. 2539 มาตรา 44 การอุทธรณ์คำสั่งทางปกครองต้องทำเป็นหนังสือยื่นต่อเจ้าหน้าที่ผู้ทำคำสั่งภายใน 15 วัน นับแต่วันที่ได้รับแจ้งคำสั่ง"
+      },
+      {
+        id: 20,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "ข้าราชการครูผู้ใดถูกกล่าวหาว่ากระทำผิดวินัยอย่างไม่ร้ายแรง ผู้บังคับบัญชาต้องดำเนินการอย่างไรก่อนลงโทษ?",
+        options: [
+          "แจ้งข้อกล่าวหาและสรุปพยานหลักฐานให้ทราบ พร้อมให้โอกาสชี้แจงแก้ข้อกล่าวหา",
+          "สั่งตัดเงินเดือนทันทีเพื่อมิให้เป็นเยี่ยงอย่าง",
+          "ตั้งคณะกรรมการสอบสวนวินัยอย่างร้ายแรงทันที",
+          "สั่งพักราชการทันทีโดยไม่ต้องไต่สวน"
+        ],
+        answer: 0,
+        explanation: "ตามหลักกฎหมายวิธีปฏิบัติราชการและระเบียบวินัย ก่อนลงโทษต้องแจ้งข้อกล่าวหาและสรุปพยานหลักฐานให้ผู้ถูกกล่าวหาทราบ และเปิดโอกาสให้ได้ชี้แจงแสดงพยานหลักฐานแก้ข้อกล่าวหา"
+      },
+
+      // ==========================================
+      // หมวดที่ 3: วิชาชีพครู & การจัดการเรียนรู้ (pedagogy)
+      // ==========================================
+      {
+        id: 21,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "ทฤษฎีพัฒนาการทางสติปัญญาของ ฌอง เพียเจต์ (Jean Piaget) เด็กวัยประถมศึกษา (7-11 ปี) อยู่ในขั้นใด?",
+        options: [
+          "ขั้นประสาทรับรู้และการเคลื่อนไหว (Sensorimotor Stage)",
+          "ขั้นก่อนปฏิบัติการคิด (Preoperational Stage)",
+          "ขั้นการคิดแบบรูปธรรม (Concrete Operational Stage)",
+          "ขั้นการคิดแบบนามธรรม (Formal Operational Stage)"
+        ],
+        answer: 2,
+        explanation: "วัย 7-11 ปี อยู่ในขั้น Concrete Operational Stage สามารถคิดแก้ปัญหาเชิงเหตุผลกับวัตถุหรือเหตุการณ์ที่เป็นรูปธรรม เข้าใจเรื่องการคงสภาพของสสารและปริมาตร (Conservation)"
+      },
+      {
+        id: 22,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "ทฤษฎีลำดับขั้นความต้องการของ อับราฮัม มาสโลว์ (Maslow's Hierarchy of Needs) ขั้นสูงสุดคือข้อใด?",
+        options: [
+          "ความต้องการความปลอดภัย (Safety Needs)",
+          "ความต้องการความรักและความเป็นเจ้าของ (Belongingness and Love)",
+          "ความต้องการได้รับการยกย่องนับถือ (Esteem Needs)",
+          "ความต้องการบรรลุศักยภาพสูงสุดแห่งตน (Self-Actualization)"
+        ],
+        answer: 3,
+        explanation: "ขั้นที่ 5 ซึ่งเป็นขั้นสูงสุดคือ Self-Actualization ความต้องการเข้าใจตนเองอย่างแท้จริงและพัฒนาศักยภาพตนเองจนถึงขีดสูงสุด"
+      },
+      {
+        id: 23,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "การจัดอันดับพุทธิพิสัยตาม Bloom's Taxonomy ฉบับปรับปรุงใหม่ ข้อใดเรียงลำดับจากขั้นต่ำสุดไปหาสูงสุดได้ถูกต้อง?",
+        options: [
+          "จำ -> เข้าใจ -> ประยุกต์ใช้ -> วิเคราะห์ -> ประเมินค่า -> สร้างสรรค์",
+          "จำ -> เข้าใจ -> วิเคราะห์ -> สังเคราะห์ -> ประเมินค่า -> นวัตกรรม",
+          "เข้าใจ -> จำ -> ประยุกต์ใช้ -> วิเคราะห์ -> ประเมินค่า -> สร้างสรรค์",
+          "จำ -> ประยุกต์ใช้ -> เข้าใจ -> สังเคราะห์ -> ประเมินค่า"
+        ],
+        answer: 0,
+        explanation: "Revised Bloom's Taxonomy (2001): 1. Remember 2. Understand 3. Apply 4. Analyze 5. Evaluate 6. Create (ขั้นสูงสุดคือสร้างสรรค์)"
+      },
+      {
+        id: 24,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "การประเมินเพื่อพัฒนาการเรียนรู้ (Assessment for Learning) มีความหมายตรงกับการประเมินแบบใดมากที่สุด?",
+        options: [
+          "Diagnostic Assessment (การประเมินเพื่อวินิจฉัย)",
+          "Formative Assessment (การประเมินระหว่างเรียนเพื่อปรับปรุง)",
+          "Summative Assessment (การประเมินสรุปรวบยอดเพื่อตัดเกรด)",
+          "Placement Assessment (การประเมินเพื่อจัดตำแหน่ง)"
+        ],
+        answer: 1,
+        explanation: "Assessment for Learning คือ Formative Assessment ทำขึ้นในระหว่างการจัดกิจกรรมการเรียนรู้ เพื่อนำข้อมูลย้อนกลับ (Feedback) มาช่วยเหลือและส่งเสริมผู้เรียนทันที"
+      },
+      {
+        id: 25,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "ข้อสอบปรนัยที่มีคุณภาพดีตามหลักสถิติการวัดผล ควรมีค่าความยากง่าย (p) และค่าอำนาจจำแนก (r) อยู่ในช่วงใด?",
+        options: [
+          "p ระหว่าง 0.20-0.80 และ r ตั้งแต่ 0.20 ขึ้นไป",
+          "p ระหว่าง 0.00-0.20 และ r ติดลบ",
+          "p ระหว่าง 0.80-1.00 และ r ระหว่าง 0.00-0.10",
+          "p เท่ากับ 0.50 เท่านั้น และ r เท่ากับ 1.00"
+        ],
+        answer: 0,
+        explanation: "ข้อสอบที่ดีควรมีความยากง่ายปานกลาง (p อยู่ระหว่าง 0.20 - 0.80) และมีค่าอำนาจจำแนกที่ดีเพื่อแยกคนเก่งกับคนอ่อนได้ (r ตั้งแต่ 0.20 ถึง 1.00)"
+      },
+      {
+        id: 26,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "วงจรการวิจัยปฏิบัติการในชั้นเรียน (Classroom Action Research) ตามแนวคิดของ Kemmis & McTaggart มี 4 ขั้นตอนตามข้อใด?",
+        options: [
+          "PAOR (Plan, Act, Observe, Reflect)",
+          "PDCA (Plan, Do, Check, Act)",
+          "ADDIE (Analyze, Design, Develop, Implement, Evaluate)",
+          "SWOT (Strengths, Weaknesses, Opportunities, Threats)"
+        ],
+        answer: 0,
+        explanation: "วงจร CAR มี 4 ขั้นตอนวนรอบ: วางแผน (Plan) -> ปฏิบัติ (Act) -> สังเกต (Observe) -> สะท้อนผล (Reflect)"
+      },
+      {
+        id: 27,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "การจัดการเรียนรู้เชิงรุก (Active Learning) ให้ความสำคัญสูงสุดกับสิ่งใด?",
+        options: [
+          "การที่ครูบรรยายเนื้อหาอย่างละเอียดและรวดเร็ว",
+          "การที่ผู้เรียนได้ลงมือปฏิบัติ คิดวิเคราะห์ และสร้างองค์ความรู้ด้วยตนเอง",
+          "การแจกแบบฝึกหัดให้นักเรียนทำเงียบๆ ในห้องเรียน",
+          "การใช้สื่อมัลติมีเดียราคาแพงเปิดให้นักเรียนดูตลอดคาบ"
+        ],
+        answer: 1,
+        explanation: "Active Learning เป็นกระบวนการจัดการเรียนรู้ที่ผู้เรียนได้ลงมือกระทำ มีส่วนร่วมอย่างกระตือรือร้นในการคิด วิเคราะห์ สื่อสาร และสร้างความรู้ด้วยตนเอง"
+      },
+      {
+        id: 28,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "ชุมชนแห่งการเรียนรู้ทางวิชาชีพ (Professional Learning Community: PLC) มีเป้าหมายสูงสุดเพื่อสิ่งใด?",
+        options: [
+          "เพื่อการรวมกลุ่มร้องเรียนขอขึ้นเงินเดือน",
+          "เพื่อพัฒนาผลสัมฤทธิ์และคุณภาพของผู้เรียนผ่านความร่วมมือของครู",
+          "เพื่อสร้างผลงานเอกสารขอรับรางวัลของโรงเรียน",
+          "เพื่อลดชั่วโมงการสอนของครูในโรงเรียน"
+        ],
+        answer: 1,
+        explanation: "เป้าหมายสูงสุดของ PLC คือ 'คุณภาพและผลสัมฤทธิ์ของผู้เรียน' โดยอาศัยการรวมตัวร่วมมือกันของครูในการแลกเปลี่ยนปัญหาและวิธีแก้ปัญหาการสอน"
+      },
+      {
+        id: 29,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พ.ศ. 2551 กำหนดสมรรถนะสำคัญของผู้เรียนไว้กี่ประการ?",
+        options: [
+          "3 ประการ",
+          "5 ประการ (การสื่อสาร, การคิด, การแก้ปัญหา, ทักษะชีวิต, การใช้เทคโนโลยี)",
+          "8 ประการ",
+          "10 ประการ"
+        ],
+        answer: 1,
+        explanation: "สมรรถนะสำคัญ 5 ประการ: 1. ความสามารถในการสื่อสาร 2. ความสามารถในการคิด 3. ความสามารถในการแก้ปัญหา 4. ความสามารถในการใช้ทักษะชีวิต 5. ความสามารถในการใช้เทคโนโลยี"
+      },
+      {
+        id: 30,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "จิตวิทยาการแนะแนว (Guidance) แบ่งขอบข่ายการบริการออกเป็น 3 ด้านหลัก คือด้านใดบ้าง?",
+        options: [
+          "ด้านการเรียน, ด้านอาชีพ, ด้านส่วนตัวและสังคม",
+          "ด้านการเงิน, ด้านสุขภาพ, ด้านความรัก",
+          "ด้านวินัย, ด้านการสอบ, ด้านการกีฬา",
+          "ด้านครอบครัว, ด้านการลงโทษ, ด้านศีลธรรม"
+        ],
+        answer: 0,
+        explanation: "งานแนะแนวในสถานศึกษาครอบคลุม 3 ด้านหลัก ได้แก่ 1. ด้านการศึกษา/การเรียน (Educational) 2. ด้านอาชีพ (Vocational) 3. ด้านส่วนตัวและสังคม (Personal and Social)"
+      },
+
+      // ==========================================
+      // หมวดที่ 4: ความสามารถทั่วไป & การคิดวิเคราะห์ (general)
+      // ==========================================
+      {
+        id: 31,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "อนุกรม: 2, 5, 10, 17, 26, ... ตัวเลขถัดไปคือข้อใด?",
+        options: ["35", "37", "39", "41"],
+        answer: 1,
+        explanation: "ผลต่างของตัวเลขเพิ่มขึ้นแบบเลขคี่: +3, +5, +7, +9, +(11) -> 26 + 11 = 37 (หรือรูปทั่วไปคือ n² + 1)"
+      },
+      {
+        id: 32,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "อนุกรม: 3, 6, 18, 72, 360, ... ตัวเลขถัดไปคือข้อใด?",
+        options: ["1,440", "1,800", "2,160", "2,520"],
+        answer: 2,
+        explanation: "รูปแบบการคูณเพิ่มทีละ 1: ×2, ×3, ×4, ×5, ×6 -> 360 × 6 = 2,160"
+      },
+      {
+        id: 33,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "อุปมาอุปไมย: ครู : สอน :: แพทย์ : ?",
+        options: ["โรงพยาบาล", "รักษา", "ยา", "พยาบาล"],
+        answer: 1,
+        explanation: "ความสัมพันธ์เชิงบทบาทหน้าที่ ครูทำหน้าที่สอน แพทย์ทำหน้าที่รักษา"
+      },
+      {
+        id: 34,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "ข้อใดเขียนสะกดคำได้ \"ถูกต้องทุกคำ\" ตามพจนานุกรมฉบับราชบัณฑิตยสถาน?",
+        options: [
+          "ผูกพัน, อนุญาต, กะเพรา",
+          "ผูกพันธ์, อนุญาต, กระเพรา",
+          "ผูกพัน, อนุญาติต, กะเพรา",
+          "ผูกพันธ์, อนุณาต, กะเพรา"
+        ],
+        answer: 0,
+        explanation: "'ผูกพัน' ไม่มี ธ์, 'อนุญาต' ไม่มีสระอิ (ตรงข้ามกับ ญาติพี่น้อง), 'กะเพรา' ไม่มี ร ควบกล้ำที่ กะ"
+      },
+      {
+        id: 35,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "สำนวนใดมีความหมายตรงกับ \"การทำสิ่งใดย่อมได้รับผลแห่งการกระทำนั้น\"?",
+        options: [
+          "กงเกวียนกำเกวียน",
+          "ขี่ช้างจับตั๊กแตน",
+          "ชี้โพรงให้กระรอก",
+          "น้ำลดตอผุด"
+        ],
+        answer: 0,
+        explanation: "กงเกวียนกำเกวียน หมายถึง เวรสนองเวร กรรมสนองกรรม สิ่งที่ทำไปย่อมวนเวียนกลับมาสู่ผู้กระทำ"
+      },
+      {
+        id: 36,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "ตรรกศาสตร์: กำหนดให้ \"ครูทุกคนมีใบอนุญาตประกอบวิชาชีพ\", \"สมชายเป็นครู\" ข้อสรุปใดสมเหตุสมผลที่สุด?",
+        options: [
+          "สมชายมีใบอนุญาตประกอบวิชาชีพ",
+          "ผู้มีใบอนุญาตประกอบวิชาชีพทุกคนคือสมชาย",
+          "สมชายอาจจะมีหรือไม่มีใบอนุญาตก็ได้",
+          "สรุปแน่นอนไม่ได้"
+        ],
+        answer: 0,
+        explanation: "เป็นตรรกศาสตร์นิรนัย (Deductive reasoning): เมื่อครูทุกคนต้องมี และสมชายเป็นครู ดังนั้นสมชายจึงต้องมีใบอนุญาตประกอบวิชาชีพอย่างแน่นอน"
+      },
+      {
+        id: 37,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "คำราชาศัพท์: ข้อใดใช้คำว่า \"ทรง\" \"ไม่ถูกต้อง\"?",
+        options: [
+          "ทรงโปรด",
+          "ทรงม้า",
+          "ทรงดนตรี",
+          "ทรงพระเจริญ"
+        ],
+        answer: 0,
+        explanation: "คำว่า 'โปรด' เป็นกริยาราชาศัพท์ในตัวเองอยู่แล้ว ห้ามใช้คำว่า 'ทรง' นำหน้ากริยาราชาศัพท์ ต้องใช้ 'โปรด' เฉยๆ (ยกเว้นมี ทรง มี เป็น นำหน้านามราชาศัพท์)"
+      },
+      {
+        id: 38,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "English: Choose the correct sentence for professional classroom instructions.",
+        options: [
+          "Please open your books on page 25.",
+          "Please open your books to page 25.",
+          "Please opening your books in page 25.",
+          "Please open your book at page 25th."
+        ],
+        answer: 1,
+        explanation: "สำนวนภาษาอังกฤษที่ถูกต้องคือ 'open (something) to page...'"
+      },
+      {
+        id: 39,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "English: \"Neither the teacher nor the students ______ in the classroom yesterday.\"",
+        options: ["is", "are", "was", "were"],
+        answer: 3,
+        explanation: "กฎ Subject-Verb Agreement เมื่อเชื่อมด้วย Neither... nor... กริยาจะผันตามประธานตัวหลัง คือ 'the students' (พหูพจน์) และเป็นอดีต (yesterday) จึงใช้ 'were'"
+      },
+      {
+        id: 40,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "สินค้าราคาป้าย 1,200 บาท ร้านค้าติดป้ายลดราคา 20% ผู้ซื้อจ่ายเงินด้วยธนบัตร 1,000 บาท จะได้รับเงินทอนกี่บาท?",
+        options: ["40 บาท", "60 บาท", "100 บาท", "120 บาท"],
+        answer: 0,
+        explanation: "ลดราคา 20% ของ 1,200 บาท = 240 บาท ราคาขาย = 1,200 - 240 = 960 บาท จ่ายเงิน 1,000 บาท ได้รับเงินทอน = 1,000 - 960 = 40 บาท"
+      },
+      {
+        id: 41,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "คณะกรรมการมาตรฐานวิชาชีพ มีหน้าที่ตามข้อใดตาม พ.ร.บ. สภาครูและบุคลากรทางการศึกษา?",
+        options: [
+          "พิจารณาการออก พักใช้ และเพิกถอนใบอนุญาตประกอบวิชาชีพ",
+          "กำหนดอัตราเงินเดือนและวิทยฐานะของข้าราชการครู",
+          "จัดสรรงบประมาณก่อสร้างอาคารเรียน",
+          "ออกข้อสอบคัดเลือกบรรจุครูผู้ช่วยทั่วประเทศ"
+        ],
+        answer: 0,
+        explanation: "คณะกรรมการมาตรฐานวิชาชีพในคุรุสภา มีอำนาจหน้าที่พิจารณาการออก พักใช้ หรือเพิกถอนใบอนุญาตประกอบวิชาชีพ และกำกับดูแลการปฏิบัติตามมาตรฐานและจรรยาบรรณวิชาชีพ"
+      },
+      {
+        id: 42,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "การพักใช้ใบอนุญาตประกอบวิชาชีพครู มีกำหนดเวลาครั้งละไม่เกินกี่ปี?",
+        options: ["1 ปี", "2 ปี", "3 ปี", "5 ปี"],
+        answer: 3,
+        explanation: "ตามกฎหมายคุรุสภา การพักใช้ใบอนุญาตประกอบวิชาชีพมีกำหนดเวลาตามที่คณะกรรมการมาตรฐานวิชาชีพเห็นสมควร แต่ไม่เกิน 5 ปี"
+      },
+      {
+        id: 43,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "ข้อใดเป็นทฤษฎีการวางเงื่อนไขแบบการกระทำ (Operant Conditioning Theory) ที่เน้นเรื่องการเสริมแรง (Reinforcement)?",
+        options: [
+          "อีวาน พาฟลอฟ (Ivan Pavlov)",
+          "บี เอฟ สกินเนอร์ (B.F. Skinner)",
+          "จอห์น บี วัตสัน (John B. Watson)",
+          "อัลเบิร์ต แบนดูรา (Albert Bandura)"
+        ],
+        answer: 1,
+        explanation: "B.F. Skinner เป็นบิดาของทฤษฎี Operant Conditioning ที่เน้นการเสริมแรงทางบวก (Positive reinforcement) และการเสริมแรงทางลบ เพื่อควบคุมหรือปรับเปลี่ยนพฤติกรรม"
+      },
+      {
+        id: 44,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "แนวคิด Zone of Proximal Development (ZPD) และการเสริมต่อการเรียนรู้ (Scaffolding) เป็นของนักจิตวิทยาท่านใด?",
+        options: [
+          "เลฟ วีกอตสกี (Lev Vygotsky)",
+          "ฌอง เพียเจต์ (Jean Piaget)",
+          "เอริก เอริกสัน (Erik Erikson)",
+          "คาร์ล โรเจอร์ส (Carl Rogers)"
+        ],
+        answer: 0,
+        explanation: "Lev Vygotsky เสนอทฤษฎีสังคมและวัฒนธรรม โดยมีแนวคิด ZPD คือช่องว่างระหว่างสิ่งที่ผู้เรียนทำได้เองกับสิ่งที่ทำได้เมื่อมีผู้ชี้แนะ (MKO/Scaffolding)"
+      },
+      {
+        id: 45,
+        category: "pedagogy",
+        categoryName: "วิชาชีพครูและการสอน",
+        question: "การสร้างแบบทดสอบวัดผลสัมฤทธิ์ สิ่งสำคัญอันดับแรกที่ครูต้องจัดทำเพื่อควบคุมความตรงตามเนื้อหาคืออะไร?",
+        options: [
+          "ตารางวิเคราะห์หลักสูตรหรือตารางกำหนดสัดส่วนข้อสอบ (Test Blueprint)",
+          "การหาค่าความเชื่อมั่นของข้อสอบ",
+          "การจัดพิมพ์ต้นฉบับข้อสอบ",
+          "การตั้งเกณฑ์การตัดเกรด A B C D"
+        ],
+        answer: 0,
+        explanation: "Test Blueprint (ตารางวิเคราะห์หลักสูตร) เป็นพิมพ์เขียวแรกที่กำหนดน้ำหนักเนื้อหาและพฤติกรรมที่ต้องการวัด เพื่อให้ข้อสอบมีความเที่ยงตรงตามเนื้อหา (Content Validity)"
+      },
+      {
+        id: 46,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "วันหยุดราชการประจำสัปดาห์ของข้าราชการพลเรือนและข้าราชการครูตามระเบียบคือวันใด?",
+        options: [
+          "วันเสาร์ และ วันอาทิตย์",
+          "วันอาทิตย์ วันเดียว",
+          "วันศุกร์ และ วันเสาร์",
+          "แล้วแต่หัวหน้าสถานศึกษากำหนด"
+        ],
+        answer: 0,
+        explanation: "ตามมติคณะรัฐมนตรีและระเบียบสำนักนายกรัฐมนตรี วันหยุดราชการประจำสัปดาห์กำหนดให้เป็นวันเสาร์และวันอาทิตย์ เว้นแต่หน่วยงานที่มีภารกิจพิเศษ"
+      },
+      {
+        id: 47,
+        category: "gov",
+        categoryName: "การเป็นข้าราชการที่ดี",
+        question: "ข้าราชการครูที่ปฏิบัติหน้าที่ด้วยความซื่อสัตย์สุจริต มีผลการปฏิบัติงานดีเด่น จะได้รับการพิจารณาเลื่อนเงินเดือนตามรอบปีงบประมาณปีละกี่ครั้ง?",
+        options: ["1 ครั้ง (1 ตุลาคม)", "2 ครั้ง (1 เมษายน และ 1 ตุลาคม)", "3 ครั้ง", "ทุกไตรมาส"],
+        answer: 1,
+        explanation: "การเลื่อนเงินเดือนข้าราชการดำเนินการปีละ 2 ครั้ง คือ ครั้งที่ 1 ครึ่งปีแรก (1 เมษายน) และครั้งที่ 2 ครึ่งปีหลัง (1 ตุลาคม)"
+      },
+      {
+        id: 48,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "ความหมายของคำว่า \"บูรณาการ\" (Integration) ในทางการศึกษาคือข้อใด?",
+        options: [
+          "การแยกเนื้อหาแต่ละวิชาออกจากกันอย่างเด็ดขาด",
+          "การเชื่อมโยงความรู้และทักษะของหลากหลายสาขาวิชาเข้าด้วยกันในการจัดการเรียนรู้",
+          "การสอบเก็บคะแนนซ้ำๆ หลายครั้ง",
+          "การยกเลิกการสอบกลางภาคและปลายภาค"
+        ],
+        answer: 1,
+        explanation: "บูรณาการ คือ การนำเนื้อหาวิชาหรือประสบการณ์การเรียนรู้ที่สอดคล้องกันมาผสมผสานเชื่อมโยงกัน เพื่อให้ผู้เรียนเกิดการเรียนรู้ที่เป็นองค์รวม (Holistic)"
+      },
+      {
+        id: 49,
+        category: "general",
+        categoryName: "คิดวิเคราะห์และความสามารถทั่วไป",
+        question: "ในการแข่งขันวิ่ง 5 คน A วิ่งเร็วกว่า B แต่ช้ากว่า C, D วิ่งเร็วกว่า C แต่ช้ากว่า E ใครวิ่งเข้าเส้นชัยเป็นอันดับที่ 1?",
+        options: ["A", "C", "D", "E"],
+        answer: 3,
+        explanation: "เรียงลำดับจากเร็วสุดไปช้าสุด: E > D > C > A > B ดังนั้นผู้ที่วิ่งเร็วที่สุดและเข้าเส้นชัยเป็นอันดับที่ 1 คือ E"
+      },
+      {
+        id: 50,
+        category: "law",
+        categoryName: "กฎหมายการศึกษา",
+        question: "วิทยฐานะของข้าราชการครูสายงานการสอนมีกี่วิทยฐานะ และเริ่มต้นที่วิทยฐานะใด?",
+        options: [
+          "4 วิทยฐานะ เริ่มต้นที่ ครูชำนาญการ (ชำนาญการ, ชำนาญการพิเศษ, เชี่ยวชาญ, เชี่ยวชาญพิเศษ)",
+          "5 วิทยฐานะ เริ่มต้นที่ ครูผู้ช่วย",
+          "3 วิทยฐานะ เริ่มต้นที่ ครูชำนาญการ",
+          "4 วิทยฐานะ เริ่มต้นที่ ครูปฏิบัติการ"
+        ],
+        answer: 0,
+        explanation: "ตำแหน่งครูที่มีวิทยฐานะมี 4 วิทยฐานะ คือ: 1. ครูชำนาญการ 2. ครูชำนาญการพิเศษ 3. ครูเชี่ยวชาญ 4. ครูเชี่ยวชาญพิเศษ (หมายเหตุ: 'ครูผู้ช่วย' และ 'ครู' เป็นตำแหน่งที่ยังไม่มีวิทยฐานะ)"
+      }
+    ];
+
+    // State Variables
+    let currentQuiz = [];
+    let currentIndex = 0;
+    let userAnswers = {};
+    let quizMode = 'practice'; // 'practice' | 'exam'
+    let selectedCount = 20; // default 20
+    let timerInterval = null;
+    let secondsElapsed = 0;
+    let examTimeLimit = 20 * 60; // 1 minute per question
+
+    // Setup pool count UI
+    document.getElementById('total-pool-count').textContent = MASTER_EXAM_POOL.length;
+
+    function switchTab(tabId) {
+      const tabQuiz = document.getElementById('tab-content-quiz');
+      const tabPdf = document.getElementById('tab-content-pdf');
+      const btnQuiz = document.getElementById('tab-btn-quiz');
+      const btnPdf = document.getElementById('tab-btn-pdf');
+
+      if (tabId === 'quiz') {
+        tabQuiz.classList.remove('hidden');
+        tabPdf.classList.add('hidden');
+        btnQuiz.className = "py-3 border-b-2 border-blue-600 text-blue-600 flex items-center gap-2";
+        btnPdf.className = "py-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2";
+      } else {
+        tabQuiz.classList.add('hidden');
+        tabPdf.classList.remove('hidden');
+        btnPdf.className = "py-3 border-b-2 border-blue-600 text-blue-600 flex items-center gap-2";
+        btnQuiz.className = "py-3 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2";
+      }
+    }
+
+    function setQuestionCount(count) {
+      selectedCount = count;
+      const counts = [10, 20, 35, 'all'];
+      counts.forEach(c => {
+        const btn = document.getElementById(`btn-count-${c}`);
+        if (c === count) {
+          btn.className = "py-2.5 px-2 border-2 border-blue-600 bg-blue-50 text-blue-700 rounded-xl text-center transition font-semibold text-xs";
+        } else {
+          btn.className = "py-2.5 px-2 border-2 border-slate-200 hover:border-blue-400 rounded-xl text-center transition font-semibold text-xs";
+        }
+      });
+    }
+
+    function selectMode(mode) {
+      quizMode = mode;
+      const btnPractice = document.getElementById('btn-mode-practice');
+      const btnExam = document.getElementById('btn-mode-exam');
+
+      if (mode === 'practice') {
+        btnPractice.className = "p-3 border-2 border-blue-600 bg-blue-50 rounded-xl text-left transition";
+        btnExam.className = "p-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl text-left transition";
+      } else {
+        btnExam.className = "p-3 border-2 border-blue-600 bg-blue-50 rounded-xl text-left transition";
+        btnPractice.className = "p-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl text-left transition";
+      }
+    }
+
+    // Shuffle Array helper (Fisher-Yates)
+    function shuffleArray(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function startQuiz() {
+      // 1. Filter by category
+      const selectedCat = document.querySelector('input[name="exam_cat"]:checked').value;
+      let pool = (selectedCat === 'all') 
+        ? [...MASTER_EXAM_POOL] 
+        : MASTER_EXAM_POOL.filter(q => q.category === selectedCat);
+
+      if (pool.length === 0) {
+        alert("ไม่พบข้อสอบในหมวดที่เลือก");
+        return;
+      }
+
+      // 2. Shuffle Questions if option checked
+      const shouldShuffleQuestions = document.getElementById('chk-shuffle-q').checked;
+      if (shouldShuffleQuestions) {
+        pool = shuffleArray(pool);
+      }
+
+      // 3. Slice according to count
+      let finalCount = (selectedCount === 'all') ? pool.length : Math.min(Number(selectedCount), pool.length);
+      let selectedSet = pool.slice(0, finalCount);
+
+      // 4. Shuffle Options if checked
+      const shouldShuffleOptions = document.getElementById('chk-shuffle-opt').checked;
+      currentQuiz = selectedSet.map(item => {
+        if (!shouldShuffleOptions) {
+          return { ...item };
+        }
+        // Shuffle options and remap correct answer index
+        const originalCorrectText = item.options[item.answer];
+        const shuffledOptions = shuffleArray(item.options);
+        const newCorrectIndex = shuffledOptions.indexOf(originalCorrectText);
+        return {
+          ...item,
+          options: shuffledOptions,
+          answer: newCorrectIndex
+        };
+      });
+
+      // 5. Reset State
+      currentIndex = 0;
+      userAnswers = {};
+      secondsElapsed = 0;
+      examTimeLimit = currentQuiz.length * 75; // 75 seconds per question
+
+      // 6. UI Transition
+      document.getElementById('screen-home').classList.add('hidden');
+      document.getElementById('screen-result').classList.add('hidden');
+      document.getElementById('screen-quiz').classList.remove('hidden');
+      document.getElementById('header-widget').classList.remove('hidden');
+      document.getElementById('header-widget').classList.add('flex');
+
+      // 7. Start Timer
+      clearInterval(timerInterval);
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        secondsElapsed++;
+        updateTimerDisplay();
+        if (quizMode === 'exam' && secondsElapsed >= examTimeLimit) {
+          clearInterval(timerInterval);
+          alert('หมดเวลาการสอบตามเกณฑ์กำหนด ระบบจะประมวลผลคะแนนให้ทันที');
+          finishExam();
+        }
+      }, 1000);
+
+      renderNavGrid();
+      renderCurrentQuestion();
+    }
+
+    function updateTimerDisplay() {
+      const display = document.getElementById('timer-display');
+      if (quizMode === 'exam') {
+        const remaining = Math.max(0, examTimeLimit - secondsElapsed);
+        const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+        const s = (remaining % 60).toString().padStart(2, '0');
+        display.textContent = `${m}:${s}`;
+      } else {
+        const m = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+        const s = (secondsElapsed % 60).toString().padStart(2, '0');
+        display.textContent = `${m}:${s}`;
+      }
+    }
+
+    function renderNavGrid() {
+      const grid = document.getElementById('question-nav-grid');
+      grid.innerHTML = '';
+      currentQuiz.forEach((_, idx) => {
+        const btn = document.createElement('button');
+        btn.id = `nav-btn-${idx}`;
+        btn.textContent = idx + 1;
+        btn.className = `w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition border ${
+          idx === currentIndex
+            ? 'border-blue-600 bg-blue-600 text-white'
+            : userAnswers[idx] !== undefined
+            ? 'bg-blue-100 text-blue-800 border-blue-200'
+            : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+        }`;
+        btn.onclick = () => jumpToQuestion(idx);
+        grid.appendChild(btn);
+      });
+    }
+
+    function updateNavGridHighlights() {
+      currentQuiz.forEach((_, idx) => {
+        const btn = document.getElementById(`nav-btn-${idx}`);
+        if (!btn) return;
+        if (idx === currentIndex) {
+          btn.className = "w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition border-2 border-blue-700 bg-blue-600 text-white shadow-sm";
+        } else if (userAnswers[idx] !== undefined) {
+          btn.className = "w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition bg-blue-100 text-blue-800 border border-blue-200";
+        } else {
+          btn.className = "w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200";
+        }
+      });
+    }
+
+    function renderCurrentQuestion() {
+      const q = currentQuiz[currentIndex];
+      const total = currentQuiz.length;
+
+      document.getElementById('current-q-index').textContent = currentIndex + 1;
+      document.getElementById('total-q-count').textContent = total;
+      document.getElementById('q-number-badge').textContent = currentIndex + 1;
+      document.getElementById('badge-category').textContent = q.categoryName;
+
+      const pct = Math.round(((currentIndex + 1) / total) * 100);
+      document.getElementById('progress-bar').style.width = `${pct}%`;
+      document.getElementById('progress-percentage').textContent = `${pct}%`;
+
+      document.getElementById('question-text').textContent = q.question;
+
+      const optionsContainer = document.getElementById('options-container');
+      optionsContainer.innerHTML = '';
+
+      const letters = ['ก', 'ข', 'ค', 'ง'];
+      const userSelected = userAnswers[currentIndex];
+      const isAnswered = userSelected !== undefined;
+
+      q.options.forEach((optText, optIdx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = getOptionButtonClass(optIdx, userSelected, isAnswered, q.answer);
+
+        btn.innerHTML = `
+          <div class="flex items-center text-left">
+            <span class="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs mr-3 border shrink-0 ${
+              userSelected === optIdx ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-700 border-slate-200'
+            }">
+              ${letters[optIdx]}
+            </span>
+            <span class="text-sm font-medium leading-relaxed">${optText}</span>
+          </div>
+        `;
+
+        btn.onclick = () => selectOption(optIdx);
+        optionsContainer.appendChild(btn);
+      });
+
+      const expBox = document.getElementById('explanation-box');
+      if (quizMode === 'practice' && isAnswered) {
+        document.getElementById('explanation-text').textContent = q.explanation;
+        expBox.classList.remove('hidden');
+      } else {
+        expBox.classList.add('hidden');
+      }
+
+      document.getElementById('btn-prev').disabled = (currentIndex === 0);
+      document.getElementById('btn-prev').style.opacity = (currentIndex === 0) ? '0.4' : '1';
+
+      if (currentIndex === total - 1) {
+        document.getElementById('btn-next').classList.add('hidden');
+        document.getElementById('btn-finish').classList.remove('hidden');
+      } else {
+        document.getElementById('btn-next').classList.remove('hidden');
+        document.getElementById('btn-finish').classList.add('hidden');
+      }
+
+      updateNavGridHighlights();
+    }
+
+    function getOptionButtonClass(optIdx, userSelected, isAnswered, correctIdx) {
+      const base = "w-full p-4 rounded-2xl border text-left transition transform active:scale-[0.99] ";
+      if (quizMode === 'practice' && isAnswered) {
+        if (optIdx === correctIdx) {
+          return base + "border-emerald-500 bg-emerald-50 text-emerald-900 font-semibold ring-2 ring-emerald-400/50";
+        }
+        if (userSelected === optIdx && userSelected !== correctIdx) {
+          return base + "border-red-500 bg-red-50 text-red-900 font-semibold";
+        }
+        return base + "border-slate-200 bg-white text-slate-400 opacity-60";
+      }
+
+      if (userSelected === optIdx) {
+        return base + "border-blue-600 bg-blue-50 text-blue-900 font-semibold ring-2 ring-blue-500/30";
+      }
+      return base + "border-slate-200 bg-white hover:border-blue-400 hover:bg-slate-50 text-slate-800";
+    }
+
+    function selectOption(optIdx) {
+      if (quizMode === 'practice' && userAnswers[currentIndex] !== undefined) {
+        return;
+      }
+      userAnswers[currentIndex] = optIdx;
+      renderCurrentQuestion();
+      updateNavGridHighlights();
+    }
+
+    function navigateQuestion(delta) {
+      const target = currentIndex + delta;
+      if (target >= 0 && target < currentQuiz.length) {
+        currentIndex = target;
+        renderCurrentQuestion();
+      }
+    }
+
+    function jumpToQuestion(idx) {
+      if (idx >= 0 && idx < currentQuiz.length) {
+        currentIndex = idx;
+        renderCurrentQuestion();
+      }
+    }
+
+    function confirmExitExam() {
+      if (confirm('คุณต้องการยกเลิกแบบทดสอบรอบนี้หรือไม่? ข้อมูลจะไม่ถูกบันทึก')) {
+        goToHome();
+      }
+    }
+
+    function confirmSubmitExam() {
+      const answered = Object.keys(userAnswers).length;
+      const total = currentQuiz.length;
+
+      if (answered < total) {
+        const remain = total - answered;
+        if (!confirm(`คุณยังทำข้อสอบไม่ครบ (เหลืออีก ${remain} ข้อ) ต้องการส่งคำตอบเพื่อตรวจคะแนนหรือไม่?`)) {
+          return;
+        }
+      } else {
+        if (!confirm('ยืนยันส่งข้อสอบเพื่อตรวจคะแนนและวิเคราะห์ผลทันทีหรือไม่?')) {
+          return;
+        }
+      }
+
+      finishExam();
+    }
+
+    function finishExam() {
+      clearInterval(timerInterval);
+
+      let correctCount = 0;
+      currentQuiz.forEach((q, idx) => {
+        if (userAnswers[idx] === q.answer) {
+          correctCount++;
+        }
+      });
+
+      const total = currentQuiz.length;
+      const wrongCount = total - correctCount;
+      const percent = Math.round((correctCount / total) * 100);
+      const isPassed = percent >= 60; // 60% rule
+
+      const m = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+      const s = (secondsElapsed % 60).toString().padStart(2, '0');
+      const timeStr = `${m}:${s}`;
+
+      document.getElementById('score-earned').textContent = correctCount;
+      document.getElementById('score-total').textContent = total;
+      document.getElementById('stat-correct').textContent = correctCount;
+      document.getElementById('stat-wrong').textContent = wrongCount;
+      document.getElementById('stat-time').textContent = timeStr;
+
+      const scorePercentBadge = document.getElementById('score-percent-badge');
+      scorePercentBadge.textContent = `คิดเป็น ${percent}% (${isPassed ? 'ผ่านเกณฑ์มาตรฐาน 60%' : 'ยังไม่ผ่านเกณฑ์'})`;
+      scorePercentBadge.className = `text-sm font-semibold ${isPassed ? 'text-emerald-600' : 'text-red-500'}`;
+
+      const iconContainer = document.getElementById('result-icon-container');
+      const headline = document.getElementById('result-headline');
+      const subtext = document.getElementById('result-subtext');
+
+      if (isPassed) {
+        iconContainer.className = "w-20 h-20 mx-auto rounded-full flex items-center justify-center text-3xl mb-4 bg-emerald-100 text-emerald-600 shadow-inner";
+        iconContainer.innerHTML = '<i class="fa-solid fa-trophy"></i>';
+        headline.textContent = "ยินดีด้วย! คุณผ่านเกณฑ์การสอบบรรจุ (60% ขึ้นไป)";
+        subtext.textContent = "ความรู้แน่นและแม่นยำมาก ขอให้รักษามาตรฐานนี้ไว้ในการสอบจริงครับ!";
+      } else {
+        iconContainer.className = "w-20 h-20 mx-auto rounded-full flex items-center justify-center text-3xl mb-4 bg-amber-100 text-amber-600 shadow-inner";
+        iconContainer.innerHTML = '<i class="fa-solid fa-book-open"></i>';
+        headline.textContent = "ยังไม่ผ่านเกณฑ์ 60% อีกนิดเดียวเท่านั้น!";
+        subtext.textContent = "ลองกดดูเฉลยละเอียดและทบทวนข้อที่ตอบผิด เพื่ออุดจุดบกพร่องกันครับ";
+      }
+
+      document.getElementById('screen-quiz').classList.add('hidden');
+      document.getElementById('header-widget').classList.add('hidden');
+      document.getElementById('screen-result').classList.remove('hidden');
+
+      saveHistoryRecord({
+        date: new Date().toLocaleDateString('th-TH'),
+        score: correctCount,
+        total: total,
+        percent: percent,
+        passed: isPassed
+      });
+
+      renderReviewSection('all');
+    }
+
+    function renderReviewSection(filterMode) {
+      const container = document.getElementById('review-items-container');
+      container.innerHTML = '';
+      const letters = ['ก', 'ข', 'ค', 'ง'];
+
+      let count = 0;
+      currentQuiz.forEach((q, idx) => {
+        const userChoice = userAnswers[idx];
+        const isCorrect = (userChoice === q.answer);
+
+        if (filterMode === 'wrong' && isCorrect) return;
+        count++;
+
+        const item = document.createElement('div');
+        item.className = `p-5 rounded-2xl border ${
+          isCorrect ? 'bg-white border-slate-200' : 'bg-red-50/40 border-red-200'
+        }`;
+
+        let optionsHtml = '';
+        q.options.forEach((optText, oIdx) => {
+          let style = "p-2.5 rounded-xl border text-xs flex items-center mb-1.5 ";
+          if (oIdx === q.answer) {
+            style += "border-emerald-500 bg-emerald-50 text-emerald-900 font-semibold";
+          } else if (userChoice === oIdx && !isCorrect) {
+            style += "border-red-400 bg-red-100 text-red-900 font-semibold";
+          } else {
+            style += "border-slate-100 bg-slate-50 text-slate-600";
+          }
+
+          optionsHtml += `
+            <div class="${style}">
+              <span class="w-5 h-5 rounded-md flex items-center justify-center mr-2 font-bold ${
+                oIdx === q.answer ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+              }">${letters[oIdx]}</span>
+              <span>${optText}</span>
+              ${oIdx === q.answer ? '<i class="fa-solid fa-check text-emerald-600 ml-auto"></i>' : ''}
+              ${userChoice === oIdx && !isCorrect ? '<i class="fa-solid fa-xmark text-red-500 ml-auto"></i>' : ''}
+            </div>
+          `;
+        });
+
+        item.innerHTML = `
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-start">
+              <span class="px-2 py-0.5 rounded text-xs font-bold mr-2 mt-0.5 ${
+                isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+              }">
+                ข้อ ${idx + 1}
+              </span>
+              <p class="text-sm font-semibold text-slate-800">${q.question}</p>
+            </div>
+            <span class="text-xs font-medium px-2 py-0.5 rounded ${
+              isCorrect ? 'text-emerald-700' : 'text-red-600'
+            }">
+              ${isCorrect ? '<i class="fa-solid fa-circle-check mr-1"></i>ถูก' : '<i class="fa-solid fa-circle-xmark mr-1"></i>ผิด'}
+            </span>
+          </div>
+
+          <div class="mb-3">${optionsHtml}</div>
+
+          <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-slate-700">
+            <strong class="text-amber-900"><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> คำอธิบายและแนวคิด:</strong> ${q.explanation}
+          </div>
+        `;
+
+        container.appendChild(item);
+      });
+
+      if (count === 0 && filterMode === 'wrong') {
+        container.innerHTML = '<div class="text-center p-8 bg-emerald-50 rounded-2xl text-emerald-800 text-sm font-semibold">สุดยอดมาก! ไม่มีข้อที่คุณตอบผิดเลย 🎉</div>';
+      }
+    }
+
+    function reviewAllAnswers() {
+      const revSec = document.getElementById('review-section');
+      revSec.classList.remove('hidden');
+      document.getElementById('review-filter-label').textContent = 'แสดงทั้งหมด';
+      renderReviewSection('all');
+      revSec.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function reviewWrongAnswersOnly() {
+      const revSec = document.getElementById('review-section');
+      revSec.classList.remove('hidden');
+      document.getElementById('review-filter-label').textContent = 'แสดงเฉพาะข้อที่ตอบผิด';
+      renderReviewSection('wrong');
+      revSec.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function goToHome() {
+      clearInterval(timerInterval);
+      document.getElementById('screen-quiz').classList.add('hidden');
+      document.getElementById('screen-result').classList.add('hidden');
+      document.getElementById('review-section').classList.add('hidden');
+      document.getElementById('header-widget').classList.add('hidden');
+      document.getElementById('screen-home').classList.remove('hidden');
+      loadHistoryRecords();
+    }
+
+    function saveHistoryRecord(record) {
+      try {
+        let history = JSON.parse(localStorage.getItem('kru_exam_history') || '[]');
+        history.unshift(record);
+        if (history.length > 5) history = history.slice(0, 5);
+        localStorage.setItem('kru_exam_history', JSON.stringify(history));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function loadHistoryRecords() {
+      try {
+        const history = JSON.parse(localStorage.getItem('kru_exam_history') || '[]');
+        const box = document.getElementById('history-box');
+        const list = document.getElementById('history-list');
+
+        if (history.length === 0) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        box.classList.remove('hidden');
+        list.innerHTML = '';
+        history.forEach(item => {
+          const row = document.createElement('div');
+          row.className = "flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100";
+          row.innerHTML = `
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-calendar-day text-slate-400"></i>
+              <span class="text-slate-600">${item.date}</span>
+            </div>
+            <div class="flex items-center space-x-3">
+              <span class="font-bold ${item.passed ? 'text-emerald-600' : 'text-amber-600'}">${item.score}/${item.total} (${item.percent}%)</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${item.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                ${item.passed ? 'ผ่าน' : 'ไม่ผ่าน'}
+              </span>
+            </div>
+          `;
+          list.appendChild(row);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function clearHistory() {
+      localStorage.removeItem('kru_exam_history');
+      loadHistoryRecords();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadHistoryRecords();
+    });
+  </script>
+</body>
+</html>

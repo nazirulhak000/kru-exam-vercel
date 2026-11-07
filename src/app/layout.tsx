@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KruExam — ระบบคลังข้อสอบและจำลองสอบบรรจุข้าราชการครู",
+  title: "KruBanjoo (ครูบรรจุ) — ระบบคลังข้อสอบและจำลองสอบบรรจุข้าราชการครู",
   description:
     "ระบบแปลงไฟล์ PDF ข้อสอบและตัวบทกฎหมายเป็นแบบทดสอบปรนัยพร้อมคำอธิบายรายตัวเลือก จำลองการสอบจับเวลา และบันทึกสถิติพัฒนาการตามเกณฑ์ ก.ค.ศ.",
 };
@@ -44,7 +44,7 @@ export default function RootLayout({
         </main>
         <footer className="mt-auto border-t border-[#1f1b16]/[0.08] bg-paper-bg py-5">
           <div className="max-w-[1440px] mx-auto px-6 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-[12px] text-paper-muted">
-            <span>KruExam — ระบบเตรียมสอบบรรจุข้าราชการครู (ครูผู้ช่วย ภาค ก และ ภาค ข)</span>
+            <span>KruBanjoo (ครูบรรจุ) — ระบบเตรียมสอบบรรจุข้าราชการครู (ครูผู้ช่วย ภาค ก และ ภาค ข)</span>
             <span className="font-mono">เกณฑ์ผ่านมาตรฐาน ก.ค.ศ. ร้อยละ 60</span>
           </div>
         </footer>

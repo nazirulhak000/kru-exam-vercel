@@ -132,8 +132,7 @@ export function parseThaiExamTextHeuristic(
 ): QuestionItem[] {
   const normalized = fullText
     .replace(/\r\n/g, "\n")
-    .replace(/([กขคง])\s*\)/g, "$1.")
-    .replace(/([1-4])\s*\)/g, "$1.");
+    .replace(/([กขคง])\s*\)/g, "$1.");
 
   // 1. Check if there is an answer key block at the end like "1. ก 2. ข 3. ค"
   const answerKeyMap: Record<number, number> = {};
@@ -146,6 +145,10 @@ export function parseThaiExamTextHeuristic(
     b: 1,
     c: 2,
     d: 3,
+    "1": 0,
+    "2": 1,
+    "3": 2,
+    "4": 3,
   };
 
   const keyBlockRegex =
@@ -164,8 +167,9 @@ export function parseThaiExamTextHeuristic(
   }
 
   // 2. Split text into question blocks by numbered patterns: "ข้อ 1.", "ข้อที่ 1", "1.", etc.
+  // Avoid splitting on "1) 2) 3) 4)" unless preceded by "ข้อ"
   const questionBlocks = normalized.split(
-    /(?=(?:^|\n)\s*(?:ข้อ(?:ที่)?\s*)?\d{1,3}\s*[.)]\s+)/g
+    /(?=(?:^|\n)\s*(?:ข้อ(?:ที่)?\s*\d{1,3}\s*[.)]?|\d{1,3}\s*\.)\s+)/g
   );
 
   const results: QuestionItem[] = [];
@@ -174,7 +178,9 @@ export function parseThaiExamTextHeuristic(
     const block = rawBlock.trim();
     if (block.length < 20) continue;
 
-    const numMatch = block.match(/^(?:ข้อ(?:ที่)?\s*)?(\d{1,3})\s*[.)]\s+([\s\S]*)$/);
+    const numMatch = block.match(
+      /^(?:ข้อ(?:ที่)?\s*)?(\d{1,3})\s*[.)]?\s+([\s\S]*)$/
+    );
     if (!numMatch) continue;
 
     const qNum = parseInt(numMatch[1], 10);
@@ -192,7 +198,15 @@ export function parseThaiExamTextHeuristic(
         /([\s\S]+?)\s*(?:^|\s)[Aa][.)]\s*([\s\S]+?)\s*(?:^|\s)[Bb][.)]\s*([\s\S]+?)\s*(?:^|\s)[Cc][.)]\s*([\s\S]+?)\s*(?:^|\s)[Dd][.)]\s*([\s\S]+)$/
       );
 
-    const match = thaiChoiceMatch || engChoiceMatch;
+    // Or Numeric choices 1) 2) 3) 4)
+    const numChoiceMatch =
+      !thaiChoiceMatch &&
+      !engChoiceMatch &&
+      body.match(
+        /([\s\S]+?)\s*(?:^|\s)1\)\s*([\s\S]+?)\s*(?:^|\s)2\)\s*([\s\S]+?)\s*(?:^|\s)3\)\s*([\s\S]+?)\s*(?:^|\s)4\)\s*([\s\S]+)$/
+      );
+
+    const match = thaiChoiceMatch || engChoiceMatch || numChoiceMatch;
     if (!match) continue;
 
     const questionStem = match[1].replace(/\s+/g, " ").trim();
@@ -210,7 +224,10 @@ export function parseThaiExamTextHeuristic(
     const ansMatch = opt3AndRest.match(inlineAnsRegex);
 
     if (ansMatch && ansMatch.index !== undefined) {
-      const opt3Clean = opt3AndRest.slice(0, ansMatch.index).replace(/\s+/g, " ").trim();
+      const opt3Clean = opt3AndRest
+        .slice(0, ansMatch.index)
+        .replace(/\s+/g, " ")
+        .trim();
       const rawAnsChar = ansMatch[1].toLowerCase();
       const expRest = ansMatch[2]
         .replace(/^(?:เพราะ|คำอธิบาย|เหตุผล)\s*[:：]?\s*/i, "")
@@ -219,8 +236,6 @@ export function parseThaiExamTextHeuristic(
 
       if (choiceCharToIdx[rawAnsChar] !== undefined) {
         answerIdx = choiceCharToIdx[rawAnsChar];
-      } else if (["1", "2", "3", "4"].includes(rawAnsChar)) {
-        answerIdx = parseInt(rawAnsChar, 10) - 1;
       }
 
       opt3AndRest = opt3Clean;
@@ -245,10 +260,9 @@ export function parseThaiExamTextHeuristic(
         }
       : guessCategoryFromText(questionStem + " " + options.join(" "));
 
-    const letters = ["ก", "ข", "ค", "ง"];
     const finalExplanation =
       explanation ||
-      `คำตอบที่ถูกต้องคือข้อ ${letters[answerIdx]}. (${options[answerIdx]}) แนะนำให้ตรวจสอบบริบทตามหลักเกณฑ์ของ ${guessed.categoryName}`;
+      `คำตอบที่ถูกต้องคือ "${options[answerIdx]}" แนะนำให้ตรวจสอบบริบทตามหลักเกณฑ์ของ ${guessed.categoryName}`;
 
     results.push({
       id: `pdf-${Date.now()}-${results.length + 1}`,
@@ -260,10 +274,10 @@ export function parseThaiExamTextHeuristic(
       answer: answerIdx,
       explanation: finalExplanation,
       optionAnalysis: [
-        `ก. ${answerIdx === 0 ? "ถูกต้องตามหลักเกณฑ์ที่โจทย์ถาม" : "ตัวเลือกหลอก ไม่ตรงกับเงื่อนไขหลักของโจทย์"}`,
-        `ข. ${answerIdx === 1 ? "ถูกต้องตามหลักเกณฑ์ที่โจทย์ถาม" : "ตัวเลือกหลอก ไม่ตรงกับเงื่อนไขหลักของโจทย์"}`,
-        `ค. ${answerIdx === 2 ? "ถูกต้องตามหลักเกณฑ์ที่โจทย์ถาม" : "ตัวเลือกหลอก ไม่ตรงกับเงื่อนไขหลักของโจทย์"}`,
-        `ง. ${answerIdx === 3 ? "ถูกต้องตามหลักเกณฑ์ที่โจทย์ถาม" : "ตัวเลือกหลอก ไม่ตรงกับเงื่อนไขหลักของโจทย์"}`,
+        `ก. ${answerIdx === 0 ? `ถูกต้อง (${options[0]}) ตามหลักเกณฑ์ที่โจทย์ถาม` : `ตัวเลือกหลอก (${options[0]}) ไม่ตรงกับเงื่อนไขหลักของโจทย์`}`,
+        `ข. ${answerIdx === 1 ? `ถูกต้อง (${options[1]}) ตามหลักเกณฑ์ที่โจทย์ถาม` : `ตัวเลือกหลอก (${options[1]}) ไม่ตรงกับเงื่อนไขหลักของโจทย์`}`,
+        `ค. ${answerIdx === 2 ? `ถูกต้อง (${options[2]}) ตามหลักเกณฑ์ที่โจทย์ถาม` : `ตัวเลือกหลอก (${options[2]}) ไม่ตรงกับเงื่อนไขหลักของโจทย์`}`,
+        `ง. ${answerIdx === 3 ? `ถูกต้อง (${options[3]}) ตามหลักเกณฑ์ที่โจทย์ถาม` : `ตัวเลือกหลอก (${options[3]}) ไม่ตรงกับเงื่อนไขหลักของโจทย์`}`,
       ],
       lawReference: `สกัดจากไฟล์: ${sourcePdfName}`,
       keyTakeaway: `จำคำสำคัญ: "${questionStem.slice(0, 45)}..." -> ตอบ ${options[answerIdx]}`,

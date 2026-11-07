@@ -96,12 +96,21 @@ export interface ExamAttemptAnswer {
   keyTakeaway?: string;
 }
 
+export interface PartBreakdownItem {
+  part: "ภาค ก" | "ภาค ข";
+  total: number;
+  correct: number;
+  scorePercent: number;
+  passed: boolean;
+}
+
 export interface ExamAttempt {
   id: string;
   title: string;
   date: string;
   displayDate: string;
   mode: "practice" | "exam" | "mistake_review";
+  isBlueprint?: boolean;
   totalQuestions: number;
   correctCount: number;
   wrongCount: number;
@@ -109,6 +118,8 @@ export interface ExamAttempt {
   scorePercent: number;
   passed: boolean;
   durationSeconds: number;
+  avgSecondsPerQuestion?: number;
+  partBreakdown?: Record<string, PartBreakdownItem>;
   categoryBreakdown: Record<
     string,
     { total: number; correct: number; name: string }
@@ -129,6 +140,7 @@ export interface ActiveExamSession {
   id: string;
   title: string;
   mode: "practice" | "exam" | "mistake_review";
+  isBlueprint?: boolean;
   questions: QuestionItem[];
   currentIndex: number;
   userAnswers: Record<number, number>;
