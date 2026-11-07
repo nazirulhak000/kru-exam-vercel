@@ -231,4 +231,7 @@ export interface ActiveExamSession {
   secondsElapsed: number;
   examTimeLimit: number;
   startedAt: string;
+  deadlineAt?: string;
+  lastActiveAt?: string;
+  isPaused?: boolean;
 }

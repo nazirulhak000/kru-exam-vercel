@@ -13,6 +13,7 @@ import {
   FileText,
   Flag,
   Keyboard,
+  Pause,
   Play,
   RotateCcw,
   ShieldCheck,
@@ -158,6 +159,17 @@ function ExamSimulatorContent() {
     {}
   );
   const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string>(() =>
+    new Date().toISOString()
+  );
+  const sessionStartedAtRef = useRef<string>(sessionStartedAt);
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const isPausedRef = useRef<boolean>(false);
+  const pauseStartMsRef = useRef<number | null>(null);
+  const enterScreenMsRef = useRef<number>(Date.now());
+  const baseElapsedRef = useRef<number>(0);
+
   const [currentSessionId, setCurrentSessionId] = useState<string>(
     () => `sess-${Date.now()}`
   );
@@ -190,11 +202,39 @@ function ExamSimulatorContent() {
     const mistakes = getMistakeQuestions(false);
     const mistakeMap = getMistakeRecordsMap();
     const existingSession = getActiveExamSession();
+    let currentSaved = existingSession;
+    if (
+      existingSession &&
+      existingSession.mode === "exam" &&
+      !existingSession.isPaused &&
+      existingSession.lastActiveAt
+    ) {
+      const awaySeconds = Math.max(
+        0,
+        Math.floor(
+          (Date.now() - new Date(existingSession.lastActiveAt).getTime()) / 1000
+        )
+      );
+      if (awaySeconds > 0) {
+        const updatedElapsed = Math.min(
+          existingSession.examTimeLimit > 0
+            ? existingSession.examTimeLimit
+            : Infinity,
+          existingSession.secondsElapsed + awaySeconds
+        );
+        currentSaved = {
+          ...existingSession,
+          secondsElapsed: updatedElapsed,
+          lastActiveAt: new Date().toISOString(),
+        };
+        saveActiveExamSession(currentSaved);
+      }
+    }
 
     setAllQuestions(questions);
     setMajorCounts(getMajorSubjectCounts(questions));
     setMistakePool(mistakes);
-    setSavedSession(existingSession);
+    setSavedSession(currentSaved);
 
     const bm: Record<string, boolean> = {};
     Object.values(mistakeMap).forEach((m) => {
@@ -293,14 +333,40 @@ function ExamSimulatorContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // 1. ตัวจับเวลาเดินหน้าวินาทีละ +1 (แยกจาก Logic ส่งข้อสอบเพื่อป้องกัน Stale Closure)
+  // 1. ตัวจับเวลา: โหมด exam คำนวณจาก Wall Clock ต่อเนื่อง ส่วนโหมดซ้อมเดินหน้าทีละวินาที
   useEffect(() => {
     if (screen !== "active") return;
-    const interval = setInterval(() => {
-      setSecondsElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [screen]);
+
+    const tick = () => {
+      if (isPausedRef.current) return;
+      if (quizMode === "exam") {
+        const now = Date.now();
+        const elapsedSinceEnter = Math.max(
+          0,
+          Math.floor((now - enterScreenMsRef.current) / 1000)
+        );
+        setSecondsElapsed(baseElapsedRef.current + elapsedSinceEnter);
+      } else {
+        setSecondsElapsed((prev) => prev + 1);
+      }
+    };
+
+    const interval = setInterval(tick, 1000);
+
+    const handleSync = () => {
+      if (document.visibilityState === "visible") {
+        tick();
+      }
+    };
+    document.addEventListener("visibilitychange", handleSync);
+    window.addEventListener("focus", handleSync);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleSync);
+      window.removeEventListener("focus", handleSync);
+    };
+  }, [screen, quizMode]);
 
   // 2. ตรวจสอบเมื่อหมดเวลาในโหมดจำลองสอบจริง (ดึง userAnswers ล่าสุดเสมอ)
   useEffect(() => {
@@ -338,7 +404,10 @@ function ExamSimulatorContent() {
       strikethroughMap,
       secondsElapsed,
       examTimeLimit,
-      startedAt: new Date().toISOString(),
+      startedAt: sessionStartedAtRef.current || sessionStartedAt,
+      deadlineAt: deadlineAt || undefined,
+      lastActiveAt: new Date().toISOString(),
+      isPaused,
     };
     saveActiveExamSession(session);
   }, [
@@ -355,7 +424,40 @@ function ExamSimulatorContent() {
     strikethroughMap,
     secondsElapsed,
     examTimeLimit,
+    sessionStartedAt,
+    deadlineAt,
+    isPaused,
   ]);
+
+  // บันทึกเวลาที่ถูกต้องทันทีก่อนปิดหรือย้ายหน้า
+  useEffect(() => {
+    if (screen !== "active" || isSubmittingRef.current) return;
+    const handleBeforeUnload = () => {
+      if (isSubmittingRef.current) return;
+      const current = getActiveExamSession();
+      if (current && current.id === currentSessionId) {
+        const exactElapsed =
+          quizMode === "exam"
+            ? baseElapsedRef.current +
+              Math.max(
+                0,
+                Math.floor((Date.now() - enterScreenMsRef.current) / 1000)
+              )
+            : secondsElapsed;
+        saveActiveExamSession({
+          ...current,
+          secondsElapsed: exactElapsed,
+          lastActiveAt: new Date().toISOString(),
+        });
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handleBeforeUnload);
+    };
+  }, [screen, currentSessionId, quizMode, secondsElapsed]);
 
   // 4. ระบบคีย์ลัด (Keyboard Shortcuts) ในห้องสอบ
   useEffect(() => {
@@ -537,8 +639,22 @@ function ExamSimulatorContent() {
     setFlaggedIndices([]);
     setStrikethroughMap({});
     setSecondsElapsed(0);
+    baseElapsedRef.current = 0;
+    enterScreenMsRef.current = Date.now();
     setSheetFilter("all");
-    setExamTimeLimit(preparedQuiz.length * secondsPerQuestion);
+    const timeLimit = preparedQuiz.length * secondsPerQuestion;
+    setExamTimeLimit(timeLimit);
+    const nowIso = new Date().toISOString();
+    setSessionStartedAt(nowIso);
+    sessionStartedAtRef.current = nowIso;
+    setIsPaused(false);
+    isPausedRef.current = false;
+    pauseStartMsRef.current = null;
+    if (mode === "exam" && timeLimit > 0) {
+      setDeadlineAt(new Date(Date.now() + timeLimit * 1000).toISOString());
+    } else {
+      setDeadlineAt(null);
+    }
     setScreen("active");
   };
 
@@ -587,8 +703,18 @@ function ExamSimulatorContent() {
     setFlaggedIndices([]);
     setStrikethroughMap({});
     setSecondsElapsed(0);
+    baseElapsedRef.current = 0;
+    enterScreenMsRef.current = Date.now();
     setSheetFilter("all");
-    setExamTimeLimit(prepared.length * secondsPerQuestion);
+    const timeLimit = prepared.length * secondsPerQuestion;
+    setExamTimeLimit(timeLimit);
+    const nowIso = new Date().toISOString();
+    setSessionStartedAt(nowIso);
+    sessionStartedAtRef.current = nowIso;
+    setIsPaused(false);
+    isPausedRef.current = false;
+    pauseStartMsRef.current = null;
+    setDeadlineAt(null);
     setScreen("active");
   };
 
@@ -596,6 +722,18 @@ function ExamSimulatorContent() {
     if (!savedSession) return;
     isSubmittingRef.current = false;
     setCurrentSessionId(savedSession.id || `sess-${Date.now()}`);
+    const startedAt = savedSession.startedAt || new Date().toISOString();
+    setSessionStartedAt(startedAt);
+    sessionStartedAtRef.current = startedAt;
+    setIsPaused(Boolean(savedSession.isPaused));
+    isPausedRef.current = Boolean(savedSession.isPaused);
+    pauseStartMsRef.current = null;
+    if (savedSession.deadlineAt) {
+      setDeadlineAt(savedSession.deadlineAt);
+    } else {
+      setDeadlineAt(null);
+    }
+
     setActiveQuiz(savedSession.questions);
     setQuizTitle(savedSession.title);
     setQuizMode(savedSession.mode);
@@ -609,7 +747,30 @@ function ExamSimulatorContent() {
     setUserAnswers(savedSession.userAnswers);
     setFlaggedIndices(savedSession.flaggedIndices || []);
     setStrikethroughMap(savedSession.strikethroughMap || {});
-    setSecondsElapsed(savedSession.secondsElapsed);
+
+    // โหมด exam: เวลาเดินตาม Wall Clock ต่อเนื่อง แม้จะออกจากหน้าไปหรือปิดแท็บ (คำนวณจาก lastActiveAt)
+    let currentElapsed = savedSession.secondsElapsed;
+    if (
+      savedSession.mode === "exam" &&
+      !savedSession.isPaused &&
+      savedSession.lastActiveAt
+    ) {
+      const awaySeconds = Math.max(
+        0,
+        Math.floor(
+          (Date.now() - new Date(savedSession.lastActiveAt).getTime()) / 1000
+        )
+      );
+      currentElapsed = Math.min(
+        savedSession.examTimeLimit > 0
+          ? savedSession.examTimeLimit
+          : Infinity,
+        savedSession.secondsElapsed + awaySeconds
+      );
+    }
+    setSecondsElapsed(currentElapsed);
+    baseElapsedRef.current = currentElapsed;
+    enterScreenMsRef.current = Date.now();
     setExamTimeLimit(savedSession.examTimeLimit);
     setSheetFilter("all");
     setScreen("active");
@@ -618,6 +779,33 @@ function ExamSimulatorContent() {
   const handleDiscardSavedSession = () => {
     saveActiveExamSession(null);
     setSavedSession(null);
+  };
+
+  const handleTogglePause = () => {
+    if (isPaused) {
+      if (pauseStartMsRef.current) {
+        const pausedDurationMs = Date.now() - pauseStartMsRef.current;
+        const newStartMs =
+          new Date(sessionStartedAtRef.current).getTime() + pausedDurationMs;
+        const newStartIso = new Date(newStartMs).toISOString();
+        setSessionStartedAt(newStartIso);
+        sessionStartedAtRef.current = newStartIso;
+        if (deadlineAt) {
+          const newDeadlineMs =
+            new Date(deadlineAt).getTime() + pausedDurationMs;
+          setDeadlineAt(new Date(newDeadlineMs).toISOString());
+        }
+      }
+      pauseStartMsRef.current = null;
+      isPausedRef.current = false;
+      setIsPaused(false);
+      baseElapsedRef.current = secondsElapsed;
+      enterScreenMsRef.current = Date.now();
+    } else {
+      pauseStartMsRef.current = Date.now();
+      isPausedRef.current = true;
+      setIsPaused(true);
+    }
   };
 
   const handleSelectOption = (optIdx: number) => {
@@ -1745,17 +1933,31 @@ function ExamSimulatorContent() {
               )}
             </div>
 
-            <div
-              className={`shrink-0 px-3 py-1.5 rounded-[8px] border flex items-center gap-2 font-mono text-[14px] font-medium tabular-nums ${
-                isTimeCritical
-                  ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
-                  : isTimeWarning
-                  ? "bg-paper-warnBg border-paper-warn/40 text-paper-warn"
-                  : "bg-paper-bg border-[#1f1b16]/[0.1] text-paper-ink"
-              }`}
-            >
-              <Clock className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-              <span>{displayTime}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div
+                className={`px-3 py-1.5 rounded-[8px] border flex items-center gap-2 font-mono text-[14px] font-medium tabular-nums ${
+                  isTimeCritical
+                    ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
+                    : isTimeWarning
+                    ? "bg-paper-warnBg border-paper-warn/40 text-paper-warn"
+                    : "bg-paper-bg border-[#1f1b16]/[0.1] text-paper-ink"
+                }`}
+              >
+                <Clock className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+                <span>{displayTime}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleTogglePause}
+                title={isPaused ? "ทำข้อสอบต่อ" : "พักการสอบชั่วคราว"}
+                className="h-9 w-9 rounded-[8px] border border-[#1f1b16]/[0.1] bg-paper-bg hover:bg-paper-raised text-paper-secondary hover:text-paper-ink flex items-center justify-center transition-colors"
+              >
+                {isPaused ? (
+                  <Play className="w-4 h-4 text-paper-accent" />
+                ) : (
+                  <Pause className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </div>
 
@@ -1894,6 +2096,27 @@ function ExamSimulatorContent() {
             </button>
           </div>
         </div>
+
+        {/* Pause Overlay */}
+        {isPaused && (
+          <div className="fixed inset-0 z-50 bg-paper-ink/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-paper-card p-6 sm:p-8 rounded-[16px] max-w-md w-full text-center space-y-4 shadow-xl border border-[#1f1b16]/10">
+              <h2 className="font-title text-[20px] text-paper-ink font-medium">
+                พักการสอบชั่วคราว
+              </h2>
+              <p className="text-[14px] text-paper-secondary leading-relaxed">
+                เวลาการสอบและหน้าข้อสอบถูกหยุดไว้ชั่วคราว เพื่อความสมจริงและเป็นธรรมในการจำลองสอบ กดปุ่มด้านล่างเพื่อทำข้อสอบต่อ
+              </p>
+              <button
+                type="button"
+                onClick={handleTogglePause}
+                className="w-full h-11 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card font-medium text-[14px] transition-colors"
+              >
+                ทำข้อสอบต่อ
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
