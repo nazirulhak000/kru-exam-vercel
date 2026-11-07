@@ -25,9 +25,11 @@ import {
   EXAM_CATEGORIES,
   ExamAttempt,
   ExamAttemptAnswer,
+  OFFICIAL_EXAM_STRUCTURE,
   PartBreakdownItem,
   QuestionItem,
   UNSPECIFIED_MAJOR,
+  evaluatePass,
   getExplanationLabel,
 } from "@/types/exam";
 import {
@@ -1051,11 +1053,14 @@ function ExamSimulatorContent() {
       }
     });
 
-    // เกณฑ์ ก.ค.ศ. ตัดผ่านแยกภาค: ทุกภาคที่มีในชุดนี้ต้องได้ไม่ต่ำกว่าร้อยละ 60 โดยตรง ไม่ปัดเศษก่อนเทียบ
-    // (ภาค ก สูงแล้วนำมาถัวเฉลี่ยช่วยภาค ข ไม่ได้)
-    const allPartsPassed = Object.values(partBreakdown).every((p) => p.passed);
-    const overallPassed = total > 0 && correctCount * 100 >= 60 * total;
-    const passed = overallPassed && allPartsPassed;
+    // เกณฑ์ ก.ค.ศ. ตัดผ่านแยกภาค: ประเมินผ่าน evaluatePass เพื่อให้ใช้เกณฑ์มาตรฐานเดียวกันทุกหน้า
+    const evalResult = evaluatePass({
+      totalQuestions: total,
+      correctCount,
+      scorePercent,
+      isBlueprint,
+      categoryBreakdown,
+    });
 
     const avgSecondsPerQuestion =
       total > 0 ? Math.max(1, Math.round(finalSeconds / total)) : 0;
@@ -1081,10 +1086,12 @@ function ExamSimulatorContent() {
       wrongCount: wrongCount + unansweredCount,
       unansweredCount,
       scorePercent,
-      passed,
+      passed: evalResult.passed,
+      isEvaluated: evalResult.isEvaluated,
+      passReason: evalResult.reason,
       durationSeconds: finalSeconds,
       avgSecondsPerQuestion,
-      partBreakdown,
+      partBreakdown: evalResult.partBreakdown,
       categoryBreakdown,
       answers: attemptAnswers,
       isTimeout: fromTimeout,
@@ -2281,16 +2288,14 @@ function ExamSimulatorContent() {
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
               <span
                 className={`max-w-full break-words font-mono text-[12px] px-2.5 py-0.5 rounded-[5px] font-medium ${
-                  lastAttempt.passed
+                  !lastAttempt.isEvaluated
+                    ? "bg-paper-raised text-paper-secondary border border-[#1f1b16]/10"
+                    : lastAttempt.passed
                     ? "bg-paper-passBg text-paper-pass border border-paper-pass/20"
                     : "bg-paper-failBg text-paper-fail border border-paper-fail/20"
                 }`}
               >
-                {lastAttempt.passed
-                  ? "ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"
-                  : lastAttempt.correctCount * 100 >= 60 * lastAttempt.totalQuestions
-                  ? "ยังไม่ผ่าน — มีภาคที่ต่ำกว่า 60% (ก.ค.ศ. ตัดเกณฑ์แยกภาค)"
-                  : "ยังไม่ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"}
+                {lastAttempt.passReason || (lastAttempt.passed ? "ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)" : "ยังไม่ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)")}
               </span>
               <span className="font-mono text-[12px] text-paper-muted tabular-nums">
                 เวลาที่ใช้ {formatTime(lastAttempt.durationSeconds)}
@@ -2317,7 +2322,11 @@ function ExamSimulatorContent() {
               <div className="text-[12px] text-paper-muted">คิดเป็นร้อยละ</div>
               <div
                 className={`text-[32px] font-medium leading-none mt-1 ${
-                  lastAttempt.passed ? "text-paper-pass" : "text-paper-fail"
+                  !lastAttempt.isEvaluated
+                    ? "text-paper-ink"
+                    : lastAttempt.passed
+                    ? "text-paper-pass"
+                    : "text-paper-fail"
                 }`}
               >
                 {lastAttempt.scorePercent}%

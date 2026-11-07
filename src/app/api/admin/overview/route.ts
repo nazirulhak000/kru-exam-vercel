@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getD1Credentials, runD1Query } from "@/lib/server/cloudflare-d1";
 import { SEED_QUESTIONS } from "@/lib/seed-questions";
-import { EXAM_CATEGORIES, ExamCategory } from "@/types/exam";
+import { EXAM_CATEGORIES, ExamCategory, evaluatePass } from "@/types/exam";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -107,20 +107,22 @@ export async function GET(req: NextRequest) {
           const pct = Number(att.scorePercentage ?? att.scorePercent ?? 0);
           totalScoreSum += pct;
           uScoreSum += pct;
-          if (pct >= 60) {
+          const evalResult = evaluatePass(att);
+          if (evalResult.passed) {
             totalPassedSessions++;
           }
 
-          // เช็คคะแนนย่อยแต่ละหมวด
-          if (Array.isArray(att.categoryScores)) {
-            att.categoryScores.forEach((cs: any) => {
-              if (cs && cs.category && categoryStatsAccum[cs.category]) {
-                categoryStatsAccum[cs.category].totalScore += Number(
-                  cs.percentage || 0
-                );
-                categoryStatsAccum[cs.category].count += 1;
+          // เช็คคะแนนย่อยแต่ละหมวดจาก categoryBreakdown จริง
+          if (att.categoryBreakdown && typeof att.categoryBreakdown === "object") {
+            Object.entries(att.categoryBreakdown).forEach(
+              ([catId, cStats]: [string, any]) => {
+                if (cStats && categoryStatsAccum[catId] && cStats.total > 0) {
+                  const cPct = (cStats.correct / cStats.total) * 100;
+                  categoryStatsAccum[catId].totalScore += cPct;
+                  categoryStatsAccum[catId].count += 1;
+                }
               }
-            });
+            );
           }
         });
 

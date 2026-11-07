@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Download, ImageIcon, Share2, X } from "lucide-react";
-import { ExamAttempt } from "@/types/exam";
+import { ExamAttempt, evaluatePass } from "@/types/exam";
 import { AttemptComparison } from "@/lib/global-stats";
 
 const SITE_URL =
@@ -150,7 +150,12 @@ async function renderScoreCard(
 
   // Big score
   y += 70;
-  const scoreColor = attempt.passed ? C.pass : C.fail;
+  const evalResult = evaluatePass(attempt);
+  const scoreColor = !evalResult.isEvaluated
+    ? C.secondary
+    : evalResult.passed
+    ? C.pass
+    : C.fail;
   ctx.fillStyle = scoreColor;
   ctx.font = `600 200px ${TITLE_FONT}`;
   const scoreText = `${attempt.scorePercent}%`;
@@ -166,14 +171,20 @@ async function renderScoreCard(
   );
 
   // Pass badge
-  const badgeText = attempt.passed
+  const badgeText = !evalResult.isEvaluated
+    ? "ชุดฝึกซ้อม"
+    : evalResult.passed
     ? "ผ่านเกณฑ์ ก.ค.ศ. 60%"
-    : "ยังไม่ถึงเกณฑ์ 60%";
+    : evalResult.reason.replace(/^ไม่ผ่านเกณฑ์ — /, "");
   ctx.font = `600 30px ${BODY_FONT}`;
   const badgeW = ctx.measureText(badgeText).width + 48;
   const badgeX = pad + scoreW + 32;
   const badgeMaxW = W - pad - badgeX;
-  ctx.fillStyle = attempt.passed ? C.passBg : C.failBg;
+  ctx.fillStyle = !evalResult.isEvaluated
+    ? C.raised
+    : evalResult.passed
+    ? C.passBg
+    : C.failBg;
   roundRect(ctx, badgeX, y + 80, Math.min(badgeW, badgeMaxW), 56, 14);
   ctx.fill();
   ctx.fillStyle = scoreColor;

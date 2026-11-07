@@ -230,12 +230,23 @@ export default function HistoryAndMistakesPage() {
                       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                         <span
                           className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 whitespace-nowrap ${
-                            att.passed
+                            !att.isEvaluated
+                              ? "bg-paper-raised text-paper-secondary"
+                              : att.passed
                               ? "bg-paper-passBg text-paper-pass"
                               : "bg-paper-failBg text-paper-fail"
                           }`}
+                          title={att.passReason}
                         >
-                          {att.passed ? "ผ่านเกณฑ์" : "ไม่ผ่านเกณฑ์"}
+                          {!att.isEvaluated
+                            ? "ชุดฝึกซ้อม"
+                            : att.passed
+                            ? "ผ่านเกณฑ์"
+                            : att.passReason?.includes("ภาค ก ต่ำกว่า")
+                            ? "ไม่ผ่าน (ภาค ก)"
+                            : att.passReason?.includes("ภาค ข ต่ำกว่า")
+                            ? "ไม่ผ่าน (ภาค ข)"
+                            : "ไม่ผ่านเกณฑ์"}
                         </span>
                         <h3 className="font-title font-medium text-[15px] text-paper-ink min-w-0 break-words">
                           {att.title}
@@ -293,6 +304,22 @@ export default function HistoryAndMistakesPage() {
 
                   {isExpanded && (
                     <div className="p-3 sm:p-5 border-t border-[#1f1b16]/[0.08] bg-paper-bg/60 space-y-3">
+                      {att.passReason && (
+                        <div className="p-2.5 rounded-[8px] bg-paper-card border border-[#1f1b16]/10 text-[13px] text-paper-ink font-medium">
+                          ผลการประเมิน:{" "}
+                          <span
+                            className={
+                              !att.isEvaluated
+                                ? "text-paper-secondary"
+                                : att.passed
+                                ? "text-paper-pass"
+                                : "text-paper-fail"
+                            }
+                          >
+                            {att.passReason}
+                          </span>
+                        </div>
+                      )}
                       <div className="text-[12px] font-mono text-paper-muted">
                         รายการคำตอบรายข้อในรอบนี้
                       </div>

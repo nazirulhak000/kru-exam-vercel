@@ -6,6 +6,7 @@ import {
   MistakeRecord,
   QuestionComment,
   QuestionItem,
+  evaluatePass,
   inferMajorFromSource,
   normalizeMajorSubject,
 } from "@/types/exam";
@@ -574,7 +575,20 @@ export function getExamAttempts(): ExamAttempt[] {
   if (!isBrowser()) return [];
   try {
     const raw = localStorage.getItem(KEYS.ATTEMPTS_HISTORY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const list: ExamAttempt[] = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    // คำนวณผ่าน/ไม่ผ่านใหม่ด้วย evaluatePass เสมอ เพื่อให้ attempt เก่าและใหม่ใช้เกณฑ์มาตรฐานเดียวกัน
+    return list.map((att) => {
+      const evalResult = evaluatePass(att);
+      return {
+        ...att,
+        passed: evalResult.passed,
+        isEvaluated: evalResult.isEvaluated,
+        passReason: evalResult.reason,
+        partBreakdown: evalResult.partBreakdown,
+      };
+    });
   } catch (e) {
     console.error("Failed to read attempts:", e);
     return [];

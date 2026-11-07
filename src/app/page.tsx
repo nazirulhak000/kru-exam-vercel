@@ -448,8 +448,13 @@ export default function HomeDashboardPage() {
                     <div className="text-right shrink-0 font-mono tabular-nums">
                       <div
                         className={`text-[14px] font-medium ${
-                          att.passed ? "text-paper-pass" : "text-paper-fail"
+                          !att.isEvaluated
+                            ? "text-paper-secondary"
+                            : att.passed
+                            ? "text-paper-pass"
+                            : "text-paper-fail"
                         }`}
+                        title={att.passReason}
                       >
                         {att.scorePercent}%
                       </div>

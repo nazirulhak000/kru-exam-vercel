@@ -207,6 +207,208 @@ export interface ExamAttempt {
   >;
   answers: ExamAttemptAnswer[];
   isTimeout?: boolean;
+  passReason?: string;
+  isEvaluated?: boolean;
+}
+
+export interface ExamPartStructure {
+  part: "ภาค ก" | "ภาค ข";
+  name: string;
+  fullScore: number;
+  description: string;
+  categories: ExamCategory[];
+}
+
+export const OFFICIAL_EXAM_STRUCTURE: Record<
+  "ภาค ก" | "ภาค ข",
+  ExamPartStructure
+> = {
+  "ภาค ก": {
+    part: "ภาค ก",
+    name: "ความรู้และความสามารถทั่วไป",
+    fullScore: 200,
+    description: "คิดวิเคราะห์ (คณิต & ไทย), ภาษาอังกฤษ, ข้าราชการที่ดีและวินัย",
+    categories: ["general", "english", "gov"],
+  },
+  "ภาค ข": {
+    part: "ภาค ข",
+    name: "มาตรฐานความรู้และประสบการณ์วิชาชีพ",
+    fullScore: 200,
+    description: "วิชาชีพครูและการจัดการเรียนรู้, กฎหมายการศึกษา, วิชาเอกเฉพาะตำแหน่ง",
+    categories: ["pedagogy", "law", "major"],
+  },
+};
+
+export interface EvaluatePassResult {
+  passed: boolean;
+  isEvaluated: boolean;
+  scorePercent: number;
+  reason: string;
+  partBreakdown: Record<
+    "ภาค ก" | "ภาค ข",
+    {
+      part: "ภาค ก" | "ภาค ข";
+      total: number;
+      correct: number;
+      scorePercent: number;
+      passed: boolean;
+    }
+  >;
+}
+
+export function evaluatePass(attempt: {
+  totalQuestions?: number;
+  correctCount?: number;
+  scorePercent?: number;
+  isBlueprint?: boolean;
+  categoryBreakdown?: Record<
+    string,
+    { total: number; correct: number; name?: string }
+  >;
+  partBreakdown?: Record<
+    string,
+    { total: number; correct: number; passed?: boolean; scorePercent?: number }
+  >;
+  passed?: boolean;
+}): EvaluatePassResult {
+  const total = attempt.totalQuestions || 0;
+  const correct = attempt.correctCount || 0;
+  const overallScorePercent =
+    total > 0 ? Math.round((correct / total) * 1000) / 10 : 0;
+
+  const partTallies: Record<
+    "ภาค ก" | "ภาค ข",
+    { total: number; correct: number }
+  > = {
+    "ภาค ก": { total: 0, correct: 0 },
+    "ภาค ข": { total: 0, correct: 0 },
+  };
+
+  if (
+    attempt.categoryBreakdown &&
+    Object.keys(attempt.categoryBreakdown).length > 0
+  ) {
+    const partAMap = new Set(["general", "english", "gov"]);
+    for (const [catId, stats] of Object.entries(attempt.categoryBreakdown)) {
+      const part = partAMap.has(catId) ? "ภาค ก" : "ภาค ข";
+      partTallies[part].total += stats.total || 0;
+      partTallies[part].correct += stats.correct || 0;
+    }
+  } else if (attempt.partBreakdown) {
+    if (attempt.partBreakdown["ภาค ก"]) {
+      partTallies["ภาค ก"].total = attempt.partBreakdown["ภาค ก"].total || 0;
+      partTallies["ภาค ก"].correct =
+        attempt.partBreakdown["ภาค ก"].correct || 0;
+    }
+    if (attempt.partBreakdown["ภาค ข"]) {
+      partTallies["ภาค ข"].total = attempt.partBreakdown["ภาค ข"].total || 0;
+      partTallies["ภาค ข"].correct =
+        attempt.partBreakdown["ภาค ข"].correct || 0;
+    }
+  }
+
+  const partA = partTallies["ภาค ก"];
+  const partB = partTallies["ภาค ข"];
+  const passA =
+    partA.total > 0 ? partA.correct * 100 >= 60 * partA.total : false;
+  const passB =
+    partB.total > 0 ? partB.correct * 100 >= 60 * partB.total : false;
+
+  const scoreA =
+    partA.total > 0 ? Math.round((partA.correct / partA.total) * 1000) / 10 : 0;
+  const scoreB =
+    partB.total > 0 ? Math.round((partB.correct / partB.total) * 1000) / 10 : 0;
+
+  const computedPartBreakdown = {
+    "ภาค ก": {
+      part: "ภาค ก" as const,
+      total: partA.total,
+      correct: partA.correct,
+      scorePercent: scoreA,
+      passed: passA,
+    },
+    "ภาค ข": {
+      part: "ภาค ข" as const,
+      total: partB.total,
+      correct: partB.correct,
+      scorePercent: scoreB,
+      passed: passB,
+    },
+  };
+
+  // กรณีมีทั้ง ภาค ก และ ภาค ข ในชุดข้อสอบ
+  if (partA.total > 0 && partB.total > 0) {
+    // กฎ 3.2: ประเมินแยกภาคเฉพาะ blueprint หรือเมื่อทั้งสองภาคมีอย่างน้อย 10 ข้อ
+    const isQualifyingMultiPart =
+      Boolean(attempt.isBlueprint) || (partA.total >= 10 && partB.total >= 10);
+    if (isQualifyingMultiPart) {
+      const passed = passA && passB;
+      let reason = "ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (≥60% ทั้ง ภาค ก และ ภาค ข)";
+      if (!passed) {
+        if (!passA && !passB) {
+          reason = "ไม่ผ่านเกณฑ์ — ทั้งภาค ก และ ภาค ข ต่ำกว่า 60%";
+        } else if (!passA) {
+          reason = `ไม่ผ่านเกณฑ์ — ภาค ก ต่ำกว่า 60% (${scoreA}%)`;
+        } else {
+          reason = `ไม่ผ่านเกณฑ์ — ภาค ข ต่ำกว่า 60% (${scoreB}%)`;
+        }
+      }
+      return {
+        passed,
+        isEvaluated: true,
+        scorePercent: overallScorePercent,
+        reason,
+        partBreakdown: computedPartBreakdown,
+      };
+    } else {
+      // ชุดสุ่มผสมขนาดสั้นที่มีบางภาค < 10 ข้อ: ไม่ตัดสินแพ้ชนะแยกภาคแบบไม่เป็นธรรม
+      return {
+        passed: false,
+        isEvaluated: false,
+        scorePercent: overallScorePercent,
+        reason: "ชุดฝึกซ้อม ไม่ประเมินผ่าน/ไม่ผ่าน (จำนวนข้อสอบไม่ครบสัดส่วนภาค)",
+        partBreakdown: computedPartBreakdown,
+      };
+    }
+  }
+
+  // กรณีสอบเฉพาะภาคใดภาคหนึ่ง
+  if (partA.total > 0 && partB.total === 0) {
+    const passed = passA;
+    return {
+      passed,
+      isEvaluated: true,
+      scorePercent: overallScorePercent,
+      reason: passed
+        ? "ผ่านเกณฑ์ภาค ก (≥60%)"
+        : `ไม่ผ่านเกณฑ์ — ภาค ก ต่ำกว่า 60% (${scoreA}%)`,
+      partBreakdown: computedPartBreakdown,
+    };
+  }
+
+  if (partB.total > 0 && partA.total === 0) {
+    const passed = passB;
+    return {
+      passed,
+      isEvaluated: true,
+      scorePercent: overallScorePercent,
+      reason: passed
+        ? "ผ่านเกณฑ์ภาค ข (≥60%)"
+        : `ไม่ผ่านเกณฑ์ — ภาค ข ต่ำกว่า 60% (${scoreB}%)`,
+      partBreakdown: computedPartBreakdown,
+    };
+  }
+
+  // Fallback สำหรับชุดที่ไม่มีข้อมูล breakdown
+  const passed =
+    total > 0 ? correct * 100 >= 60 * total : Boolean(attempt.passed);
+  return {
+    passed,
+    isEvaluated: true,
+    scorePercent: overallScorePercent,
+    reason: passed ? "ได้คะแนนรวม ≥ 60%" : "ได้คะแนนรวมต่ำกว่า 60%",
+    partBreakdown: computedPartBreakdown,
+  };
 }
 
 export interface MistakeRecord {
