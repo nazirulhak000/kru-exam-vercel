@@ -151,7 +151,7 @@ export default function QuestionBankPage() {
     const wrong: Record<string, boolean> = {};
     Object.values(mistakeMap).forEach((m) => {
       if (m.bookmarked) bm[m.questionId] = true;
-      if (m.wrongCount > 0 && !m.mastered) wrong[m.questionId] = true;
+      if (m.bookmarked || (m.wrongCount > 0 && !m.mastered)) wrong[m.questionId] = true;
     });
     setBookmarkedIds(bm);
     setMyMistakeIds(wrong);
@@ -295,6 +295,14 @@ export default function QuestionBankPage() {
   const handleToggleBookmark = (questionId: string) => {
     const nextState = toggleBookmarkQuestion(questionId);
     setBookmarkedIds((prev) => ({ ...prev, [questionId]: nextState }));
+    setMyMistakeIds((prev) => {
+      const mistakeMap = getMistakeRecordsMap();
+      const m = mistakeMap[questionId];
+      const isInReview = m
+        ? Boolean(m.bookmarked || (m.wrongCount > 0 && !m.mastered))
+        : nextState;
+      return { ...prev, [questionId]: isInReview };
+    });
   };
 
   const handleSaveEdit = () => {
@@ -670,7 +678,7 @@ export default function QuestionBankPage() {
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
                 }`}
               >
-                ข้อที่ฉันเคยตอบผิด ({
+                ข้อที่ฉันเคยตอบผิดและติดดาว ({
                   questions.filter((q) => myMistakeIds[q.id]).length
                 })
               </button>

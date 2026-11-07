@@ -367,14 +367,14 @@ export default function HomeDashboardPage() {
           <div className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="font-title font-medium text-[16px] text-paper-ink">
-                สมุดทบทวนข้อที่เคยผิด
+                สมุดทบทวนข้อที่เคยผิดและติดดาว
               </h3>
               <span className="font-mono text-[13px] text-paper-secondary tabular-nums shrink-0 whitespace-nowrap">
                 {stats.activeMistakesCount} ข้อคงค้าง
               </span>
             </div>
             <p className="text-[13px] leading-[20px] text-paper-secondary">
-              ระบบรวบรวมเฉพาะข้อที่คุณเคยตอบผิดในการสอบแต่ละรอบ เพื่อให้ฝึกทำซ้ำจนตอบถูกติดต่อกันครบ 2 ครั้ง
+              ระบบรวบรวมข้อที่คุณเคยตอบผิดและข้อที่ติดดาวไว้ เพื่อให้ฝึกซ้ำจนกว่าจะแม่นยำ
             </p>
             <Link
               href={

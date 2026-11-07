@@ -692,7 +692,8 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
       // รอบซ้อมซ้ำ (retry) ที่เพิ่งดูเฉลยมา จะไม่นับความก้าวหน้า consecutiveCorrect เพื่อป้องกัน mastered ทันที
       if (attempt.mode !== "retry") {
         prev.consecutiveCorrect += 1;
-        if (prev.consecutiveCorrect >= 2) {
+        // ข้อที่ติดดาวไว้จะไม่ออกจากคิวทบทวนโดยอัตโนมัติจนกว่าผู้ใช้จะนำดาวออกเอง
+        if (prev.consecutiveCorrect >= 2 && !prev.bookmarked) {
           prev.mastered = true;
         }
         prev.lastAttemptAt = attempt.date;
@@ -845,6 +846,7 @@ export function toggleBookmarkQuestion(questionId: string): boolean {
   rec.bookmarked = !rec.bookmarked;
   if (rec.bookmarked) {
     rec.mastered = false;
+    rec.consecutiveCorrect = 0;
   }
   rec.lastAttemptAt = new Date().toISOString();
   map[questionId] = rec;
@@ -878,8 +880,44 @@ export function getMistakeQuestions(includeMastered = false): QuestionItem[] {
     if (!rec) return false;
     const isTracked = rec.wrongCount > 0 || rec.bookmarked;
     if (!isTracked) return false;
-    return includeMastered ? true : !rec.mastered;
+    if (includeMastered) return true;
+    if (rec.bookmarked) return true;
+    return !rec.mastered;
   });
+}
+
+export interface NotebookCounts {
+  total: number;
+  needsReview: number;
+  mastered: number;
+  bookmarked: number;
+}
+
+export function getNotebookCounts(): NotebookCounts {
+  const allQuestions = getAllQuestions();
+  const mistakeMap = getMistakeRecordsMap();
+  let total = 0;
+  let needsReview = 0;
+  let mastered = 0;
+  let bookmarked = 0;
+
+  for (const q of allQuestions) {
+    const rec = mistakeMap[q.id];
+    if (!rec) continue;
+    const isTracked = rec.wrongCount > 0 || rec.bookmarked;
+    if (!isTracked) continue;
+    total++;
+    if (rec.bookmarked) {
+      bookmarked++;
+    }
+    if (rec.bookmarked || !rec.mastered) {
+      needsReview++;
+    } else {
+      mastered++;
+    }
+  }
+
+  return { total, needsReview, mastered, bookmarked };
 }
 
 // ==========================================
@@ -1032,18 +1070,9 @@ export function getReadinessStats(): ReadinessStats {
         )
       : 0;
 
-  let activeMistakesCount = 0;
-  let masteredMistakesCount = 0;
-  Object.values(mistakeMap).forEach((m) => {
-    if (!validQuestionIds.has(m.questionId)) return;
-    if (m.wrongCount > 0 || m.bookmarked) {
-      if (m.mastered) {
-        masteredMistakesCount++;
-      } else {
-        activeMistakesCount++;
-      }
-    }
-  });
+  const nbCounts = getNotebookCounts();
+  const activeMistakesCount = nbCounts.needsReview;
+  const masteredMistakesCount = nbCounts.mastered;
 
   const catTotals: Record<string, { attempted: number; correct: number }> = {};
   qualifiedAttempts.forEach((att) => {

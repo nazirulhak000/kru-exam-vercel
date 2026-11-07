@@ -120,14 +120,24 @@ export default function HistoryAndMistakesPage() {
   const filteredMistakes = mistakeQuestions.filter((q) => {
     const rec = mistakeMap[q.id];
     if (!rec) return false;
-    if (mistakeFilter === "active") return !rec.mastered;
-    if (mistakeFilter === "mastered") return Boolean(rec.mastered);
+    if (mistakeFilter === "active") return rec.bookmarked || !rec.mastered;
+    if (mistakeFilter === "mastered") return Boolean(rec.mastered && !rec.bookmarked);
     if (mistakeFilter === "bookmarked") return Boolean(rec.bookmarked);
     return true;
   });
 
-  const activeMistakeCount = mistakeQuestions.filter(
-    (q) => !mistakeMap[q.id]?.mastered
+  const activeMistakeCount = mistakeQuestions.filter((q) => {
+    const rec = mistakeMap[q.id];
+    return rec && (rec.bookmarked || !rec.mastered);
+  }).length;
+
+  const masteredMistakeCount = mistakeQuestions.filter((q) => {
+    const rec = mistakeMap[q.id];
+    return rec && rec.mastered && !rec.bookmarked;
+  }).length;
+
+  const bookmarkedMistakeCount = mistakeQuestions.filter(
+    (q) => mistakeMap[q.id]?.bookmarked
   ).length;
 
   const letters = ["ก", "ข", "ค", "ง"];
@@ -409,16 +419,11 @@ export default function HistoryAndMistakesPage() {
                   { id: "active", label: `ต้องทบทวน (${activeMistakeCount})` },
                   {
                     id: "mastered",
-                    label: `แม่นยำแล้ว (${
-                      mistakeQuestions.length - activeMistakeCount
-                    })`,
+                    label: `แม่นยำแล้ว (${masteredMistakeCount})`,
                   },
                   {
                     id: "bookmarked",
-                    label: `ติดดาว (${
-                      mistakeQuestions.filter((q) => mistakeMap[q.id]?.bookmarked)
-                        .length
-                    })`,
+                    label: `ติดดาว (${bookmarkedMistakeCount})`,
                   },
                 ].map((f) => (
                   <button
