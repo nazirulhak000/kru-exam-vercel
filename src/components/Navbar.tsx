@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 import {
   getCloudflareConfig,
+  getSavedGeminiApiKey,
   pushLocalStateToCloud,
   saveCloudflareConfig,
+  saveGeminiApiKey,
   syncWithCloudDatabase,
 } from "@/lib/storage";
 
@@ -65,6 +67,7 @@ export default function Navbar() {
   const [cfAccountId, setCfAccountId] = useState("");
   const [cfApiToken, setCfApiToken] = useState("");
   const [cfDatabaseId, setCfDatabaseId] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
   const [statusMessage, setStatusMessage] = useState<{
     type: "pass" | "fail";
     text: string;
@@ -77,6 +80,7 @@ export default function Navbar() {
     setCfAccountId(cfg.accountId || "");
     setCfApiToken(cfg.apiToken || "");
     setCfDatabaseId(cfg.databaseId || "");
+    setGeminiApiKey(getSavedGeminiApiKey() || "");
   };
 
   useEffect(() => {
@@ -104,6 +108,9 @@ export default function Navbar() {
       apiToken: cfApiToken,
       databaseId: cfDatabaseId,
     });
+    if (geminiApiKey !== undefined) {
+      saveGeminiApiKey(geminiApiKey);
+    }
 
     const pullRes = await syncWithCloudDatabase();
     if (pullRes.ok) {
@@ -267,11 +274,11 @@ export default function Navbar() {
                     strokeWidth={1.5}
                   />
                   <h2 className="font-title font-semibold text-[18px] text-paper-ink">
-                    ฐานข้อมูลออนไลน์ & Cloudflare D1 Sync
+                    การตั้งค่าระบบ (Cloudflare D1 & Gemini AI)
                   </h2>
                 </div>
                 <p className="text-[13px] text-paper-secondary">
-                  ซิงก์คลังข้อสอบ PDF ประวัติคะแนน และสมุดทบทวนข้อที่เคยผิดข้ามเครื่องอัตโนมัติ
+                  จัดการการซิงก์ข้อมูลข้ามอุปกรณ์ และกุญแจเชื่อมต่อ Google Gemini API
                 </p>
               </div>
               <button
@@ -366,6 +373,35 @@ export default function Navbar() {
                     className="w-full h-10 px-3 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.14] text-[13px] font-mono text-paper-ink focus:outline-none focus:border-paper-accent"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Google Gemini API Key Section */}
+            <div className="space-y-3 pt-3 border-t border-[#1f1b16]/[0.08]">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-medium text-paper-ink">
+                  Google Gemini API Key (สำหรับสกัด & ออกข้อสอบ AI)
+                </span>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[12px] text-paper-accent hover:underline"
+                >
+                  ขอรับ API Key ฟรี
+                </a>
+              </div>
+              <p className="text-[12px] text-paper-secondary leading-relaxed">
+                ใส่คีย์เพียงครั้งเดียว ระบบจะจำไว้ในเครื่องและซิงก์ให้อัตโนมัติ เพื่อให้หน้าแปลงไฟล์ PDF ใช้งานได้ทันทีโดยไม่ต้องคอยกรอกซ้ำ
+              </p>
+              <div>
+                <input
+                  type="password"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder="วาง Gemini API Key ของคุณที่นี่..."
+                  className="w-full h-10 px-3 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.14] text-[13px] font-mono text-paper-ink focus:outline-none focus:border-paper-accent"
+                />
               </div>
             </div>
 

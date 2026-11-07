@@ -365,33 +365,6 @@ export default function UploadPdfPage() {
           </div>
         </div>
 
-        {/* Gemini API Key input when AI mode is selected */}
-        {engineMode !== "auto_regex" && (
-          <div className="p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-[13px] font-medium text-paper-ink flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
-                <span>รหัสเชื่อมต่อ Google Gemini API Key</span>
-              </label>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[12px] text-paper-accent hover:underline"
-              >
-                ขอรับ API Key ฟรีจาก Google AI Studio
-              </a>
-            </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIzaSy... (หรือเว้นว่างหากตั้งค่า GEMINI_API_KEY บน Vercel แล้ว)"
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card font-mono text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            />
-          </div>
-        )}
-
         {/* Metadata Settings */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
