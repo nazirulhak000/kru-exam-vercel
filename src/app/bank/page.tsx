@@ -111,26 +111,6 @@ export default function QuestionBankPage() {
   // แสดงผลทีละชุด (incremental rendering) เพื่อไม่ให้เรนเดอร์การ์ดข้อสอบนับพันข้อพร้อมกัน
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
 
-  const activePool = useMemo(() => {
-    return activeCollectionTab === "standard" ? questions : roonpiiQuestions;
-  }, [activeCollectionTab, questions, roonpiiQuestions]);
-
-  const categoryCounts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const q of activePool) {
-      map[q.category] = (map[q.category] || 0) + 1;
-    }
-    return map;
-  }, [activePool]);
-
-  const availableYears = useMemo(() => {
-    const years = new Set<string>();
-    roonpiiQuestions.forEach((q) => {
-      if (q.examYear) years.add(q.examYear);
-    });
-    return Array.from(years).sort().reverse();
-  }, [roonpiiQuestions]);
-
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [
@@ -203,10 +183,65 @@ export default function QuestionBankPage() {
     return () => window.removeEventListener("kru-cloud-synced", loadData);
   }, []);
 
-  // คำนวณชุดข้อสอบที่มีอยู่ในหมวดที่เลือก (Cascading Filter: ช่องสองอิงจากช่องแรก)
+  const activePool = useMemo(() => {
+    return activeCollectionTab === "standard" ? questions : roonpiiQuestions;
+  }, [activeCollectionTab, questions, roonpiiQuestions]);
+
+  // คำนวณจำนวนข้อในแต่ละช่องทางของแหล่งอินเทอร์เน็ต
+  const internetChannelCounts = useMemo(() => {
+    const counts = {
+      all: roonpiiQuestions.length,
+      gdrive: 0,
+      trueplookpanya: 0,
+      official_paper: 0,
+      roonpii: 0,
+    };
+    roonpiiQuestions.forEach((q) => {
+      const channel = getQuestionProvenance(q).originChannel;
+      if (channel === "google_drive") counts.gdrive++;
+      else if (channel === "trueplookpanya") counts.trueplookpanya++;
+      else if (channel === "official_paper") counts.official_paper++;
+      else if (channel === "roonpii") counts.roonpii++;
+    });
+    return counts;
+  }, [roonpiiQuestions]);
+
+  // สระข้อสอบกรองตามแหล่งที่มา (สำหรับแท็บอินเทอร์เน็ต)
+  const sourceFilteredPool = useMemo(() => {
+    if (activeCollectionTab !== "roonpii") return activePool;
+    if (selectedRefSource === "all") return activePool;
+    return activePool.filter((q) => {
+      const channel = getQuestionProvenance(q).originChannel;
+      if (selectedRefSource === "gdrive") return channel === "google_drive";
+      if (selectedRefSource === "trueplookpanya") return channel === "trueplookpanya";
+      if (selectedRefSource === "official_paper") return channel === "official_paper";
+      if (selectedRefSource === "roonpii") return channel === "roonpii";
+      return true;
+    });
+  }, [activePool, activeCollectionTab, selectedRefSource]);
+
+  // หมวดวิชาพร้อมจำนวนข้อที่คำนวณตามแหล่งที่เลือก
+  const categoryCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const q of sourceFilteredPool) {
+      map[q.category] = (map[q.category] || 0) + 1;
+    }
+    return map;
+  }, [sourceFilteredPool]);
+
+  // ปีที่สอบที่มีอยู่จริงในสระที่เลือก
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    sourceFilteredPool.forEach((q) => {
+      if (q.examYear) years.add(q.examYear);
+    });
+    return Array.from(years).sort().reverse();
+  }, [sourceFilteredPool]);
+
+  // คำนวณชุดข้อสอบที่มีอยู่ในหมวดและแหล่งที่เลือก (Cascading Filter: ชุดเอกสารอิงตามแหล่งที่มาและหมวด)
   const sourceCounts = useMemo(() => {
     const map = new Map<string, number>();
-    activePool.forEach((q) => {
+    sourceFilteredPool.forEach((q) => {
       if (selectedCat !== "all" && q.category !== selectedCat) return;
       if (
         selectedCat === "major" &&
@@ -215,18 +250,25 @@ export default function QuestionBankPage() {
       ) {
         return;
       }
-      if (activeCollectionTab === "roonpii") {
-        if (selectedRefSource === "gdrive" && !q.id.startsWith("kru-gd-")) return;
-        if (selectedRefSource === "trueplookpanya" && !(q.examAgency?.includes("TruePlookpanya") || q.sourcePdf?.includes("TruePlookpanya") || q.sourcePdf?.includes("ทรู"))) return;
-        if (selectedRefSource === "official_paper" && (q.id.startsWith("kru-gd-") || q.collectionType !== "official_exam" || q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา"))) return;
-        if (selectedRefSource === "roonpii" && !(q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา") || q.collectionType === "recalled_exam")) return;
-      }
-      const defaultSrc = activeCollectionTab === "standard" ? "คลังข้อสอบมาตรฐาน ก.ค.ศ." : "คลังข้อสอบ Roonpii";
+      if (selectedYear !== "all" && q.examYear !== selectedYear) return;
+      if (selectedType !== "all" && q.collectionType !== selectedType) return;
+
+      const defaultSrc =
+        activeCollectionTab === "standard"
+          ? "คลังข้อสอบมาตรฐาน ก.ค.ศ."
+          : "คลังข้อสอบ Roonpii";
       const src = q.sourcePdf || defaultSrc;
       map.set(src, (map.get(src) || 0) + 1);
     });
     return map;
-  }, [activePool, selectedCat, selectedMajor, activeCollectionTab, selectedRefSource]);
+  }, [
+    sourceFilteredPool,
+    selectedCat,
+    selectedMajor,
+    selectedYear,
+    selectedType,
+    activeCollectionTab,
+  ]);
 
   const visibleSources = useMemo(() => {
     return Array.from(sourceCounts.keys()).sort((a, b) => {
@@ -239,27 +281,56 @@ export default function QuestionBankPage() {
     });
   }, [sourceCounts]);
 
-  // หากเปลี่ยนหมวดวิชา แล้วชุดเอกสารเดิมที่เลือกไว้ไม่มีข้อสอบในหมวดใหม่ ให้รีเซ็ตกลับเป็น "all" อัตโนมัติ
+  // หากเปลี่ยนแหล่งที่มาหรือหมวดวิชา แล้วชุดเอกสารเดิมไม่มีข้อสอบ ให้รีเซ็ตกลับเป็น "all" อัตโนมัติ
   useEffect(() => {
-    if (selectedSource !== "all" && (sourceCounts.get(selectedSource) || 0) === 0) {
+    if (
+      selectedSource !== "all" &&
+      (sourceCounts.get(selectedSource) || 0) === 0
+    ) {
       setSelectedSource("all");
     }
-  }, [selectedCat, selectedMajor, sourceCounts, selectedSource]);
+    if (selectedYear !== "all" && !availableYears.includes(selectedYear)) {
+      setSelectedYear("all");
+    }
+    if (selectedCat !== "all" && (categoryCounts[selectedCat] || 0) === 0) {
+      setSelectedCat("all");
+    }
+  }, [
+    sourceFilteredPool,
+    sourceCounts,
+    availableYears,
+    categoryCounts,
+    selectedSource,
+    selectedYear,
+    selectedCat,
+  ]);
 
-  // นับจำนวนข้อที่มีการท้วงติงรอตรวจสอบ และข้อที่มีคอมเมนต์ทั้งหมด
-  const pendingReportQuestionCount = activePool.filter((q) => {
-    const list = commentsMap[q.id] || [];
-    return list.some(
-      (c) => c.type === "report_wrong" && c.status !== "resolved"
-    );
-  }).length;
+  // นับจำนวนข้อที่มีการท้วงติงรอตรวจสอบ และข้อที่มีคอมเมนต์ทั้งหมดในสระที่เลือก
+  const pendingReportQuestionCount = useMemo(() => {
+    return sourceFilteredPool.filter((q) => {
+      const list = commentsMap[q.id] || [];
+      return list.some(
+        (c) => c.type === "report_wrong" && c.status !== "resolved"
+      );
+    }).length;
+  }, [sourceFilteredPool, commentsMap]);
 
-  const commentedQuestionCount = activePool.filter((q) => {
-    const list = commentsMap[q.id] || [];
-    return list.length > 0;
-  }).length;
+  const commentedQuestionCount = useMemo(() => {
+    return sourceFilteredPool.filter((q) => {
+      const list = commentsMap[q.id] || [];
+      return list.length > 0;
+    }).length;
+  }, [sourceFilteredPool, commentsMap]);
 
-  const filteredQuestions = activePool.filter((q) => {
+  const myMistakesCount = useMemo(() => {
+    return sourceFilteredPool.filter((q) => myMistakeIds[q.id]).length;
+  }, [sourceFilteredPool, myMistakeIds]);
+
+  const hardQuestionsCount = useMemo(() => {
+    return sourceFilteredPool.filter((q) => isHardQuestion(q.id)).length;
+  }, [sourceFilteredPool, globalStats]);
+
+  const filteredQuestions = sourceFilteredPool.filter((q) => {
     if (selectedCat !== "all" && q.category !== selectedCat) return false;
     if (
       selectedCat === "major" &&
@@ -268,7 +339,10 @@ export default function QuestionBankPage() {
     ) {
       return false;
     }
-    const defaultSrc = activeCollectionTab === "standard" ? "คลังข้อสอบมาตรฐาน ก.ค.ศ." : "คลังข้อสอบ Roonpii";
+    const defaultSrc =
+      activeCollectionTab === "standard"
+        ? "คลังข้อสอบมาตรฐาน ก.ค.ศ."
+        : "คลังข้อสอบ Roonpii";
     if (
       selectedSource !== "all" &&
       (q.sourcePdf || defaultSrc) !== selectedSource
@@ -278,10 +352,6 @@ export default function QuestionBankPage() {
     if (activeCollectionTab === "roonpii") {
       if (selectedYear !== "all" && q.examYear !== selectedYear) return false;
       if (selectedType !== "all" && q.collectionType !== selectedType) return false;
-      if (selectedRefSource === "gdrive" && !q.id.startsWith("kru-gd-")) return false;
-      if (selectedRefSource === "trueplookpanya" && !(q.examAgency?.includes("TruePlookpanya") || q.sourcePdf?.includes("TruePlookpanya") || q.sourcePdf?.includes("ทรู"))) return false;
-      if (selectedRefSource === "official_paper" && (q.id.startsWith("kru-gd-") || q.collectionType !== "official_exam" || q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา"))) return false;
-      if (selectedRefSource === "roonpii" && !(q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา") || q.collectionType === "recalled_exam")) return false;
     }
     if (commentFilter === "pending_reports") {
       const list = commentsMap[q.id] || [];
@@ -310,6 +380,27 @@ export default function QuestionBankPage() {
 
   const visibleQuestions = filteredQuestions.slice(0, visibleCount);
   const remainingCount = filteredQuestions.length - visibleQuestions.length;
+
+  const isAnyFilterActive =
+    searchQuery.trim() !== "" ||
+    selectedCat !== "all" ||
+    selectedMajor !== "all" ||
+    selectedSource !== "all" ||
+    selectedRefSource !== "all" ||
+    selectedYear !== "all" ||
+    selectedType !== "all" ||
+    commentFilter !== "all";
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setSelectedCat("all");
+    setSelectedMajor("all");
+    setSelectedSource("all");
+    setSelectedRefSource("all");
+    setSelectedYear("all");
+    setSelectedType("all");
+    setCommentFilter("all");
+  };
 
   const handleDelete = (id: string) => {
     if (!isAdmin) return;
@@ -413,8 +504,8 @@ export default function QuestionBankPage() {
           <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink break-words">
             {activeCollectionTab === "standard"
               ? "คลังข้อสอบมาตรฐานแกนกลาง"
-              : "คลังข้อสอบจริง & เอกสารอ้างอิง (2558–2568)"}{" "}
-            ({filteredQuestions.length.toLocaleString()} / {activePool.length.toLocaleString()} ข้อ)
+              : "คลังข้อสอบจริง & แหล่งข้อสอบจากอินเทอร์เน็ต (2558–2568)"}{" "}
+            ({filteredQuestions.length.toLocaleString()} / {sourceFilteredPool.length.toLocaleString()} ข้อ)
           </h1>
         </div>
 
@@ -574,19 +665,19 @@ export default function QuestionBankPage() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[12px] text-paper-secondary">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-600/70" />
-              Google Drive PDF 2567: <strong>939 ข้อ</strong>
+              Google Drive PDF 2567: <strong>{internetChannelCounts.gdrive.toLocaleString()} ข้อ</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-600/70" />
-              TruePlookpanya สพฐ.: <strong>862 ข้อ</strong>
+              TruePlookpanya สพฐ.: <strong>{internetChannelCounts.trueplookpanya.toLocaleString()} ข้อ</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-purple-600/70" />
-              กระดาษคำถามสนามสอบจริง: <strong>132 ข้อ</strong>
+              กระดาษคำถามสนามสอบจริง: <strong>{internetChannelCounts.official_paper.toLocaleString()} ข้อ</strong>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-600/70" />
-              ข้อสอบจำมา Roonpii: <strong>19 ข้อ</strong>
+              ข้อสอบจำมา Roonpii: <strong>{internetChannelCounts.roonpii.toLocaleString()} ข้อ</strong>
             </span>
           </div>
         </div>
@@ -615,113 +706,154 @@ export default function QuestionBankPage() {
       {/* Search, Subject Filters & Comment Moderation Filter */}
       <div className="space-y-4">
         <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="relative min-w-0">
-              <Search
-                className="w-4 h-4 text-paper-muted absolute left-3 top-3"
-                strokeWidth={1.5}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาโจทย์ มาตรา หรือวิชาเอก"
-                className="w-full h-10 pl-9 pr-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-              />
-            </div>
+          {activeCollectionTab === "roonpii" ? (
+            <>
+              {/* แถวที่ 1: ค้นหา, แหล่งที่มาบนอินเทอร์เน็ต, และหมวดวิชา */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="relative min-w-0">
+                  <Search
+                    className="w-4 h-4 text-paper-muted absolute left-3 top-3"
+                    strokeWidth={1.5}
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="ค้นหาโจทย์ มาตรา หรือวิชาเอก"
+                    className="w-full h-10 pl-9 pr-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                  />
+                </div>
 
-            <select
-              value={selectedCat}
-              onChange={(e) => {
-                setSelectedCat(e.target.value);
-                if (e.target.value !== "major") {
-                  setSelectedMajor("all");
-                }
-              }}
-              className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            >
-              <option value="all">ทุกหมวดวิชา ({activePool.length})</option>
-              {EXAM_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  [{c.part}] {c.shortName} ({categoryCounts[c.id] || 0})
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedSource}
-              onChange={(e) => setSelectedSource(e.target.value)}
-              className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            >
-              <option value="all">
-                {selectedCat === "all"
-                  ? `ทุกชุดเอกสารต้นทาง (${visibleSources.length} ชุด)`
-                  : `ทุกชุดเอกสารในหมวดนี้ (${visibleSources.length} ชุด)`}
-              </option>
-              {visibleSources.map((src) => (
-                <option key={src} value={src}>
-                  {src} ({sourceCounts.get(src) || 0} ข้อ)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {activeCollectionTab === "roonpii" && (
-            <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
-                  แหล่งที่มาบนอินเทอร์เน็ต:
-                </span>
                 <select
                   value={selectedRefSource}
                   onChange={(e) => {
                     setSelectedRefSource(e.target.value);
                     setSelectedSource("all");
                   }}
-                  className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12.5px] font-sans text-paper-ink focus:outline-none focus:border-paper-accent"
+                  className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-amber-600/30 bg-amber-500/5 text-[13px] font-medium text-amber-950 focus:outline-none focus:border-amber-600"
                 >
-                  <option value="all">ทุกแหล่งที่มา ({roonpiiQuestions.length.toLocaleString()} ข้อ)</option>
-                  <option value="gdrive">Google Drive PDF คลังวิชาเอก (939 ข้อ)</option>
-                  <option value="trueplookpanya">TruePlookpanya.com คลังแบบทดสอบ สพฐ. (862 ข้อ)</option>
-                  <option value="official_paper">กระดาษคำถามสนามสอบจริง สพฐ./กทม. (132 ข้อ)</option>
-                  <option value="roonpii">Roonpii.com ข้อสอบจำมาจริง (19 ข้อ)</option>
+                  <option value="all">ทุกแหล่งที่มา ({internetChannelCounts.all.toLocaleString()} ข้อ)</option>
+                  <option value="gdrive">Google Drive PDF คลังวิชาเอก ({internetChannelCounts.gdrive.toLocaleString()} ข้อ)</option>
+                  <option value="trueplookpanya">TruePlookpanya.com ({internetChannelCounts.trueplookpanya.toLocaleString()} ข้อ)</option>
+                  <option value="official_paper">กระดาษคำถามสนามสอบจริง ({internetChannelCounts.official_paper.toLocaleString()} ข้อ)</option>
+                  <option value="roonpii">Roonpii.com ข้อสอบจำมาจริง ({internetChannelCounts.roonpii.toLocaleString()} ข้อ)</option>
+                </select>
+
+                <select
+                  value={selectedCat}
+                  onChange={(e) => {
+                    setSelectedCat(e.target.value);
+                    if (e.target.value !== "major") {
+                      setSelectedMajor("all");
+                    }
+                  }}
+                  className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                >
+                  <option value="all">ทุกหมวดวิชา ({sourceFilteredPool.length.toLocaleString()} ข้อ)</option>
+                  {EXAM_CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      [{c.part}] {c.shortName} ({(categoryCounts[c.id] || 0).toLocaleString()} ข้อ)
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
-                  ปีที่สอบ:
-                </span>
+              {/* แถวที่ 2: ชุดเอกสารต้นทาง, ปีที่สอบ, และความน่าเชื่อถือ */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <select
+                  value={selectedSource}
+                  onChange={(e) => setSelectedSource(e.target.value)}
+                  className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                >
+                  <option value="all">
+                    {selectedCat === "all"
+                      ? `ทุกชุดเอกสารต้นทาง (${visibleSources.length.toLocaleString()} ชุด)`
+                      : `ทุกชุดเอกสารในหมวดนี้ (${visibleSources.length.toLocaleString()} ชุด)`}
+                  </option>
+                  {visibleSources.map((src) => (
+                    <option key={src} value={src}>
+                      {src} ({(sourceCounts.get(src) || 0).toLocaleString()} ข้อ)
+                    </option>
+                  ))}
+                </select>
+
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
-                  className="h-9 px-3 rounded-[8px] border border-amber-600/30 bg-amber-500/5 text-[12.5px] font-medium text-amber-900 focus:outline-none focus:border-amber-600"
+                  className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
                 >
-                  <option value="all">ทุกปี ({availableYears.join(", ")})</option>
+                  <option value="all">ทุกปีที่สอบ ({availableYears.join(", ")})</option>
                   {availableYears.map((yr) => (
                     <option key={yr} value={yr}>
                       ปี พ.ศ. {yr}
                     </option>
                   ))}
                 </select>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
-                  ความน่าเชื่อถือ:
-                </span>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12.5px] font-sans text-paper-ink focus:outline-none focus:border-paper-accent"
+                  className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
                 >
-                  <option value="all">ทั้งหมด (ข้อสอบจริง, จำมา, ชุดเก็ง & ฝึกฝน)</option>
+                  <option value="all">ความน่าเชื่อถือ: ทั้งหมด (จริง, จำมา, เก็ง & ฝึกฝน)</option>
                   <option value="official_exam">ข้อสอบจริงจากกระดาษคำถามสนามสอบ</option>
                   <option value="recalled_exam">ข้อสอบจำมาของผู้เข้าสอบ</option>
                   <option value="mock_exam">แนวข้อสอบและชุดเก็ง Google Drive</option>
                   <option value="practice_and_mock">แบบทดสอบออนไลน์เพื่อการศึกษา</option>
                 </select>
               </div>
+            </>
+          ) : (
+            /* แท็บคลังข้อสอบมาตรฐานแกนกลาง */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="relative min-w-0">
+                <Search
+                  className="w-4 h-4 text-paper-muted absolute left-3 top-3"
+                  strokeWidth={1.5}
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหาโจทย์ มาตรา หรือวิชาเอก"
+                  className="w-full h-10 pl-9 pr-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                />
+              </div>
+
+              <select
+                value={selectedCat}
+                onChange={(e) => {
+                  setSelectedCat(e.target.value);
+                  if (e.target.value !== "major") {
+                    setSelectedMajor("all");
+                  }
+                }}
+                className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              >
+                <option value="all">ทุกหมวดวิชา ({activePool.length.toLocaleString()} ข้อ)</option>
+                {EXAM_CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    [{c.part}] {c.shortName} ({(categoryCounts[c.id] || 0).toLocaleString()} ข้อ)
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedSource}
+                onChange={(e) => setSelectedSource(e.target.value)}
+                className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              >
+                <option value="all">
+                  {selectedCat === "all"
+                    ? `ทุกชุดเอกสารต้นทาง (${visibleSources.length.toLocaleString()} ชุด)`
+                    : `ทุกชุดเอกสารในหมวดนี้ (${visibleSources.length.toLocaleString()} ชุด)`}
+                </option>
+                {visibleSources.map((src) => (
+                  <option key={src} value={src}>
+                    {src} ({(sourceCounts.get(src) || 0).toLocaleString()} ข้อ)
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -760,7 +892,7 @@ export default function QuestionBankPage() {
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
                 }`}
               >
-                ทั้งหมด ({questions.length})
+                ทั้งหมด ({sourceFilteredPool.length.toLocaleString()})
               </button>
               <button
                 type="button"
@@ -773,7 +905,7 @@ export default function QuestionBankPage() {
               >
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 <span>
-                  มีผู้ท้วงติงเฉลย รอตรวจ ({pendingReportQuestionCount})
+                  มีผู้ท้วงติงเฉลย รอตรวจ ({pendingReportQuestionCount.toLocaleString()})
                 </span>
               </button>
               <button
@@ -786,7 +918,7 @@ export default function QuestionBankPage() {
                 }`}
               >
                 <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                <span>มีคอมเมนต์ ({commentedQuestionCount})</span>
+                <span>มีคอมเมนต์ ({commentedQuestionCount.toLocaleString()})</span>
               </button>
               <button
                 type="button"
@@ -797,9 +929,7 @@ export default function QuestionBankPage() {
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
                 }`}
               >
-                ข้อที่ฉันเคยตอบผิดและติดดาว ({
-                  questions.filter((q) => myMistakeIds[q.id]).length
-                })
+                ข้อที่ฉันเคยตอบผิดและติดดาว ({myMistakesCount.toLocaleString()})
               </button>
               <button
                 type="button"
@@ -811,9 +941,20 @@ export default function QuestionBankPage() {
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
                 }`}
               >
-                ข้อปราบเซียน ({questions.filter((q) => isHardQuestion(q.id)).length})
+                ข้อปราบเซียน ({hardQuestionsCount.toLocaleString()})
               </button>
             </div>
+
+            {isAnyFilterActive && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-[12px] text-paper-accent hover:underline flex items-center gap-1 font-medium min-h-8 py-1 px-2 rounded-[6px] hover:bg-paper-accent/10 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>ล้างตัวกรอง</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -837,7 +978,7 @@ export default function QuestionBankPage() {
         {/* Question Cards */}
         {filteredQuestions.length > 0 && (
           <div className="text-[12px] text-paper-muted tabular-nums">
-            แสดง {visibleQuestions.length} จาก {filteredQuestions.length} ข้อ
+            แสดง {visibleQuestions.length.toLocaleString()} จาก {filteredQuestions.length.toLocaleString()} ข้อ
           </div>
         )}
         <div className="space-y-4">
@@ -1312,14 +1453,32 @@ export default function QuestionBankPage() {
           })}
         </div>
 
+        {filteredQuestions.length === 0 && (
+          <div className="p-8 text-center rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-3">
+            <p className="text-[14px] text-paper-secondary">
+              ไม่พบข้อสอบที่ตรงกับเงื่อนไขการค้นหาหรือตัวกรองที่เลือก
+            </p>
+            {isAnyFilterActive && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-paper-accent text-paper-card text-[12.5px] font-medium hover:opacity-90 transition-opacity"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>ล้างตัวกรองทั้งหมด</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {remainingCount > 0 && (
           <button
             type="button"
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             className="w-full min-h-11 px-4 py-2 rounded-[10px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium transition-colors duration-150"
           >
-            แสดงเพิ่มอีก {Math.min(PAGE_SIZE, remainingCount)} ข้อ (เหลือ{" "}
-            {remainingCount} ข้อ)
+            แสดงเพิ่มอีก {Math.min(PAGE_SIZE, remainingCount).toLocaleString()} ข้อ (เหลือ{" "}
+            {remainingCount.toLocaleString()} ข้อ)
           </button>
         )}
       </div>
