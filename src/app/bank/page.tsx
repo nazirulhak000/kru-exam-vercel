@@ -44,6 +44,13 @@ import {
   toggleBookmarkQuestion,
   updateQuestion,
 } from "@/lib/storage";
+import GlobalQuestionStat from "@/components/GlobalQuestionStat";
+import {
+  GlobalStatsMap,
+  HARD_QUESTION_MAX_RATE,
+  HARD_QUESTION_MIN_ATTEMPTS,
+  fetchGlobalQuestionStats,
+} from "@/lib/global-stats";
 
 export default function QuestionBankPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
@@ -62,8 +69,9 @@ export default function QuestionBankPage() {
   const [selectedMajor, setSelectedMajor] = useState<string>("all");
   const [selectedSource, setSelectedSource] = useState<string>("all");
   const [commentFilter, setCommentFilter] = useState<
-    "all" | "pending_reports" | "has_comments" | "my_mistakes"
+    "all" | "pending_reports" | "has_comments" | "my_mistakes" | "hard"
   >("all");
+  const [globalStats, setGlobalStats] = useState<GlobalStatsMap>({});
   const [myMistakeIds, setMyMistakeIds] = useState<Record<string, boolean>>(
     {}
   );
@@ -100,6 +108,25 @@ export default function QuestionBankPage() {
     });
     setBookmarkedIds(bm);
     setMyMistakeIds(wrong);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchGlobalQuestionStats().then((data) => {
+      if (!cancelled) setGlobalStats(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isHardQuestion = (id: string) => {
+    const st = globalStats[id];
+    return (
+      !!st &&
+      st.attempts >= HARD_QUESTION_MIN_ATTEMPTS &&
+      st.correctRate <= HARD_QUESTION_MAX_RATE
+    );
   };
 
   useEffect(() => {
@@ -152,6 +179,8 @@ export default function QuestionBankPage() {
       if (list.length === 0) return false;
     } else if (commentFilter === "my_mistakes") {
       if (!myMistakeIds[q.id]) return false;
+    } else if (commentFilter === "hard") {
+      if (!isHardQuestion(q.id)) return false;
     }
     if (searchQuery.trim()) {
       const kw = searchQuery.toLowerCase();
@@ -460,6 +489,18 @@ export default function QuestionBankPage() {
                   questions.filter((q) => myMistakeIds[q.id]).length
                 })
               </button>
+              <button
+                type="button"
+                onClick={() => setCommentFilter("hard")}
+                title={`ข้อที่มีผู้สอบทำอย่างน้อย ${HARD_QUESTION_MIN_ATTEMPTS} ครั้ง และตอบถูกไม่เกิน ${HARD_QUESTION_MAX_RATE}%`}
+                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors ${
+                  commentFilter === "hard"
+                    ? "bg-paper-ink text-paper-card"
+                    : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
+                }`}
+              >
+                ข้อปราบเซียน ({questions.filter((q) => isHardQuestion(q.id)).length})
+              </button>
             </div>
           </div>
         </div>
@@ -675,6 +716,7 @@ export default function QuestionBankPage() {
 
                 {isRevealed && (
                   <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2 text-[13px]">
+                    <GlobalQuestionStat stat={globalStats[q.id]} />
                     <p className="text-paper-secondary leading-[21px]">
                       <strong className="text-paper-ink font-medium">
                         {getExplanationLabel(q.category)}:{" "}

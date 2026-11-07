@@ -1,0 +1,140 @@
+import { ExamAttempt } from "@/types/exam";
+import { getOrCreateUserId } from "@/lib/storage";
+
+// สถิติรวมจากผู้สอบทั้งระบบ (อ่าน/เขียนผ่าน /api/stats)
+// ทุกฟังก์ชันล้มเหลวแบบเงียบ: ถ้าออฟไลน์หรือ API ล่ม หน้าเว็บต้องใช้งานต่อได้ตามปกติ
+
+export interface QuestionGlobalStat {
+  attempts: number;
+  correct: number;
+  correctRate: number; // 0-100
+}
+
+export type GlobalStatsMap = Record<string, QuestionGlobalStat>;
+
+export interface AttemptComparison {
+  peers: number;
+  percentile: number; // สัดส่วนรอบที่คะแนนต่ำกว่ารอบนี้ (0-100)
+}
+
+const CACHE_KEY = "kru_exam_global_stats_cache_v1";
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+// ป้าย "ข้อปราบเซียน" แสดงเมื่อมีคนทำมากพอและอัตราตอบถูกต่ำ
+export const MIN_ATTEMPTS_FOR_DISPLAY = 5;
+export const HARD_QUESTION_MIN_ATTEMPTS = 10;
+export const HARD_QUESTION_MAX_RATE = 35;
+
+let memoryCache: { at: number; data: GlobalStatsMap } | null = null;
+let inflight: Promise<GlobalStatsMap> | null = null;
+
+function toStatsMap(raw: Record<string, [number, number]>): GlobalStatsMap {
+  const out: GlobalStatsMap = {};
+  Object.entries(raw || {}).forEach(([id, pair]) => {
+    const attempts = Number(pair?.[0]) || 0;
+    const correct = Number(pair?.[1]) || 0;
+    if (attempts <= 0) return;
+    out[id] = {
+      attempts,
+      correct,
+      correctRate: Math.round((correct / attempts) * 100),
+    };
+  });
+  return out;
+}
+
+function readSessionCache(): { at: number; data: GlobalStatsMap } | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.at !== "number" || !parsed?.data) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchGlobalQuestionStats(): Promise<GlobalStatsMap> {
+  if (typeof window === "undefined") return {};
+  const now = Date.now();
+  if (memoryCache && now - memoryCache.at < CACHE_TTL_MS) {
+    return memoryCache.data;
+  }
+  const session = readSessionCache();
+  if (session && now - session.at < CACHE_TTL_MS) {
+    memoryCache = session;
+    return session.data;
+  }
+  if (inflight) return inflight;
+
+  inflight = (async () => {
+    try {
+      const res = await fetch("/api/stats", { method: "GET" });
+      const json = await res.json();
+      if (!res.ok || !json.ok) return memoryCache?.data || {};
+      const data = toStatsMap(json.stats);
+      memoryCache = { at: Date.now(), data };
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(memoryCache));
+      } catch {
+        // ignore quota / private mode
+      }
+      return data;
+    } catch {
+      return memoryCache?.data || {};
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
+}
+
+// ขอบเขตการเทียบคะแนน: เทียบเฉพาะรอบที่ทำหมวด/สาขาเดียวกัน
+export function getAttemptScope(attempt: ExamAttempt): string {
+  if (attempt.isBlueprint) return "blueprint";
+  const cats = Array.from(new Set(attempt.answers.map((a) => a.category)));
+  return cats.length === 1 ? `cat:${cats[0]}` : "mixed";
+}
+
+export async function submitAttemptStats(
+  attempt: ExamAttempt
+): Promise<AttemptComparison | null> {
+  if (typeof window === "undefined") return null;
+  // ทบทวนข้อที่เคยผิดมีแต่ข้อยาก จะทำให้สถิติรวมเพี้ยน จึงไม่นับ
+  if (attempt.mode !== "practice" && attempt.mode !== "exam") return null;
+
+  const answers = attempt.answers
+    .filter((a) => a.selectedIndex !== null)
+    .map((a) => ({ q: a.questionId, c: a.isCorrect ? 1 : 0 }));
+  if (answers.length === 0) return null;
+
+  try {
+    const res = await fetch("/api/stats", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kru-user-id": getOrCreateUserId(),
+      },
+      body: JSON.stringify({
+        attemptId: attempt.id,
+        mode: attempt.mode,
+        scope: getAttemptScope(attempt),
+        scorePercent: attempt.scorePercent,
+        answers,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) return null;
+    // ข้อมูลรายข้อเปลี่ยนแล้ว ให้ดึงใหม่รอบถัดไป
+    memoryCache = null;
+    try {
+      sessionStorage.removeItem(CACHE_KEY);
+    } catch {
+      // ignore
+    }
+    return json.comparison || null;
+  } catch {
+    return null;
+  }
+}

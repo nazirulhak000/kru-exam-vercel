@@ -41,6 +41,14 @@ import {
   toggleBookmarkQuestion,
 } from "@/lib/storage";
 import ReportQuestionButton from "@/components/ReportQuestionButton";
+import GlobalQuestionStat from "@/components/GlobalQuestionStat";
+import ShareScoreCard from "@/components/ShareScoreCard";
+import {
+  AttemptComparison,
+  GlobalStatsMap,
+  fetchGlobalQuestionStats,
+  submitAttemptStats,
+} from "@/lib/global-stats";
 
 const DEFAULT_SOURCE = "คลังข้อสอบมาตรฐาน ก.ค.ศ.";
 
@@ -150,6 +158,22 @@ function ExamSimulatorContent() {
   >("all");
 
   const [lastAttempt, setLastAttempt] = useState<ExamAttempt | null>(null);
+  const [globalStats, setGlobalStats] = useState<GlobalStatsMap>({});
+  const [comparison, setComparison] = useState<{
+    attemptId: string;
+    data: AttemptComparison | null;
+  } | null>(null);
+
+  // สถิติอัตราตอบถูกของผู้สอบทั้งระบบ (โหลดครั้งเดียว ล้มเหลวได้โดยไม่กระทบการสอบ)
+  useEffect(() => {
+    let cancelled = false;
+    fetchGlobalQuestionStats().then((data) => {
+      if (!cancelled) setGlobalStats(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [reviewFilter, setReviewFilter] = useState<"all" | "wrong">("all");
 
   const refreshFromStorage = () => {
@@ -686,6 +710,10 @@ function ExamSimulatorContent() {
     };
 
     saveExamAttempt(attempt);
+    setComparison(null);
+    void submitAttemptStats(attempt).then((data) =>
+      setComparison({ attemptId: attempt.id, data })
+    );
     saveActiveExamSession(null);
     setSavedSession(null);
     setLastAttempt(attempt);
@@ -1361,11 +1389,14 @@ function ExamSimulatorContent() {
                       เฉลยข้อ {letters[q.answer]}. {q.options[q.answer]}
                     </span>
                   </div>
-                  {q.lawReference && (
-                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary">
-                      [{q.lawReference}]
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <GlobalQuestionStat stat={globalStats[q.id]} />
+                    {q.lawReference && (
+                      <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary">
+                        [{q.lawReference}]
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <p className="text-[14px] leading-[22px] text-paper-ink">
@@ -1701,6 +1732,31 @@ function ExamSimulatorContent() {
             </div>
           )}
 
+        {/* National Comparison (percentile เทียบผู้สอบหมวดเดียวกันใน 30 วัน) */}
+        {comparison?.attemptId === lastAttempt.id &&
+          (comparison.data ? (
+            <div className="p-4 rounded-[10px] bg-paper-accent/[0.05] border border-paper-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="text-[14px] text-paper-ink">
+                คะแนนรอบนี้สูงกว่า{" "}
+                <span className="font-mono font-medium text-paper-accent tabular-nums">
+                  {comparison.data.percentile}%
+                </span>{" "}
+                ของผู้สอบที่ทำหมวดเดียวกัน
+              </div>
+              <div className="font-mono text-[12px] text-paper-muted tabular-nums">
+                เทียบจาก {comparison.data.peers.toLocaleString("th-TH")} รอบ
+                ใน 30 วันล่าสุด
+              </div>
+            </div>
+          ) : (
+            lastAttempt.mode !== "mistake_review" &&
+            lastAttempt.totalQuestions >= 10 && (
+              <div className="text-[12px] text-paper-muted">
+                ยังมีผู้สอบหมวดนี้ไม่มากพอสำหรับการจัดอันดับ ระบบจะเริ่มเทียบคะแนนเมื่อมีข้อมูลครบ
+              </div>
+            )
+          ))}
+
         {/* Category Breakdown Table */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.entries(lastAttempt.categoryBreakdown).map(
@@ -1763,6 +1819,12 @@ function ExamSimulatorContent() {
                 <span>ซ้อมเฉพาะข้อที่ผิดในรอบนี้ ({lastAttempt.wrongCount})</span>
               </button>
             )}
+            <ShareScoreCard
+              attempt={lastAttempt}
+              comparison={
+                comparison?.attemptId === lastAttempt.id ? comparison.data : null
+              }
+            />
             <button
               type="button"
               onClick={() => setScreen("setup")}
@@ -1877,11 +1939,14 @@ function ExamSimulatorContent() {
                     <span className="font-medium text-paper-ink">
                       {getExplanationLabel(ans.category)}:
                     </span>
-                    {ans.lawReference && (
-                      <span className="font-mono text-[12px] text-paper-secondary">
-                        [{ans.lawReference}]
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <GlobalQuestionStat stat={globalStats[ans.questionId]} />
+                      {ans.lawReference && (
+                        <span className="font-mono text-[12px] text-paper-secondary">
+                          [{ans.lawReference}]
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="text-paper-secondary leading-[21px]">
                     {ans.explanation}
