@@ -247,6 +247,11 @@ export default function HistoryAndMistakesPage() {
                           <Clock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                           <span>{formatTime(att.durationSeconds)}</span>
                         </span>
+                        {att.isTimeout && (
+                          <span className="px-1.5 py-0.5 rounded text-[11px] bg-paper-failBg text-paper-fail border border-paper-fail/20">
+                            หมดเวลา
+                          </span>
+                        )}
                         {att.avgSecondsPerQuestion && (
                           <span>เฉลี่ย {att.avgSecondsPerQuestion} วิ/ข้อ</span>
                         )}

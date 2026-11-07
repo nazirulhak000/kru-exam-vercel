@@ -174,6 +174,7 @@ function ExamSimulatorContent() {
     () => `sess-${Date.now()}`
   );
   const [multiTabAlert, setMultiTabAlert] = useState<string | null>(null);
+  const [isTimeoutSubmitted, setIsTimeoutSubmitted] = useState<boolean>(false);
   const [examTimeLimit, setExamTimeLimit] = useState<number>(1500);
   const [sheetFilter, setSheetFilter] = useState<
     "all" | "unanswered" | "flagged"
@@ -378,7 +379,8 @@ function ExamSimulatorContent() {
       secondsElapsed >= examTimeLimit &&
       !isSubmittingRef.current
     ) {
-      handleFinishExam(examTimeLimit);
+      setIsTimeoutSubmitted(true);
+      handleFinishExam(examTimeLimit, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsElapsed, screen, quizMode, examTimeLimit]);
@@ -962,13 +964,19 @@ function ExamSimulatorContent() {
     handleFinishExam(secondsElapsed);
   };
 
-  const handleFinishExam = (finalSeconds: number) => {
+  const handleFinishExam = (
+    finalSeconds: number,
+    fromTimeout: boolean = false
+  ) => {
     if (isSubmittingRef.current || activeQuiz.length === 0) return;
     const currentInStorage = getActiveExamSession();
     if (currentInStorage && currentInStorage.id !== currentSessionId) {
       return;
     }
     isSubmittingRef.current = true;
+    if (fromTimeout) {
+      setIsTimeoutSubmitted(true);
+    }
 
     let correctCount = 0;
     let unansweredCount = 0;
@@ -1079,6 +1087,7 @@ function ExamSimulatorContent() {
       partBreakdown,
       categoryBreakdown,
       answers: attemptAnswers,
+      isTimeout: fromTimeout,
     };
 
     saveActiveExamSession(null);
@@ -2250,6 +2259,21 @@ function ExamSimulatorContent() {
 
   return (
     <div className="space-y-8">
+      {/* Timeout Alert Notification */}
+      {(isTimeoutSubmitted || lastAttempt.isTimeout) && (
+        <div className="p-4 sm:p-5 rounded-[12px] bg-paper-failBg border border-paper-fail/30 flex items-start gap-3.5 text-paper-fail">
+          <Clock className="w-5 h-5 shrink-0 mt-0.5" strokeWidth={1.75} />
+          <div className="space-y-1">
+            <div className="font-title font-medium text-[15px] sm:text-[16px] text-paper-fail">
+              หมดเวลาการสอบตามกำหนด! ระบบได้ส่งกระดาษคำตอบของคุณโดยอัตโนมัติแล้ว
+            </div>
+            <p className="text-[13px] text-paper-secondary leading-relaxed">
+              ครบกำหนดเวลาจำลองสอบจริง ระบบได้รวบรวมคำตอบและบันทึกคะแนนของคุณเรียบร้อยแล้ว ท่านสามารถดูรายงานผลและเฉลยละเอียดได้ด้านล่าง
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Result Summary Ledger */}
       <div className="p-4 sm:p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-[#1f1b16]/[0.08]">

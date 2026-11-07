@@ -206,6 +206,7 @@ export interface ExamAttempt {
     { total: number; correct: number; name: string }
   >;
   answers: ExamAttemptAnswer[];
+  isTimeout?: boolean;
 }
 
 export interface MistakeRecord {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import {
   generateReadableSyncKey,
+  getActiveExamSession,
   getCloudflareConfig,
   getDisplaySyncKey,
   hasConfirmedSyncKey,
@@ -140,6 +141,16 @@ export default function Navbar() {
       return;
     }
 
+    const activeSession = getActiveExamSession();
+    if (activeSession) {
+      const confirmDiscard = confirm(
+        `คุณมีชุดข้อสอบ "${activeSession.title}" ที่ทำค้างไว้ การสลับรหัสผู้สอบจะยกเลิกชุดข้อสอบที่ค้างอยู่นี้ ต้องการดำเนินการต่อหรือไม่?`
+      );
+      if (!confirmDiscard) {
+        return;
+      }
+    }
+
     setSyncing(true);
     setStatusMessage(null);
     const res = await switchUserSyncKey(trimmed, "pull_replace");
@@ -173,6 +184,16 @@ export default function Navbar() {
   };
 
   const handleGenerateNewProfile = async () => {
+    const activeSession = getActiveExamSession();
+    if (activeSession) {
+      const confirmDiscard = confirm(
+        `คุณมีชุดข้อสอบ "${activeSession.title}" ที่ทำค้างไว้ การสร้างรหัสผู้สอบใหม่จะยกเลิกชุดข้อสอบที่ค้างอยู่นี้ ต้องการดำเนินการต่อหรือไม่?`
+      );
+      if (!confirmDiscard) {
+        return;
+      }
+    }
+
     const newKey = generateReadableSyncKey();
     setSyncing(true);
     setStatusMessage(null);
