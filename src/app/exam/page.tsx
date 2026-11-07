@@ -716,27 +716,30 @@ function ExamSimulatorContent() {
 
     const total = activeQuiz.length;
     const wrongCount = total - correctCount - unansweredCount;
-    const scorePercent = Math.round((correctCount / total) * 100);
+    const scorePercent =
+      total > 0 ? Math.round((correctCount / total) * 1000) / 10 : 0;
 
     const partBreakdown: Record<string, PartBreakdownItem> = {};
     (["ภาค ก", "ภาค ข"] as const).forEach((p) => {
       const t = partTallies[p];
       if (t.total > 0) {
-        const pct = Math.round((t.correct / t.total) * 100);
+        const pct = Math.round((t.correct / t.total) * 1000) / 10;
+        const partPassed = t.correct * 100 >= 60 * t.total;
         partBreakdown[p] = {
           part: p,
           total: t.total,
           correct: t.correct,
           scorePercent: pct,
-          passed: pct >= 60,
+          passed: partPassed,
         };
       }
     });
 
-    // เกณฑ์ ก.ค.ศ. ตัดผ่านแยกภาค: ทุกภาคที่มีในชุดนี้ต้องได้ไม่ต่ำกว่าร้อยละ 60
+    // เกณฑ์ ก.ค.ศ. ตัดผ่านแยกภาค: ทุกภาคที่มีในชุดนี้ต้องได้ไม่ต่ำกว่าร้อยละ 60 โดยตรง ไม่ปัดเศษก่อนเทียบ
     // (ภาค ก สูงแล้วนำมาถัวเฉลี่ยช่วยภาค ข ไม่ได้)
     const allPartsPassed = Object.values(partBreakdown).every((p) => p.passed);
-    const passed = scorePercent >= 60 && allPartsPassed;
+    const overallPassed = total > 0 && correctCount * 100 >= 60 * total;
+    const passed = overallPassed && allPartsPassed;
 
     const avgSecondsPerQuestion =
       total > 0 ? Math.max(1, Math.round(finalSeconds / total)) : 0;
@@ -1895,7 +1898,7 @@ function ExamSimulatorContent() {
               >
                 {lastAttempt.passed
                   ? "ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"
-                  : lastAttempt.scorePercent >= 60
+                  : lastAttempt.correctCount * 100 >= 60 * lastAttempt.totalQuestions
                   ? "ยังไม่ผ่าน — มีภาคที่ต่ำกว่า 60% (ก.ค.ศ. ตัดเกณฑ์แยกภาค)"
                   : "ยังไม่ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"}
               </span>
