@@ -36,6 +36,7 @@ import {
 import {
   deleteQuestion,
   getAllQuestions,
+  getCustomQuestions,
   getDeletedQuestionIds,
   getEditedSeedMap,
   getQuestionCommentsMap,
@@ -442,6 +443,10 @@ export default function AdminDashboardPage() {
       appName: "KruBanjoo",
       version: "1.0",
       totalQuestions: questions.length,
+      customQuestions: getCustomQuestions(),
+      editedSeeds: getEditedSeedMap(),
+      deletedIds: getDeletedQuestionIds(),
+      questionComments: comments,
       questions,
       comments,
     };
@@ -804,12 +809,24 @@ export default function AdminDashboardPage() {
       <div className="pb-6 border-b border-[#1f1b16]/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1.5 min-w-0">
           <div className="text-[12px] font-mono text-paper-muted flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-paper-pass font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-paper-pass" />
-              Cloudflare D1: Connected
+            <span
+              className={`inline-flex items-center gap-1.5 font-medium ${
+                overview?.systemHealth?.d1Connected
+                  ? "text-paper-pass"
+                  : "text-paper-muted"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  overview?.systemHealth?.d1Connected
+                    ? "bg-paper-pass"
+                    : "bg-paper-muted"
+                }`}
+              />
+              Cloudflare D1: {overview?.systemHealth?.d1Connected ? "Connected" : "Not Connected"}
             </span>
             <span>•</span>
-            <span className="text-paper-secondary">Admin Key: kru-admin-9999</span>
+            <span className="text-paper-secondary">Admin Mode: Verified</span>
           </div>
           <h1 className="font-title font-normal text-[28px] md:text-[34px] leading-[1.15] text-paper-ink break-words">
             ศูนย์ควบคุมและบริหารจัดการระบบ
