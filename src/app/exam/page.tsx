@@ -1346,7 +1346,7 @@ function ExamSimulatorContent() {
                 </label>
                 <span className="text-[12px] font-mono text-paper-muted">
                   {selectedCollection === "roonpii"
-                    ? "คลัง Roonpii 1,013 ข้อพร้อมสอบ"
+                    ? `คลังข้อสอบจริง & เอกสารอ้างอิง ${allQuestions.length.toLocaleString()} ข้อพร้อมสอบ`
                     : "คลังมาตรฐาน 7,200 ข้อพร้อมสอบ"}
                 </span>
               </div>
@@ -1389,14 +1389,14 @@ function ExamSimulatorContent() {
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
                       <Archive className="w-4 h-4 text-paper-secondary shrink-0" strokeWidth={1.5} />
-                      <span>คลังข้อสอบจริงย้อนหลัง</span>
+                      <span>คลังข้อสอบจริง & เอกสารอ้างอิง</span>
                     </span>
                     <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-raised text-paper-secondary font-medium">
-                      1,013 ข้อ
+                      {selectedCollection === "roonpii" ? allQuestions.length.toLocaleString() : "1,952"} ข้อ
                     </span>
                   </div>
                   <p className="text-[12px] leading-[18px] text-paper-secondary">
-                    ข้อสอบสนามสอบจริงและจำมา สพฐ. 2568, 2567, กรณีพิเศษ และ TruePlookpanya (2558–2568)
+                    ข้อสอบสนามจริงและจำมา สพฐ. 2568, 2567, กรณีพิเศษ และคลังข้อสอบ Google Drive วิชาการศึกษา 2567 + กฎหมาย 400 ข้อ
                   </p>
                 </button>
               </div>

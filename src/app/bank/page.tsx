@@ -66,6 +66,7 @@ export default function QuestionBankPage() {
   >("standard");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedRefSource, setSelectedRefSource] = useState<string>("all");
   const [availableMajors, setAvailableMajors] =
     useState<string[]>(MAJOR_SUBJECTS);
   const [commentsMap, setCommentsMap] = useState<
@@ -135,6 +136,7 @@ export default function QuestionBankPage() {
     selectedCat,
     selectedMajor,
     selectedSource,
+    selectedRefSource,
     commentFilter,
     activeCollectionTab,
     selectedYear,
@@ -192,6 +194,8 @@ export default function QuestionBankPage() {
       if (year) setSelectedYear(year);
       const type = p.get("type");
       if (type) setSelectedType(type);
+      const ref = p.get("ref");
+      if (ref) setSelectedRefSource(ref);
     }
     window.addEventListener("kru-cloud-synced", loadData);
     return () => window.removeEventListener("kru-cloud-synced", loadData);
@@ -209,12 +213,17 @@ export default function QuestionBankPage() {
       ) {
         return;
       }
+      if (activeCollectionTab === "roonpii") {
+        if (selectedRefSource === "roonpii" && !q.id.startsWith("kru-rp-")) return;
+        if (selectedRefSource === "gdrive_edu" && !q.id.startsWith("kru-gd-edu2567-")) return;
+        if (selectedRefSource === "gdrive_law" && !q.id.startsWith("kru-gd-law400-")) return;
+      }
       const defaultSrc = activeCollectionTab === "standard" ? "คลังข้อสอบมาตรฐาน ก.ค.ศ." : "คลังข้อสอบ Roonpii";
       const src = q.sourcePdf || defaultSrc;
       map.set(src, (map.get(src) || 0) + 1);
     });
     return map;
-  }, [activePool, selectedCat, selectedMajor, activeCollectionTab]);
+  }, [activePool, selectedCat, selectedMajor, activeCollectionTab, selectedRefSource]);
 
   const visibleSources = useMemo(() => {
     return Array.from(sourceCounts.keys()).sort((a, b) => {
@@ -266,6 +275,9 @@ export default function QuestionBankPage() {
     if (activeCollectionTab === "roonpii") {
       if (selectedYear !== "all" && q.examYear !== selectedYear) return false;
       if (selectedType !== "all" && q.collectionType !== selectedType) return false;
+      if (selectedRefSource === "roonpii" && !q.id.startsWith("kru-rp-")) return false;
+      if (selectedRefSource === "gdrive_edu" && !q.id.startsWith("kru-gd-edu2567-")) return false;
+      if (selectedRefSource === "gdrive_law" && !q.id.startsWith("kru-gd-law400-")) return false;
     }
     if (commentFilter === "pending_reports") {
       const list = commentsMap[q.id] || [];
@@ -397,7 +409,7 @@ export default function QuestionBankPage() {
           <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink break-words">
             {activeCollectionTab === "standard"
               ? "คลังข้อสอบมาตรฐานแกนกลาง"
-              : "คลังข้อสอบจริง & จำมา Roonpii (2558–2568)"}{" "}
+              : "คลังข้อสอบจริง & เอกสารอ้างอิง (2558–2568)"}{" "}
             ({filteredQuestions.length.toLocaleString()} / {activePool.length.toLocaleString()} ข้อ)
           </h1>
         </div>
@@ -480,6 +492,7 @@ export default function QuestionBankPage() {
             setSelectedCat("all");
             setSelectedMajor("all");
             setSelectedSource("all");
+            setSelectedRefSource("all");
             setSelectedYear("all");
             setSelectedType("all");
             if (typeof window !== "undefined") {
@@ -509,6 +522,7 @@ export default function QuestionBankPage() {
             setSelectedCat("all");
             setSelectedMajor("all");
             setSelectedSource("all");
+            setSelectedRefSource("all");
             setSelectedYear("all");
             setSelectedType("all");
             if (typeof window !== "undefined") {
@@ -522,7 +536,7 @@ export default function QuestionBankPage() {
           }`}
         >
           <Archive className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
-          <span>คลังข้อสอบจริงย้อนหลัง Roonpii</span>
+          <span>คลังข้อสอบจริง & เอกสารอ้างอิง</span>
           <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-raised text-paper-secondary font-mono font-medium">
             {roonpiiQuestions.length.toLocaleString()}
           </span>
@@ -596,6 +610,25 @@ export default function QuestionBankPage() {
             <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
+                  แหล่งอ้างอิง:
+                </span>
+                <select
+                  value={selectedRefSource}
+                  onChange={(e) => {
+                    setSelectedRefSource(e.target.value);
+                    setSelectedSource("all");
+                  }}
+                  className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12.5px] font-sans text-paper-ink focus:outline-none focus:border-paper-accent"
+                >
+                  <option value="all">ทุกแหล่งอ้างอิง ({roonpiiQuestions.length.toLocaleString()})</option>
+                  <option value="roonpii">คลัง Roonpii สพฐ./กทม. (1,013 ข้อ)</option>
+                  <option value="gdrive_edu">Google Drive: วิชาการศึกษา 2567 (546 ข้อ)</option>
+                  <option value="gdrive_law">Google Drive: กฎหมายการศึกษา 400 ข้อ (393 ข้อ)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
                   ปีที่สอบ:
                 </span>
                 <select
@@ -623,6 +656,7 @@ export default function QuestionBankPage() {
                 >
                   <option value="all">ทั้งหมด (ข้อสอบจริง, จำมา, ชุดฝึก)</option>
                   <option value="official_exam">ข้อสอบจริงและข้อสอบจำมาสนามสอบ</option>
+                  <option value="mock_exam">แนวข้อสอบและชุดเก็ง Google Drive</option>
                   <option value="practice_and_mock">แบบฝึกหัดและชุดทดสอบ</option>
                 </select>
               </div>
@@ -793,7 +827,17 @@ export default function QuestionBankPage() {
                           ? `ข้อสอบจริง ${q.examYear || ""}`
                           : q.collectionType === "recalled_exam"
                           ? `ข้อสอบจำมาสนามสอบ ${q.examYear || ""}`
+                          : q.sourcePdf?.startsWith("Google Drive")
+                          ? "แนวข้อสอบ Google Drive"
                           : "ชุดฝึก Roonpii"}
+                      </span>
+                    )}
+                    {q.sourcePdf && (
+                      <span
+                        className="text-[11px] font-mono px-2 py-0.5 rounded-[5px] bg-paper-bg text-paper-muted border border-[#1f1b16]/[0.08] max-w-full truncate"
+                        title={q.sourcePdf}
+                      >
+                        {q.sourcePdf}
                       </span>
                     )}
                     {hasPendingReport && (
