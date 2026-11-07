@@ -588,6 +588,14 @@ export function getExamAttemptById(id: string): ExamAttempt | undefined {
 export function saveExamAttempt(attempt: ExamAttempt): void {
   if (!isBrowser()) return;
 
+  const existingAttempts = getExamAttempts();
+  if (existingAttempts.some((a) => a.id === attempt.id)) {
+    console.warn(
+      `Attempt with id ${attempt.id} already exists. Skipping duplicate save.`
+    );
+    return;
+  }
+
   const leanAttempt: ExamAttempt = {
     ...attempt,
     answers: attempt.answers.map((ans) => ({

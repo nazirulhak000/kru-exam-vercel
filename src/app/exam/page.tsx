@@ -158,6 +158,9 @@ function ExamSimulatorContent() {
     {}
   );
   const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(
+    () => `sess-${Date.now()}`
+  );
   const [examTimeLimit, setExamTimeLimit] = useState<number>(1500);
   const [sheetFilter, setSheetFilter] = useState<
     "all" | "unanswered" | "flagged"
@@ -298,9 +301,15 @@ function ExamSimulatorContent() {
 
   // 3. Auto-save สถานะห้องสอบลง LocalStorage
   useEffect(() => {
-    if (screen !== "active" || activeQuiz.length === 0) return;
+    if (
+      screen !== "active" ||
+      activeQuiz.length === 0 ||
+      isSubmittingRef.current
+    ) {
+      return;
+    }
     const session: ActiveExamSession = {
-      id: "session-current",
+      id: currentSessionId,
       title: quizTitle,
       mode: quizMode,
       feedbackMode: quizMode === "exam" ? "after_submit" : feedbackMode,
@@ -317,6 +326,7 @@ function ExamSimulatorContent() {
     saveActiveExamSession(session);
   }, [
     screen,
+    currentSessionId,
     activeQuiz,
     quizTitle,
     quizMode,
@@ -400,6 +410,7 @@ function ExamSimulatorContent() {
     targetFeedbackMode: "instant" | "after_submit" = feedbackMode
   ) => {
     isSubmittingRef.current = false;
+    setCurrentSessionId(`sess-${Date.now()}`);
     const finalFeedbackMode = mode === "exam" ? "after_submit" : targetFeedbackMode;
     setFeedbackMode(finalFeedbackMode);
 
@@ -536,6 +547,7 @@ function ExamSimulatorContent() {
     if (retryPool.length === 0) return;
 
     isSubmittingRef.current = false;
+    setCurrentSessionId(`sess-${Date.now()}`);
     const prepared = prepareQuestionsForSession(
       shuffleQuestions ? shuffleArray(retryPool) : retryPool,
       shuffleOptions
@@ -558,6 +570,7 @@ function ExamSimulatorContent() {
   const handleResumeSession = () => {
     if (!savedSession) return;
     isSubmittingRef.current = false;
+    setCurrentSessionId(savedSession.id || `sess-${Date.now()}`);
     setActiveQuiz(savedSession.questions);
     setQuizTitle(savedSession.title);
     setQuizMode(savedSession.mode);
@@ -729,8 +742,9 @@ function ExamSimulatorContent() {
       total > 0 ? Math.max(1, Math.round(finalSeconds / total)) : 0;
 
     const now = new Date();
+    const attemptId = `att-${currentSessionId.replace(/^sess-/, "")}`;
     const attempt: ExamAttempt = {
-      id: `att-${Date.now()}`,
+      id: attemptId,
       title: quizTitle,
       date: now.toISOString(),
       displayDate: now.toLocaleDateString("th-TH", {
@@ -756,13 +770,13 @@ function ExamSimulatorContent() {
       answers: attemptAnswers,
     };
 
+    saveActiveExamSession(null);
+    setSavedSession(null);
     saveExamAttempt(attempt);
     setComparison(null);
     void submitAttemptStats(attempt).then((data) =>
       setComparison({ attemptId: attempt.id, data })
     );
-    saveActiveExamSession(null);
-    setSavedSession(null);
     setLastAttempt(attempt);
     setMistakePool(getMistakeQuestions(false));
     setScreen("result");
