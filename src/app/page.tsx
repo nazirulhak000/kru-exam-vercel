@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, FileUp, Play, RotateCcw } from "lucide-react";
+import { ArrowRight, BookOpen, FileUp, Play, RotateCcw } from "lucide-react";
 import {
   getAllQuestions,
   getExamAttempts,
   getReadinessStats,
+  isAdminMode,
   ReadinessStats,
 } from "@/lib/storage";
 import { ExamAttempt, QuestionItem } from "@/types/exam";
@@ -17,11 +18,13 @@ export default function HomeDashboardPage() {
   const [sampleQuestion, setSampleQuestion] = useState<QuestionItem | null>(
     null
   );
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     const loadDashboard = () => {
       setStats(getReadinessStats());
       setRecentAttempts(getExamAttempts().slice(0, 5));
+      setIsAdmin(isAdminMode());
       const all = getAllQuestions();
       if (all.length > 0) {
         setSampleQuestion(all[0]);
@@ -52,10 +55,10 @@ export default function HomeDashboardPage() {
             การสอบแข่งขันเพื่อบรรจุและแต่งตั้งบุคคลเข้ารับราชการครู (ภาค ก และ ภาค ข)
           </div>
           <h1 className="font-title font-normal text-[28px] md:text-[34px] leading-[1.15] text-paper-ink">
-            แปลงไฟล์ PDF เป็นชุดข้อสอบปรนัย พร้อมอรรถาธิบายรายตัวเลือก
+            ฝึกทำข้อสอบครูผู้ช่วยเสมือนจริง พร้อมอรรถาธิบายรายตัวเลือก
           </h1>
           <p className="text-[15px] leading-[24px] text-paper-secondary max-w-[38rem]">
-            ฝึกทำข้อสอบเสมือนจริงแบบสุ่มลำดับและสลับตัวเลือก บันทึกสถิติความแม่นยำเทียบเกณฑ์ผ่านร้อยละ 60 ของ ก.ค.ศ. และรวบรวมข้อที่เคยตอบผิดไว้ทบทวนซ้ำ
+            ฝึกทำข้อสอบเสมือนจริงแบบสุ่มลำดับและสลับตัวเลือก บันทึกสถิติความแม่นยำเทียบเกณฑ์ผ่านร้อยละ 60 ของ ก.ค.ศ. และรวบรวมข้อที่เคยตอบผิดไว้ทบทวนซ้ำแยกตามรหัสประจำตัวผู้สอบ
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -68,16 +71,29 @@ export default function HomeDashboardPage() {
             </Link>
 
             <Link
-              href="/upload"
+              href="/bank"
               className="h-11 px-5 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
-              <FileUp className="w-4 h-4 text-paper-secondary" strokeWidth={1.5} />
-              <span>นำเข้าไฟล์ข้อสอบ PDF</span>
+              <BookOpen
+                className="w-4 h-4 text-paper-secondary"
+                strokeWidth={1.5}
+              />
+              <span>เปิดดูคลังข้อสอบและคำอธิบาย</span>
             </Link>
+
+            {isAdmin && (
+              <Link
+                href="/upload"
+                className="h-11 px-5 rounded-[8px] bg-paper-passBg hover:bg-paper-pass/20 border border-paper-pass/30 text-paper-pass text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+              >
+                <FileUp className="w-4 h-4" strokeWidth={1.5} />
+                <span>นำเข้าไฟล์ PDF (Admin)</span>
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* 3 Compact Numeric Stat Cards (Numbers only, no decorative icons) */}
+        {/* 3 Compact Numeric Stat Cards */}
         <div className="lg:col-span-5 grid grid-cols-3 gap-3">
           <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]">
             <span className="text-[12px] text-paper-muted">คลังข้อสอบทั้งหมด</span>
@@ -86,8 +102,8 @@ export default function HomeDashboardPage() {
             </div>
             <span className="text-[12px] text-paper-secondary tabular-nums">
               {stats.customPdfQuestionCount > 0
-                ? `+${stats.customPdfQuestionCount} ข้อจากไฟล์ PDF`
-                : "ชุดข้อสอบจริง 14 ชุด (1,400 ข้อ)"}
+                ? `+${stats.customPdfQuestionCount} ข้อเพิ่มเติมในคลังกลาง`
+                : "ชุดข้อสอบจริงมาตรฐาน ก.ค.ศ."}
             </span>
           </div>
 
@@ -310,14 +326,20 @@ export default function HomeDashboardPage() {
               className="w-full h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium flex items-center justify-between transition-colors duration-150 ease-calm"
             >
               <span className="flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
+                <RotateCcw
+                  className="w-4 h-4 text-paper-muted"
+                  strokeWidth={1.5}
+                />
                 <span>
                   {stats.activeMistakesCount > 0
                     ? "เริ่มซ้อมเฉพาะข้อที่เคยผิด"
                     : "เปิดดูสมุดทบทวนข้อผิด"}
                 </span>
               </span>
-              <ArrowRight className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
+              <ArrowRight
+                className="w-4 h-4 text-paper-muted"
+                strokeWidth={1.5}
+              />
             </Link>
           </div>
 
