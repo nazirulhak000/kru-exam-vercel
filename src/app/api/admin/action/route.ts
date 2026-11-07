@@ -34,7 +34,192 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = body.action as string;
 
-    // กรณีทดสอบ Gemini API Key
+    // จัดการผู้ใช้งานและรหัส Sync Keys
+    if (action === "delete_user") {
+      const { targetUserId } = body;
+      const cleanTarget = String(targetUserId || "").trim().toLowerCase();
+      if (
+        !cleanTarget ||
+        cleanTarget === "shared-question-bank" ||
+        cleanTarget === "main"
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "ไม่อนุญาตให้ลบรหัสระบบนี้" },
+          { status: 400 }
+        );
+      }
+      await runD1Query(
+        creds,
+        `DELETE FROM kru_exam_cloud_state WHERE id = ?;`,
+        [cleanTarget]
+      );
+      return NextResponse.json({
+        ok: true,
+        action,
+        message: `ลบรหัสผู้สอบ ${cleanTarget} ออกจากระบบเรียบร้อยแล้ว`,
+      });
+    }
+
+    if (action === "purge_orphan_users") {
+      const userRows = await runD1Query(
+        creds,
+        `SELECT id, payload FROM kru_exam_cloud_state 
+         WHERE id != 'shared-question-bank' AND id != 'main';`
+      );
+      let purgedCount = 0;
+      for (const row of userRows.results) {
+        try {
+          const p = JSON.parse(row.payload as string);
+          const hasAttempts =
+            Array.isArray(p.attempts) && p.attempts.length > 0;
+          const hasMistakes =
+            p.mistakes &&
+            typeof p.mistakes === "object" &&
+            Object.keys(p.mistakes).length > 0;
+          if (!hasAttempts && !hasMistakes) {
+            await runD1Query(
+              creds,
+              `DELETE FROM kru_exam_cloud_state WHERE id = ?;`,
+              [row.id as string]
+            );
+            purgedCount++;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return NextResponse.json({
+        ok: true,
+        action,
+        purgedCount,
+        message: `ล้างรหัสขยะที่ไม่มีการใช้งานสำเร็จ ${purgedCount} รหัส`,
+      });
+    }
+
+    if (action === "rename_user_key") {
+      const { oldKey, newKey } = body;
+      const cleanOld = String(oldKey || "").trim().toLowerCase();
+      const cleanNew = String(newKey || "").trim().toLowerCase();
+
+      if (!cleanOld || !cleanNew) {
+        return NextResponse.json(
+          { ok: false, error: "กรุณาระบุรหัสเดิมและรหัสใหม่" },
+          { status: 400 }
+        );
+      }
+
+      // Check if newKey already exists
+      const existing = await runD1Query(
+        creds,
+        `SELECT id FROM kru_exam_cloud_state WHERE id = ? LIMIT 1;`,
+        [cleanNew]
+      );
+      if (existing.results.length > 0) {
+        return NextResponse.json(
+          { ok: false, error: `รหัส ${cleanNew} มีอยู่ในระบบแล้ว` },
+          { status: 400 }
+        );
+      }
+
+      await runD1Query(
+        creds,
+        `UPDATE kru_exam_cloud_state SET id = ? WHERE id = ?;`,
+        [cleanNew, cleanOld]
+      );
+
+      return NextResponse.json({
+        ok: true,
+        action,
+        oldKey: cleanOld,
+        newKey: cleanNew,
+        message: `เปลี่ยนชื่อรหัสจาก ${cleanOld} เป็น ${cleanNew} แล้ว`,
+      });
+    }
+
+    if (action === "merge_user_keys") {
+      const { sourceKey, targetKey } = body;
+      const cleanSource = String(sourceKey || "").trim().toLowerCase();
+      const cleanTarget = String(targetKey || "").trim().toLowerCase();
+
+      if (!cleanSource || !cleanTarget || cleanSource === cleanTarget) {
+        return NextResponse.json(
+          { ok: false, error: "รหัสต้นทางและปลายทางไม่ถูกต้อง" },
+          { status: 400 }
+        );
+      }
+
+      const sourceRows = await runD1Query(
+        creds,
+        `SELECT payload FROM kru_exam_cloud_state WHERE id = ? LIMIT 1;`,
+        [cleanSource]
+      );
+      const targetRows = await runD1Query(
+        creds,
+        `SELECT payload FROM kru_exam_cloud_state WHERE id = ? LIMIT 1;`,
+        [cleanTarget]
+      );
+
+      if (sourceRows.results.length === 0) {
+        return NextResponse.json(
+          { ok: false, error: "ไม่พบข้อมูลรหัสต้นทาง" },
+          { status: 400 }
+        );
+      }
+
+      let sourcePayload: any = {};
+      let targetPayload: any = { attempts: [], mistakes: {} };
+
+      try {
+        sourcePayload = JSON.parse(sourceRows.results[0].payload as string);
+      } catch {}
+      if (targetRows.results.length > 0) {
+        try {
+          targetPayload = JSON.parse(targetRows.results[0].payload as string);
+        } catch {}
+      }
+
+      // รวม attempts (กันซ้ำตาม id หรือ timestamp)
+      const combinedAttempts = [
+        ...(Array.isArray(targetPayload.attempts) ? targetPayload.attempts : []),
+        ...(Array.isArray(sourcePayload.attempts) ? sourcePayload.attempts : []),
+      ];
+
+      // รวม mistakes
+      const combinedMistakes = {
+        ...(targetPayload.mistakes || {}),
+        ...(sourcePayload.mistakes || {}),
+      };
+
+      const nowIso = new Date().toISOString();
+      const mergedPayload = {
+        ...targetPayload,
+        updatedAt: nowIso,
+        attempts: combinedAttempts,
+        mistakes: combinedMistakes,
+      };
+
+      await runD1Query(
+        creds,
+        `INSERT INTO kru_exam_cloud_state (id, payload, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at;`,
+        [cleanTarget, JSON.stringify(mergedPayload), nowIso]
+      );
+
+      // ลบรหัสต้นทางออก
+      await runD1Query(
+        creds,
+        `DELETE FROM kru_exam_cloud_state WHERE id = ?;`,
+        [cleanSource]
+      );
+
+      return NextResponse.json({
+        ok: true,
+        action,
+        message: `รวมข้อมูลจาก ${cleanSource} เข้า ${cleanTarget} เรียบร้อยแล้ว`,
+      });
+    }
+
     if (action === "test_gemini") {
       const apiKey = body.apiKey || process.env.GEMINI_API_KEY;
       if (!apiKey) {

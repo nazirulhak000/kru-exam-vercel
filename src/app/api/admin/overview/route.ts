@@ -70,6 +70,17 @@ export async function GET(req: NextRequest) {
     let totalExamSessions = 0;
     let totalScoreSum = 0;
     let totalPassedSessions = 0;
+    let orphanKeysCount = 0;
+
+    const usersList: Array<{
+      syncKey: string;
+      updatedAt: string;
+      attemptsCount: number;
+      mistakesCount: number;
+      avgScore: number;
+      isEmptyOrphan: boolean;
+      lastAttemptAt?: string;
+    }> = [];
 
     // คำนวณสถิติหมวดวิชาจากประวัติสอบทั้งหมด
     const categoryStatsAccum: Record<
@@ -84,31 +95,66 @@ export async function GET(req: NextRequest) {
     userRows.results.forEach((row) => {
       try {
         const uPayload = JSON.parse(row.payload as string);
-        if (Array.isArray(uPayload.attempts)) {
-          uPayload.attempts.forEach((att: any) => {
-            totalExamSessions++;
-            const pct = Number(att.scorePercentage ?? att.scorePercent ?? 0);
-            totalScoreSum += pct;
-            if (pct >= 60) {
-              totalPassedSessions++;
-            }
+        const attempts = Array.isArray(uPayload.attempts) ? uPayload.attempts : [];
+        const mistakes =
+          uPayload.mistakes && typeof uPayload.mistakes === "object"
+            ? Object.keys(uPayload.mistakes).length
+            : 0;
 
-            // เช็คคะแนนย่อยแต่ละหมวด
-            if (Array.isArray(att.categoryScores)) {
-              att.categoryScores.forEach((cs: any) => {
-                if (cs && cs.category && categoryStatsAccum[cs.category]) {
-                  categoryStatsAccum[cs.category].totalScore += Number(
-                    cs.percentage || 0
-                  );
-                  categoryStatsAccum[cs.category].count += 1;
-                }
-              });
-            }
-          });
-        }
+        let uScoreSum = 0;
+        attempts.forEach((att: any) => {
+          totalExamSessions++;
+          const pct = Number(att.scorePercentage ?? att.scorePercent ?? 0);
+          totalScoreSum += pct;
+          uScoreSum += pct;
+          if (pct >= 60) {
+            totalPassedSessions++;
+          }
+
+          // เช็คคะแนนย่อยแต่ละหมวด
+          if (Array.isArray(att.categoryScores)) {
+            att.categoryScores.forEach((cs: any) => {
+              if (cs && cs.category && categoryStatsAccum[cs.category]) {
+                categoryStatsAccum[cs.category].totalScore += Number(
+                  cs.percentage || 0
+                );
+                categoryStatsAccum[cs.category].count += 1;
+              }
+            });
+          }
+        });
+
+        const isEmpty = attempts.length === 0 && mistakes === 0;
+        if (isEmpty) orphanKeysCount++;
+
+        usersList.push({
+          syncKey: String(row.id),
+          updatedAt: String(row.updated_at || ""),
+          attemptsCount: attempts.length,
+          mistakesCount: mistakes,
+          avgScore:
+            attempts.length > 0
+              ? Math.round((uScoreSum / attempts.length) * 10) / 10
+              : 0,
+          isEmptyOrphan: isEmpty,
+          lastAttemptAt:
+            attempts[0]?.date ||
+            attempts[0]?.createdAt ||
+            String(row.updated_at || ""),
+        });
       } catch {
         // ignore invalid user row JSON
       }
+    });
+
+    // เรียงรหัสผู้สอบ: ผู้ที่มีประวัติสอบขึ้นก่อน ตามด้วยผู้ใช้งานล่าสุด
+    usersList.sort((a, b) => {
+      if (a.isEmptyOrphan !== b.isEmptyOrphan) {
+        return a.isEmptyOrphan ? 1 : -1;
+      }
+      return (
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
     });
 
     const platformAvgScore =
@@ -194,9 +240,10 @@ export async function GET(req: NextRequest) {
       (d) => d.status === "pending"
     ).length;
 
-    // 4. สรุปจำนวนคลังข้อสอบทั้งหมด
+    // 4. สรุปจำนวนคลังข้อสอบทั้งหมด (กรองไม่ให้นับข้อ Seed ซ้ำซ้อน)
+    const seedIdSet = new Set(SEED_QUESTIONS.map((s) => s.id));
     const activeCustom = (sharedPayload.customQuestions || []).filter(
-      (q: any) => !deletedSet.has(q.id)
+      (q: any) => !deletedSet.has(q.id) && !seedIdSet.has(q.id)
     );
     const activeSeeds = SEED_QUESTIONS.filter((q) => !deletedSet.has(q.id));
     const totalQuestionsCount = activeSeeds.length + activeCustom.length;
@@ -352,7 +399,9 @@ export async function GET(req: NextRequest) {
         totalExamSessions,
         platformAvgScore,
         passRate,
+        orphanKeysCount,
       },
+      users: usersList,
       disputes: disputesList,
       topFailedQuestions,
       categoryInsights,

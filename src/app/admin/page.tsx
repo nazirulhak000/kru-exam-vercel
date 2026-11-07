@@ -12,6 +12,7 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Copy,
   Database,
   Download,
   Edit3,
@@ -20,6 +21,7 @@ import {
   FileCheck2,
   FileUp,
   Filter,
+  GitMerge,
   HelpCircle,
   KeyRound,
   Layers,
@@ -95,6 +97,16 @@ interface CategoryInsight {
   color: string;
 }
 
+interface UserDirectoryItem {
+  syncKey: string;
+  updatedAt: string;
+  attemptsCount: number;
+  mistakesCount: number;
+  avgScore: number;
+  isEmptyOrphan: boolean;
+  lastAttemptAt?: string;
+}
+
 interface OverviewData {
   kpis: {
     totalQuestions: number;
@@ -105,7 +117,9 @@ interface OverviewData {
     totalExamSessions: number;
     platformAvgScore: number;
     passRate: number;
+    orphanKeysCount?: number;
   };
+  users?: UserDirectoryItem[];
   disputes: DisputeItem[];
   topFailedQuestions: TopFailedQuestion[];
   categoryInsights: CategoryInsight[];
@@ -126,10 +140,27 @@ export default function AdminDashboardPage() {
   const [authError, setAuthError] = useState("");
   const [isAuthorizing, setIsAuthorizing] = useState(false);
 
-  // Tab State: "disputes" | "bank" | "analytics" | "health"
+  // Tab State: "disputes" | "bank" | "users" | "analytics" | "health"
   const [activeTab, setActiveTab] = useState<
-    "disputes" | "bank" | "analytics" | "health"
+    "disputes" | "bank" | "users" | "analytics" | "health"
   >("disputes");
+
+  // User Management State
+  const [userSearch, setUserSearch] = useState("");
+  const [userFilter, setUserFilter] = useState<"all" | "active" | "orphan">(
+    "all"
+  );
+  const [purgingOrphans, setPurgingOrphans] = useState(false);
+  const [renamingUser, setRenamingUser] = useState<{
+    oldKey: string;
+    newKey: string;
+  } | null>(null);
+  const [mergingUser, setMergingUser] = useState<{
+    sourceKey: string;
+    targetKey: string;
+  } | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
 
   // Data Loading & Refresh
   const [isLoading, setIsLoading] = useState(true);
@@ -591,6 +622,156 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // 7. User & Sync Key Management Actions
+  const handlePurgeOrphans = async () => {
+    if (
+      !confirm(
+        "ยืนยันการล้างรหัสว่างเปล่าที่ไม่มีประวัติการสอบ (0 ข้อ) ออกจากระบบ?\n\nการกระทำนี้จะลบรหัสขยะที่สุ่มทิ้งไว้และช่วยลดขนาดฐานข้อมูล โดยไม่กระทบผู้ที่มีประวัติสอบจริง"
+      )
+    )
+      return;
+
+    setPurgingOrphans(true);
+    const adminKey = getStoredAdminKey();
+
+    try {
+      const res = await fetch("/api/admin/action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kru-admin-key": adminKey,
+        },
+        body: JSON.stringify({ action: "purge_orphan_users" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        showToast("success", data.message || `ล้างรหัสขยะเรียบร้อยแล้ว`);
+        loadOverviewData();
+      } else {
+        throw new Error(data.error || "ล้างรหัสไม่สำเร็จ");
+      }
+    } catch (err: any) {
+      showToast("error", err.message || "เกิดข้อผิดพลาดในการล้างรหัส");
+    } finally {
+      setPurgingOrphans(false);
+    }
+  };
+
+  const handleDeleteUser = async (targetKey: string) => {
+    if (
+      !confirm(
+        `คุณแน่ใจหรือไม่ว่าต้องการลบรหัสผู้สอบ "${targetKey}" ออกจากระบบถาวร?\nประวัติและคะแนนสอบทั้งหมดของรหัสนี้จะถูกลบ`
+      )
+    )
+      return;
+
+    const adminKey = getStoredAdminKey();
+    try {
+      const res = await fetch("/api/admin/action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kru-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          action: "delete_user",
+          targetUserId: targetKey,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        showToast("success", `ลบรหัส ${targetKey} แล้ว`);
+        loadOverviewData();
+      } else {
+        throw new Error(data.error || "ลบไม่สำเร็จ");
+      }
+    } catch (err: any) {
+      showToast("error", err.message || "เกิดข้อผิดพลาด");
+    }
+  };
+
+  const handleRenameUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renamingUser || !renamingUser.newKey.trim()) return;
+
+    setIsRenaming(true);
+    const adminKey = getStoredAdminKey();
+    try {
+      const res = await fetch("/api/admin/action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kru-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          action: "rename_user_key",
+          oldKey: renamingUser.oldKey,
+          newKey: renamingUser.newKey.trim().toLowerCase(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        showToast("success", data.message || "เปลี่ยนชื่อรหัสแล้ว");
+        setRenamingUser(null);
+        loadOverviewData();
+      } else {
+        throw new Error(data.error || "เปลี่ยนชื่อไม่สำเร็จ");
+      }
+    } catch (err: any) {
+      showToast("error", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleMergeUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mergingUser || !mergingUser.targetKey.trim()) return;
+
+    setIsMerging(true);
+    const adminKey = getStoredAdminKey();
+    try {
+      const res = await fetch("/api/admin/action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kru-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          action: "merge_user_keys",
+          sourceKey: mergingUser.sourceKey,
+          targetKey: mergingUser.targetKey.trim().toLowerCase(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        showToast("success", data.message || "รวมข้อมูลรหัสผู้สอบแล้ว");
+        setMergingUser(null);
+        loadOverviewData();
+      } else {
+        throw new Error(data.error || "รวมรหัสไม่สำเร็จ");
+      }
+    } catch (err: any) {
+      showToast("error", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  // Filtered Users List
+  const filteredUsers = useMemo(() => {
+    if (!overview?.users) return [];
+    return overview.users.filter((u) => {
+      if (userFilter === "active" && u.isEmptyOrphan) return false;
+      if (userFilter === "orphan" && !u.isEmptyOrphan) return false;
+      if (userSearch.trim()) {
+        const q = userSearch.toLowerCase();
+        return u.syncKey.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [overview?.users, userFilter, userSearch]);
+
   // Filtered Disputes
   const filteredDisputes = useMemo(() => {
     if (!overview?.disputes) return [];
@@ -989,6 +1170,29 @@ export default function AdminDashboardPage() {
               <span className="text-[11px] opacity-70 font-mono">
                 ({allQuestionsList.length})
               </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("users")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                activeTab === "users"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>ผู้เข้าสอบ & Sync Keys</span>
+              <span className="text-[11px] opacity-70 font-mono">
+                ({overview?.users?.length ?? 1})
+              </span>
+              {(overview?.kpis.orphanKeysCount ?? 0) > 0 && (
+                <span
+                  className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-medium bg-amber-100 text-amber-800"
+                  title={`มีรหัสว่างเปล่า ${overview?.kpis.orphanKeysCount} รหัส`}
+                >
+                  ว่าง {overview?.kpis.orphanKeysCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -1459,8 +1663,255 @@ export default function AdminDashboardPage() {
         )}
 
         {/* ========================================================= */}
-        {/* TAB 3: บทวิเคราะห์เชิงลึก (Exam Analytics & Insights) */}
+        {/* TAB: ศูนย์จัดการผู้เข้าสอบและรหัสสอบ (User & Sync Keys Directory) */}
         {/* ========================================================= */}
+        {activeTab === "users" && (
+          <div className="space-y-4">
+            {/* Guide & Architecture FAQ Box */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0 mt-0.5">
+                  <HelpCircle className="w-4 h-4" />
+                </div>
+                <div className="space-y-2 text-xs">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    หลักการทำงานของรหัสผู้สอบ (Sync Key Architecture & Retention)
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="font-semibold text-slate-900 block mb-1">
+                        1. ถ้ารหัสเดิมถูกลืม แล้วสุ่มรหัสใหม่ รหัสเดิมจะเสียไหม?
+                      </span>
+                      <p className="text-slate-600 leading-relaxed">
+                        <strong>ไม่เสียและไม่หายครับ:</strong> ข้อมูลประวัติการทำข้อสอบ คะแนน และจุดที่เคยตอบผิดของรหัสเดิมยังคงถูกบันทึกไว้อย่างปลอดภัยใน Cloudflare D1 ตามรหัสเดิมทุกประการ หากผู้สอบจำรหัสเดิมได้ภายหลัง สามารถพิมพ์กรอกรหัสเดิมกลับเข้ามาเพื่อดึงข้อมูลทั้งหมดคืนได้ทันที
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="font-semibold text-slate-900 block mb-1">
+                        2. แล้วรหัสที่ถูกทิ้งไว้จะเป็นขยะไหม มีวิธีจัดการอย่างไร?
+                      </span>
+                      <p className="text-slate-600 leading-relaxed">
+                        รหัสที่ถูกสุ่มขึ้นมาใหม่แต่ผู้ใช้ <strong>ไม่เคยเริ่มทำข้อสอบเลย (0 รอบ)</strong> ระบบจะจัดประเภทเป็น <em>"รหัสว่างเปล่า (Orphan Key)"</em> แอดมินสามารถกดปุ่ม <strong>[🧹 ล้างรหัสขยะที่ไม่มีการใช้งาน]</strong> ด้านล่างเพื่อลบออกจากฐานข้อมูลในคลิกเดียว หรือใช้ปุ่ม <strong>[🔄 รวมรหัส]</strong> เพื่อโอนประวัติจากรหัสเก่ามารวมกับรหัสใหม่ได้ทันที
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter, Search & Purge Action Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-slate-500">
+                  ตัวกรอง:
+                </span>
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs">
+                  <button
+                    onClick={() => setUserFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                      userFilter === "all"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    ทั้งหมด ({overview?.users?.length ?? 0})
+                  </button>
+                  <button
+                    onClick={() => setUserFilter("active")}
+                    className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                      userFilter === "active"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    มีประวัติสอบ (
+                    {overview?.users?.filter((u) => !u.isEmptyOrphan).length ??
+                      0}
+                    )
+                  </button>
+                  <button
+                    onClick={() => setUserFilter("orphan")}
+                    className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                      userFilter === "orphan"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    รหัสว่างเปล่า / ขยะ (
+                    {overview?.kpis.orphanKeysCount ?? 0})
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative w-full sm:w-60">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="ค้นหารหัสผู้สอบ เช่น kru-..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400 font-mono"
+                  />
+                </div>
+
+                <button
+                  onClick={handlePurgeOrphans}
+                  disabled={
+                    purgingOrphans ||
+                    (overview?.kpis.orphanKeysCount ?? 0) === 0
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 text-slate-700 rounded-xl text-xs font-medium transition-colors disabled:opacity-40 whitespace-nowrap"
+                  title="ลบรหัสที่สุ่มทิ้งไว้และไม่เคยมีการทำข้อสอบเลย เพื่อประหยัดพื้นที่ฐานข้อมูล"
+                >
+                  <Trash2
+                    className={`w-3.5 h-3.5 ${
+                      purgingOrphans ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span>
+                    ล้างรหัสขยะ ({overview?.kpis.orphanKeysCount ?? 0})
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Users Directory Table */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200/80 text-slate-500 font-medium">
+                    <tr>
+                      <th className="py-3 px-4">รหัสผู้สอบ (Sync Key)</th>
+                      <th className="py-3 px-4">สถานะ</th>
+                      <th className="py-3 px-4 text-center">รอบที่สอบ</th>
+                      <th className="py-3 px-4 text-center">จุดผิดที่บันทึก</th>
+                      <th className="py-3 px-4 text-center">คะแนนเฉลี่ย</th>
+                      <th className="py-3 px-4">ใช้งานล่าสุด</th>
+                      <th className="py-3 px-4 text-right">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredUsers.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="py-10 text-center text-slate-500 text-xs"
+                        >
+                          ไม่พบข้อมูลรหัสผู้สอบในเงื่อนไขนี้
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUsers.map((user) => (
+                        <tr
+                          key={user.syncKey}
+                          className="hover:bg-slate-50/80 transition-colors"
+                        >
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {user.syncKey}
+                              </span>
+                              <button
+                                onClick={async () => {
+                                  await navigator.clipboard.writeText(
+                                    user.syncKey
+                                  );
+                                  showToast(
+                                    "success",
+                                    `คัดลอกรหัส ${user.syncKey} แล้ว`
+                                  );
+                                }}
+                                className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors"
+                                title="คัดลอกรหัสผู้สอบ"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            {user.isEmptyOrphan ? (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[11px] font-medium inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                รหัสว่างเปล่า (Orphan)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-md text-[11px] font-medium inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                ใช้งานปกติ (Active)
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono tabular-nums font-semibold text-slate-700">
+                            {user.attemptsCount} รอบ
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono tabular-nums text-slate-600">
+                            {user.mistakesCount} ข้อ
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono tabular-nums">
+                            {user.attemptsCount > 0 ? (
+                              <span
+                                className={`font-semibold ${
+                                  user.avgScore >= 60
+                                    ? "text-emerald-700"
+                                    : "text-amber-700"
+                                }`}
+                              >
+                                {user.avgScore}%
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 text-[11px]">
+                            {user.updatedAt ? user.updatedAt.slice(0, 16).replace("T", " ") : "-"}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                onClick={() =>
+                                  setRenamingUser({
+                                    oldKey: user.syncKey,
+                                    newKey: user.syncKey,
+                                  })
+                                }
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="เปลี่ยนชื่อรหัสผู้สอบ (เช่น ตั้งเป็นชื่อผู้ใช้ที่จำง่าย)"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setMergingUser({
+                                    sourceKey: user.syncKey,
+                                    targetKey: "",
+                                  })
+                                }
+                                className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                title="รวมประวัติการสอบจากรหัสนี้ไปยังรหัสอื่น (Merge Keys)"
+                              >
+                                <GitMerge className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user.syncKey)}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="ลบรหัสผู้สอบนี้ถาวร"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === "analytics" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top 5 Most Failed Questions */}
@@ -1948,6 +2399,140 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: Rename User Sync Key */}
+      {/* ========================================================= */}
+      {renamingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full border border-slate-200 shadow-xl p-6">
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              เปลี่ยนชื่อรหัสผู้สอบ
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              เปลี่ยนรหัสเพื่อให้ผู้สอบจำง่ายขึ้น โดยประวัติสอบทั้งหมดยังคงอยู่
+            </p>
+
+            <form onSubmit={handleRenameUserSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-slate-500 mb-1">
+                  รหัสเดิมในระบบ:
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={renamingUser.oldKey}
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  ชื่อรหัสใหม่ที่ต้องการ:
+                </label>
+                <input
+                  type="text"
+                  value={renamingUser.newKey}
+                  onChange={(e) =>
+                    setRenamingUser({
+                      ...renamingUser,
+                      newKey: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""),
+                    })
+                  }
+                  placeholder="เช่น kru-somchai หรือ somchai9"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setRenamingUser(null)}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRenaming || !renamingUser.newKey.trim()}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl font-medium shadow-sm"
+                >
+                  {isRenaming ? "กำลังเปลี่ยน..." : "บันทึกชื่อใหม่"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: Merge User Keys */}
+      {/* ========================================================= */}
+      {mergingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-xl p-6">
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              รวมประวัติการสอบ (Merge Keys)
+            </h3>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              ใช้กรณีผู้สอบเปลี่ยนเครื่องหรือลืมรหัสเดิม แล้วต้องการย้ายคะแนนและประวัติจากรหัสต้นทางมารวมกับรหัสปลายทาง
+            </p>
+
+            <form onSubmit={handleMergeUserSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-slate-500 mb-1">
+                  รหัสต้นทาง (จะถูกโอนข้อมูลและลบออก):
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={mergingUser.sourceKey}
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl font-mono text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">
+                  รหัสปลายทางที่จะรับข้อมูล:
+                </label>
+                <input
+                  type="text"
+                  value={mergingUser.targetKey}
+                  onChange={(e) =>
+                    setMergingUser({
+                      ...mergingUser,
+                      targetKey: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""),
+                    })
+                  }
+                  placeholder="พิมพ์รหัสปลายทาง เช่น kru-..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setMergingUser(null)}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isMerging || !mergingUser.targetKey.trim()}
+                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white rounded-xl font-medium shadow-sm"
+                >
+                  {isMerging ? "กำลังรวมข้อมูล..." : "ยืนยันการรวมรหัส"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
