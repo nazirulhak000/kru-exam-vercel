@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Archive,
   BookOpen,
   Check,
   Cloud,
@@ -16,7 +17,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Shuffle,
-  Sparkles,
   X,
 } from "lucide-react";
 import {
@@ -48,16 +48,16 @@ const NAV_ITEMS = [
   },
   {
     href: "/bank",
-    label: "คลังข้อสอบแกนกลาง (7,200)",
-    shortLabel: "คลัง 7,200 ข้อ",
+    label: "คลังข้อสอบมาตรฐาน",
+    shortLabel: "คลังมาตรฐาน",
     icon: BookOpen,
     adminOnly: false,
   },
   {
     href: "/bank?tab=roonpii",
-    label: "ข้อสอบจริง Roonpii (1,013)",
-    shortLabel: "ข้อสอบจริง Roonpii",
-    icon: Sparkles,
+    label: "คลังข้อสอบจริงย้อนหลัง",
+    shortLabel: "ข้อสอบจริง",
+    icon: Archive,
     adminOnly: false,
   },
   {

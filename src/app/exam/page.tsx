@@ -3,7 +3,9 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Archive,
   Bookmark,
+  BookOpen,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -1359,8 +1361,9 @@ function ExamSimulatorContent() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-title font-medium text-[14px] text-paper-ink">
-                      📚 ข้อสอบมาตรฐานแกนกลาง
+                    <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-paper-secondary shrink-0" strokeWidth={1.5} />
+                      <span>คลังข้อสอบมาตรฐานแกนกลาง</span>
                     </span>
                     <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-accent/10 text-paper-accent font-medium">
                       7,200 ข้อ
@@ -1379,15 +1382,16 @@ function ExamSimulatorContent() {
                   }}
                   className={`p-3.5 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
                     selectedCollection === "roonpii"
-                      ? "border-amber-600 bg-amber-500/[0.08] ring-1 ring-amber-600/40"
+                      ? "border-paper-accent bg-paper-accent/[0.05] ring-1 ring-paper-accent/30"
                       : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-title font-medium text-[14px] text-amber-900">
-                      🏛️ คลังข้อสอบจริง & จำมา Roonpii
+                    <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
+                      <Archive className="w-4 h-4 text-paper-secondary shrink-0" strokeWidth={1.5} />
+                      <span>คลังข้อสอบจริงย้อนหลัง</span>
                     </span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 font-medium">
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-raised text-paper-secondary font-medium">
                       1,013 ข้อ
                     </span>
                   </div>
@@ -1963,7 +1967,7 @@ function ExamSimulatorContent() {
                   <span
                     className={`w-2 h-2 rounded-full shrink-0 ${
                       feedbackMode === "instant"
-                        ? "bg-paper-accent animate-pulse"
+                        ? "bg-paper-accent"
                         : "bg-paper-muted"
                     }`}
                   />

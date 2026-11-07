@@ -4,7 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  Archive,
   Bookmark,
+  BookOpen,
   Check,
   CheckCircle2,
   Download,
@@ -484,13 +486,14 @@ export default function QuestionBankPage() {
               window.history.replaceState(null, "", window.location.pathname + "?tab=standard");
             }
           }}
-          className={`pb-3 pt-1 text-[15px] font-medium transition-all relative flex items-center gap-2 whitespace-nowrap ${
+          className={`pb-3 pt-1 text-[15px] font-medium transition-colors duration-150 ease-calm relative flex items-center gap-2 whitespace-nowrap ${
             activeCollectionTab === "standard"
               ? "text-paper-ink font-semibold"
               : "text-paper-muted hover:text-paper-ink"
           }`}
         >
-          <span>📚 ข้อสอบมาตรฐานแกนกลาง (7,200 ข้อ)</span>
+          <BookOpen className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
+          <span>คลังข้อสอบมาตรฐานแกนกลาง</span>
           <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-accent/10 text-paper-accent font-mono font-medium">
             {questions.length.toLocaleString()}
           </span>
@@ -512,18 +515,19 @@ export default function QuestionBankPage() {
               window.history.replaceState(null, "", window.location.pathname + "?tab=roonpii");
             }
           }}
-          className={`pb-3 pt-1 text-[15px] font-medium transition-all relative flex items-center gap-2 whitespace-nowrap ${
+          className={`pb-3 pt-1 text-[15px] font-medium transition-colors duration-150 ease-calm relative flex items-center gap-2 whitespace-nowrap ${
             activeCollectionTab === "roonpii"
-              ? "text-amber-800 font-semibold"
+              ? "text-paper-ink font-semibold"
               : "text-paper-muted hover:text-paper-ink"
           }`}
         >
-          <span>🏛️ คลังข้อสอบจริง & จำมา Roonpii (2558–2568)</span>
-          <span className="text-[12px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 font-mono font-medium">
+          <Archive className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
+          <span>คลังข้อสอบจริงย้อนหลัง Roonpii</span>
+          <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-raised text-paper-secondary font-mono font-medium">
             {roonpiiQuestions.length.toLocaleString()}
           </span>
           {activeCollectionTab === "roonpii" && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-600" />
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-paper-accent" />
           )}
         </button>
       </div>
@@ -615,11 +619,11 @@ export default function QuestionBankPage() {
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="h-9 px-3 rounded-[8px] border border-amber-600/30 bg-amber-500/5 text-[12.5px] font-medium text-amber-900 focus:outline-none focus:border-amber-600"
+                  className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12.5px] font-sans text-paper-ink focus:outline-none focus:border-paper-accent"
                 >
-                  <option value="all">ทั้งหมด (จริง, จำมา, ชุดฝึก)</option>
-                  <option value="official_exam">🏛️ ข้อสอบจริง & จำมา (Official & Recalled)</option>
-                  <option value="practice_and_mock">📝 แบบฝึกหัด & ชีทติว (Practice & Mock)</option>
+                  <option value="all">ทั้งหมด (ข้อสอบจริง, จำมา, ชุดฝึก)</option>
+                  <option value="official_exam">ข้อสอบจริงและข้อสอบจำมาสนามสอบ</option>
+                  <option value="practice_and_mock">แบบฝึกหัดและชุดทดสอบ</option>
                 </select>
               </div>
             </div>
@@ -784,20 +788,12 @@ export default function QuestionBankPage() {
                       </span>
                     )}
                     {q.isRoonpiiCollection && (
-                      <span
-                        className={`text-[12px] lg:text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] flex items-center gap-1 max-w-full ${
-                          q.collectionType === "official_exam"
-                            ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
-                            : q.collectionType === "recalled_exam"
-                            ? "bg-amber-500/15 text-amber-800 border border-amber-500/25"
-                            : "bg-blue-500/10 text-blue-700 border border-blue-500/20"
-                        }`}
-                      >
+                      <span className="text-[12px] lg:text-[11.5px] font-mono px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary border border-[#1f1b16]/[0.08] flex items-center gap-1 max-w-full">
                         {q.collectionType === "official_exam"
-                          ? `🏛️ ข้อสอบจริง ${q.examYear || ""}`
+                          ? `ข้อสอบจริง ${q.examYear || ""}`
                           : q.collectionType === "recalled_exam"
-                          ? `🧠 ข้อสอบจำมา ${q.examYear || ""}`
-                          : `📝 ชุดฝึก Roonpii`}
+                          ? `ข้อสอบจำมาสนามสอบ ${q.examYear || ""}`
+                          : "ชุดฝึก Roonpii"}
                       </span>
                     )}
                     {hasPendingReport && (

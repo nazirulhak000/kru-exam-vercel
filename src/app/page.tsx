@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BookOpen, FileUp, Play, RotateCcw } from "lucide-react";
+import { Archive, ArrowRight, BookOpen, FileUp, Play, RotateCcw } from "lucide-react";
 import {
   getActiveExamSession,
   getAllQuestions,
@@ -67,7 +67,7 @@ export default function HomeDashboardPage() {
         <section className="p-4 sm:p-5 rounded-[12px] bg-paper-accent/[0.08] border border-paper-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-paper-accent animate-pulse shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-paper-accent shrink-0" />
               <span className="font-title font-medium text-[14px] text-paper-ink">
                 คุณมีชุดข้อสอบที่ทำค้างไว้
               </span>
@@ -119,26 +119,18 @@ export default function HomeDashboardPage() {
               className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
               <Play className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-              <span className="min-w-0">เริ่มสุ่มทำข้อสอบ</span>
+              <span className="min-w-0">เริ่มจำลองห้องสอบ</span>
             </Link>
 
             <Link
-              href="/bank?tab=standard"
+              href="/bank"
               className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
               <BookOpen
                 className="w-4 h-4 text-paper-secondary shrink-0"
                 strokeWidth={1.5}
               />
-              <span className="min-w-0">คลังมาตรฐาน (7,200 ข้อ)</span>
-            </Link>
-
-            <Link
-              href="/bank?tab=roonpii"
-              className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-600/30 text-amber-900 text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
-            >
-              <span className="text-base">🏛️</span>
-              <span className="min-w-0 font-medium">ข้อสอบจริง Roonpii (1,013 ข้อ)</span>
+              <span className="min-w-0">เปิดสมุดคลังข้อสอบ</span>
             </Link>
 
             {isAdmin && (
@@ -189,7 +181,7 @@ export default function HomeDashboardPage() {
           })}
 
           <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words">
-            <span className="text-[12px] text-paper-muted">คลังมาตรฐานแกนกลาง</span>
+            <span className="text-[12px] text-paper-muted">คลังข้อสอบมาตรฐาน</span>
             <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
               {stats.totalQuestionsInBank.toLocaleString()}
             </div>
@@ -202,17 +194,17 @@ export default function HomeDashboardPage() {
             </Link>
           </div>
 
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-amber-500/[0.08] border border-amber-600/30 flex flex-col justify-between min-h-[104px] min-w-0 break-words">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-medium text-amber-800">คลังข้อสอบจริง Roonpii</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 font-mono font-semibold">2558–2568</span>
+          <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[12px] text-paper-muted">คลังข้อสอบจริงย้อนหลัง</span>
+              <span className="text-[11px] font-mono text-paper-secondary">2558–2568</span>
             </div>
-            <div className="font-mono font-medium text-[28px] leading-none text-amber-900 tabular-nums my-2">
+            <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
               {roonpiiCount.toLocaleString()}
             </div>
             <Link
               href="/bank?tab=roonpii"
-              className="text-[12px] text-amber-800 hover:text-amber-950 font-medium underline underline-offset-2 flex items-center gap-1"
+              className="text-[12px] text-paper-secondary hover:text-paper-ink underline underline-offset-2 flex items-center gap-1"
             >
               <span>เปิดดูข้อสอบสนามจริง</span>
               <ArrowRight className="w-3 h-3" />
@@ -221,36 +213,36 @@ export default function HomeDashboardPage() {
         </div>
       </section>
 
-      {/* Prominent Roonpii Authentic Exam Showcase */}
-      <section className="p-5 sm:p-6 rounded-[14px] bg-gradient-to-r from-amber-500/[0.10] via-amber-500/[0.04] to-transparent border border-amber-600/30 space-y-4">
+      {/* Archival Examination Document Section */}
+      <section className="p-5 sm:p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[11px] font-medium tracking-wide">
-                คลังข้อสอบชุดใหม่ (แยกต่างหาก)
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary uppercase tracking-wider">
+                Archive
               </span>
               <h2 className="font-title font-medium text-[18px] text-paper-ink">
-                🏛️ คลังข้อสอบจริงสนามสอบ & จำมา Roonpii (1,013 ข้อ)
+                คลังข้อสอบจริงสนามสอบและเอกสารย้อนหลัง
               </h2>
             </div>
             <p className="text-[13px] text-paper-secondary">
-              แยกแท็บต่างหากจาก 7,200 ข้อมาตรฐานแกนกลาง รวบรวมข้อสอบจำมาจริง สพฐ. 2568, 2567, กรณีพิเศษ และชุดฝึก TruePlookpanya (2558–2568) พร้อมเฉลยละเอียด
+              รวบรวมข้อสอบจริงและข้อสอบจำมาจากสนามสอบ สพฐ. ภาค ก และ ภาค ข พร้อมเฉลยละเอียดรายตัวเลือก แยกเก็บต่างหากจากชุดมาตรฐานแกนกลาง
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link
               href="/bank?tab=roonpii"
-              className="h-9 px-4 rounded-[8px] bg-amber-700 hover:bg-amber-800 text-white text-[13px] font-medium flex items-center gap-1.5 transition-colors"
+              className="h-9 px-4 rounded-[8px] bg-paper-ink text-paper-card hover:bg-paper-ink/90 text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
-              <span>เปิดดูในคลังข้อสอบ</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <Archive className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <span>เปิดดูคลังข้อสอบจริง</span>
             </Link>
             <Link
               href="/exam?collection=roonpii"
-              className="h-9 px-3.5 rounded-[8px] border border-amber-700/40 bg-paper-card hover:bg-amber-500/10 text-amber-900 text-[13px] font-medium flex items-center gap-1.5 transition-colors"
+              className="h-9 px-3.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card hover:bg-paper-raised text-paper-ink text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150 ease-calm"
             >
-              <Play className="w-3.5 h-3.5" />
-              <span>เริ่มสอบชุดนี้</span>
+              <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <span>จำลองสอบชุดนี้</span>
             </Link>
           </div>
         </div>
@@ -259,57 +251,57 @@ export default function HomeDashboardPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
           <Link
             href="/bank?tab=roonpii&year=2568"
-            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+            className="p-3.5 rounded-[10px] bg-paper-bg/60 hover:bg-paper-raised/80 border border-[#1f1b16]/[0.08] text-left transition-colors duration-150 ease-calm group"
           >
-            <div className="text-[11px] font-mono text-amber-700 font-semibold">สพฐ. 2568 (ล่าสุด)</div>
-            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
-              คณิตสะกิดต่อม & คิดวิเคราะห์
+            <div className="text-[11px] font-mono text-paper-secondary font-medium">สพฐ. 2568</div>
+            <div className="text-[13px] font-medium text-paper-ink mt-0.5 truncate">
+              คณิตสะกิดต่อมและคิดวิเคราะห์
             </div>
-            <div className="text-[11px] text-paper-muted mt-1">ข้อสอบจำมาสดๆ ภาค ก / ข</div>
+            <div className="text-[11px] text-paper-muted mt-1">ข้อสอบจำมาจริง ภาค ก และ ข</div>
           </Link>
 
           <Link
             href="/bank?tab=roonpii&year=2567"
-            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+            className="p-3.5 rounded-[10px] bg-paper-bg/60 hover:bg-paper-raised/80 border border-[#1f1b16]/[0.08] text-left transition-colors duration-150 ease-calm group"
           >
-            <div className="text-[11px] font-mono text-amber-700 font-semibold">สพฐ. 2567</div>
-            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
-              เอกคอมพิวเตอร์ (25 หน้า)
+            <div className="text-[11px] font-mono text-paper-secondary font-medium">สพฐ. 2567</div>
+            <div className="text-[13px] font-medium text-paper-ink mt-0.5 truncate">
+              วิชาเอกคอมพิวเตอร์
             </div>
-            <div className="text-[11px] text-paper-muted mt-1">ข้อสอบสนามสอบจริง 8-9 มิ.ย.</div>
+            <div className="text-[11px] text-paper-muted mt-1">เอกสารสนามสอบจริง 25 หน้า</div>
           </Link>
 
           <Link
             href="/bank?tab=roonpii&type=special"
-            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+            className="p-3.5 rounded-[10px] bg-paper-bg/60 hover:bg-paper-raised/80 border border-[#1f1b16]/[0.08] text-left transition-colors duration-150 ease-calm group"
           >
-            <div className="text-[11px] font-mono text-amber-700 font-semibold">กรณีพิเศษ 2567–68</div>
-            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
-              กฎหมายการศึกษา KRU BAR
+            <div className="text-[11px] font-mono text-paper-secondary font-medium">กรณีพิเศษ 2567–68</div>
+            <div className="text-[13px] font-medium text-paper-ink mt-0.5 truncate">
+              กฎหมายการศึกษา ครูบาร์อาจารย์
             </div>
-            <div className="text-[11px] text-paper-muted mt-1">พ.ร.บ.การศึกษา & วินัย</div>
+            <div className="text-[11px] text-paper-muted mt-1">พ.ร.บ.การศึกษาและวินัยครู</div>
           </Link>
 
           <Link
             href="/bank?tab=roonpii&year=2560"
-            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+            className="p-3.5 rounded-[10px] bg-paper-bg/60 hover:bg-paper-raised/80 border border-[#1f1b16]/[0.08] text-left transition-colors duration-150 ease-calm group"
           >
-            <div className="text-[11px] font-mono text-amber-700 font-semibold">กรณีพิเศษ 2560</div>
-            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
-              MR.KRON ความรอบรู้
+            <div className="text-[11px] font-mono text-paper-secondary font-medium">กรณีพิเศษ 2560</div>
+            <div className="text-[13px] font-medium text-paper-ink mt-0.5 truncate">
+              ความรอบรู้ มิสเตอร์กร
             </div>
             <div className="text-[11px] text-paper-muted mt-1">ข้อสอบจริง 50 ข้อ</div>
           </Link>
 
           <Link
             href="/bank?tab=roonpii&type=trueplookpanya"
-            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm col-span-2 sm:col-span-1"
+            className="p-3.5 rounded-[10px] bg-paper-bg/60 hover:bg-paper-raised/80 border border-[#1f1b16]/[0.08] text-left transition-colors duration-150 ease-calm group col-span-2 sm:col-span-1"
           >
-            <div className="text-[11px] font-mono text-amber-700 font-semibold">TruePlookpanya</div>
-            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
-              คลังข้อสอบ 48 ชุด
+            <div className="text-[11px] font-mono text-paper-secondary font-medium">ทรูปลูกปัญญา</div>
+            <div className="text-[13px] font-medium text-paper-ink mt-0.5 truncate">
+              คลังแบบทดสอบ 48 ชุด
             </div>
-            <div className="text-[11px] text-paper-muted mt-1">รวม 929 ข้อพร้อมเฉลยละเอียด</div>
+            <div className="text-[11px] text-paper-muted mt-1">929 ข้อพร้อมเฉลยละเอียด</div>
           </Link>
         </div>
       </section>
@@ -524,7 +516,7 @@ export default function HomeDashboardPage() {
               </h3>
               <Link
                 href="/history"
-                className="inline-flex items-center shrink-0 whitespace-nowrap px-2 -mx-2 py-[11px] -my-[11px] text-[12px] text-paper-secondary hover:text-paper-ink transition-colors duration-150"
+                className="text-[12px] text-paper-secondary hover:text-paper-ink transition-colors duration-150"
               >
                 ดูประวัติทั้งหมด
               </Link>

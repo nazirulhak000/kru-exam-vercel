@@ -615,7 +615,7 @@ export default function UploadPdfPage() {
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-paper-bg overflow-hidden">
                   <div
-                    className="h-full bg-paper-accent transition-all duration-200"
+                    className="h-full bg-paper-accent transition-[width] duration-200 ease-calm"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>

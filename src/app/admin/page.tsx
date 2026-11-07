@@ -1287,7 +1287,7 @@ export default function AdminDashboardPage() {
                     : "missing_explanation"
                 )
               }
-              className={`p-4 rounded-[10px] border cursor-pointer transition-all ${
+              className={`p-4 rounded-[10px] border cursor-pointer transition-colors duration-150 ease-calm ${
                 bankHealthFilter === "missing_explanation"
                   ? "bg-paper-warnBg border-paper-warn ring-1 ring-paper-warn"
                   : healthStats.missingExp > 0
@@ -1322,7 +1322,7 @@ export default function AdminDashboardPage() {
                   prev === "bad_options" ? "all" : "bad_options"
                 )
               }
-              className={`p-4 rounded-[10px] border cursor-pointer transition-all ${
+              className={`p-4 rounded-[10px] border cursor-pointer transition-colors duration-150 ease-calm ${
                 bankHealthFilter === "bad_options"
                   ? "bg-paper-failBg border-paper-fail ring-1 ring-paper-fail"
                   : healthStats.badOpts > 0
@@ -1886,7 +1886,7 @@ export default function AdminDashboardPage() {
                           title="เกณฑ์ผ่าน 60%"
                         />
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
+                          className={`h-full rounded-full transition-[width] duration-300 ease-calm ${
                             !hasData
                               ? "bg-transparent"
                               : isBelowPass
