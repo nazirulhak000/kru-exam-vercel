@@ -488,7 +488,7 @@ export default function QuestionBankPage() {
       </div>
 
       {/* Collection Switcher Tabs (แยกข้อสอบเป็นแท็บใหม่ต่างจากข้อสอบเดิม) */}
-      <div className="flex border-b border-[#1f1b16]/10 gap-2 sm:gap-6 -mb-4 overflow-x-auto pb-1">
+      <div className="flex border-b border-[#1f1b16]/10 gap-2 sm:gap-6 -mb-4 overflow-x-auto pb-1 custom-scrollbar">
         <button
           type="button"
           onClick={() => {
@@ -503,14 +503,15 @@ export default function QuestionBankPage() {
               window.history.replaceState(null, "", window.location.pathname + "?tab=standard");
             }
           }}
-          className={`pb-3 pt-1 text-[15px] font-medium transition-colors duration-150 ease-calm relative flex items-center gap-2 whitespace-nowrap ${
+          className={`pb-3 pt-1 text-[14px] sm:text-[15px] font-medium transition-colors duration-150 ease-calm relative flex items-center gap-2 whitespace-nowrap shrink-0 ${
             activeCollectionTab === "standard"
               ? "text-paper-ink font-semibold"
               : "text-paper-muted hover:text-paper-ink"
           }`}
         >
           <BookOpen className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
-          <span>คลังข้อสอบมาตรฐานแกนกลาง (จัดทำตามผัง ก.ค.ศ.)</span>
+          <span className="hidden sm:inline">คลังข้อสอบมาตรฐานแกนกลาง (จัดทำตามผัง ก.ค.ศ.)</span>
+          <span className="sm:hidden">คลังมาตรฐาน ก.ค.ศ.</span>
           <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-accent/10 text-paper-accent font-mono font-medium">
             {questions.length.toLocaleString()}
           </span>
@@ -533,14 +534,15 @@ export default function QuestionBankPage() {
               window.history.replaceState(null, "", window.location.pathname + "?tab=roonpii");
             }
           }}
-          className={`pb-3 pt-1 text-[15px] font-medium transition-colors duration-150 ease-calm relative flex items-center gap-2 whitespace-nowrap ${
+          className={`pb-3 pt-1 text-[14px] sm:text-[15px] font-medium transition-colors duration-150 ease-calm relative flex items-center gap-2 whitespace-nowrap shrink-0 ${
             activeCollectionTab === "roonpii"
               ? "text-paper-ink font-semibold"
               : "text-paper-muted hover:text-paper-ink"
           }`}
         >
           <Globe className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
-          <span>คลังข้อสอบจริง & แหล่งข้อสอบจากอินเทอร์เน็ต</span>
+          <span className="hidden sm:inline">คลังข้อสอบจริง & แหล่งข้อสอบจากอินเทอร์เน็ต</span>
+          <span className="sm:hidden">ข้อสอบจริง & อินเทอร์เน็ต</span>
           <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-raised text-paper-secondary font-mono font-medium">
             {roonpiiQuestions.length.toLocaleString()}
           </span>
@@ -555,7 +557,7 @@ export default function QuestionBankPage() {
         <div className="p-4 sm:p-5 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary uppercase tracking-wider">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary font-medium">
                 Internet Archive
               </span>
               <h2 className="font-title font-medium text-[16px] text-paper-ink">

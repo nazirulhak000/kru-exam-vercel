@@ -202,6 +202,7 @@ function ExamSimulatorContent() {
   const [sheetFilter, setSheetFilter] = useState<
     "all" | "unanswered" | "flagged"
   >("all");
+  const [showMobileSheet, setShowMobileSheet] = useState<boolean>(false);
 
   const [lastAttempt, setLastAttempt] = useState<ExamAttempt | null>(null);
   const [globalStats, setGlobalStats] = useState<GlobalStatsMap>({});
@@ -1932,11 +1933,11 @@ function ExamSimulatorContent() {
               <span className="font-mono text-[13px] text-paper-secondary tabular-nums whitespace-nowrap">
                 ข้อที่ {currentIndex + 1} จาก {total}
               </span>
-              {/* Compact timer for phones/tablets (the full answer sheet sits below the question until lg) */}
+              {/* Compact timer for phones/tablets */}
               <span
                 className={`lg:hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-[5px] border font-mono text-[12px] font-medium tabular-nums whitespace-nowrap ${
                   isTimeCritical
-                    ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
+                    ? "bg-paper-failBg border-paper-fail/40 text-paper-fail font-semibold"
                     : isTimeWarning
                     ? "bg-paper-warnBg border-paper-warn/40 text-paper-warn"
                     : "bg-paper-bg border-[#1f1b16]/[0.1] text-paper-ink"
@@ -1945,6 +1946,17 @@ function ExamSimulatorContent() {
                 <Clock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                 <span>{displayTime}</span>
               </span>
+
+              {/* Mobile quick Answer Sheet trigger */}
+              <button
+                type="button"
+                onClick={() => setShowMobileSheet(true)}
+                className="lg:hidden inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[5px] border border-[#1f1b16]/[0.12] bg-paper-card text-paper-ink font-mono text-[12px] tabular-nums hover:bg-paper-raised transition-colors"
+                title="เปิดกระดาษคำตอบเพื่อเลือกข้อที่ต้องการทำ"
+              >
+                <FileText className="w-3.5 h-3.5 text-paper-secondary shrink-0" strokeWidth={1.5} />
+                <span>แผ่นคำตอบ ({answeredTotal}/{total})</span>
+              </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -2238,7 +2250,7 @@ function ExamSimulatorContent() {
               <div
                 className={`px-3 py-1.5 rounded-[8px] border flex items-center gap-2 font-mono text-[14px] font-medium tabular-nums ${
                   isTimeCritical
-                    ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
+                    ? "bg-paper-failBg border-paper-fail/40 text-paper-fail font-semibold"
                     : isTimeWarning
                     ? "bg-paper-warnBg border-paper-warn/40 text-paper-warn"
                     : "bg-paper-bg border-[#1f1b16]/[0.1] text-paper-ink"
@@ -2397,6 +2409,136 @@ function ExamSimulatorContent() {
             </button>
           </div>
         </div>
+
+        {/* Mobile Answer Sheet Drawer */}
+        {showMobileSheet && (
+          <div className="fixed inset-0 z-50 bg-[#1f1b16]/50 backdrop-blur-[2px] flex flex-col justify-end lg:hidden">
+            <div className="w-full bg-paper-card rounded-t-[18px] border-t border-[#1f1b16]/15 shadow-2xl p-4 sm:p-5 space-y-3.5 max-h-[82vh] overflow-y-auto overscroll-contain custom-scrollbar">
+              <div className="flex items-center justify-between pb-3 border-b border-[#1f1b16]/[0.08]">
+                <div className="min-w-0">
+                  <h3 className="font-title font-medium text-[16px] text-paper-ink">
+                    กระดาษคำตอบ
+                  </h3>
+                  <div className="font-mono text-[12px] text-paper-secondary tabular-nums mt-0.5">
+                    ตอบแล้ว {answeredTotal} จาก {total} ข้อ
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileSheet(false)}
+                  className="w-8 h-8 rounded-[6px] hover:bg-paper-raised flex items-center justify-center text-paper-muted hover:text-paper-ink"
+                  aria-label="ปิดกระดาษคำตอบ"
+                >
+                  <X className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+              </div>
+
+              {/* Filter Pills */}
+              <div className="grid grid-cols-3 gap-1.5 text-[12px] font-mono tabular-nums">
+                <button
+                  type="button"
+                  onClick={() => setSheetFilter("all")}
+                  className={`h-9 px-1 rounded-[6px] transition-colors ${
+                    sheetFilter === "all"
+                      ? "bg-paper-ink text-paper-card font-medium"
+                      : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
+                  }`}
+                >
+                  ทั้งหมด ({total})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetFilter("unanswered")}
+                  className={`h-9 px-1 rounded-[6px] transition-colors ${
+                    sheetFilter === "unanswered"
+                      ? "bg-paper-ink text-paper-card font-medium"
+                      : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
+                  }`}
+                >
+                  ยังไม่ตอบ ({unansweredTotal})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetFilter("flagged")}
+                  className={`h-9 px-1 rounded-[6px] transition-colors ${
+                    sheetFilter === "flagged"
+                      ? "bg-paper-warn text-paper-card font-medium"
+                      : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
+                  }`}
+                >
+                  ติดธง ({flaggedIndices.length})
+                </button>
+              </div>
+
+              {/* Grid */}
+              <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 max-h-[45vh] overflow-y-auto overscroll-contain pr-1 custom-scrollbar">
+                {sheetIndices.map((idx) => {
+                  const item = activeQuiz[idx];
+                  const ansIdx = userAnswers[idx];
+                  const answered = ansIdx !== undefined;
+                  const flagged = flaggedIndices.includes(idx);
+                  const isCurrent = idx === currentIndex;
+                  const isPracticeCorrect =
+                    isInstantMode && answered && ansIdx === item.answer;
+                  const isPracticeWrong =
+                    isInstantMode && answered && ansIdx !== item.answer;
+
+                  return (
+                    <button
+                      key={"mob-" + item.id + idx}
+                      type="button"
+                      onClick={() => {
+                        setCurrentIndex(idx);
+                        setShowMobileSheet(false);
+                      }}
+                      className={`h-11 rounded-[6px] border font-mono text-[13px] tabular-nums flex items-center justify-center gap-1 transition-colors duration-150 ${
+                        isCurrent
+                          ? "border-paper-accent bg-paper-accent text-paper-card font-medium ring-2 ring-paper-accent/30"
+                          : flagged
+                          ? "border-paper-warn bg-paper-warnBg text-paper-warn font-medium"
+                          : isPracticeCorrect
+                          ? "border-paper-pass/35 bg-paper-passBg text-paper-pass font-medium"
+                          : isPracticeWrong
+                          ? "border-paper-fail/35 bg-paper-failBg text-paper-fail font-medium"
+                          : answered
+                          ? "border-[#1f1b16]/25 bg-paper-raised text-paper-ink font-medium"
+                          : "border-[#1f1b16]/[0.08] bg-paper-bg text-paper-muted hover:text-paper-ink"
+                      }`}
+                    >
+                      <span>{idx + 1}</span>
+                      {answered && (
+                        <span className="text-[12px] opacity-80">
+                          :{letters[ansIdx]}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Bottom quick action */}
+              <div className="pt-2 border-t border-[#1f1b16]/[0.08] flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMobileSheet(false)}
+                  className="flex-1 h-11 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium transition-colors"
+                >
+                  กลับไปทำข้อสอบ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileSheet(false);
+                    handleConfirmFinish();
+                  }}
+                  className="flex-1 h-11 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium transition-colors"
+                >
+                  ส่งกระดาษคำตอบ
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Pause Overlay */}
         {isPaused && (

@@ -461,7 +461,7 @@ export default function Navbar() {
 
               <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-[8px] bg-paper-card border border-[#1f1b16]/[0.08]">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
-                  <div className="min-w-0 break-all font-mono font-semibold text-[20px] sm:text-[22px] tracking-wider text-paper-ink">
+                  <div className="min-w-0 break-all font-mono font-semibold text-[20px] sm:text-[22px] text-paper-ink">
                     {currentSyncKey}
                   </div>
                   {isAdmin && (

@@ -713,7 +713,7 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="space-y-1.5">
-            <div className="text-[11px] font-mono font-medium text-paper-muted uppercase tracking-wider">
+            <div className="text-[11px] font-mono font-medium text-paper-muted">
               403 Forbidden • Admin Restricted
             </div>
             <h1 className="font-title font-normal text-[22px] text-paper-ink">

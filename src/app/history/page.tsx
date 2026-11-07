@@ -196,7 +196,7 @@ export default function HistoryAndMistakesPage() {
           <button
             type="button"
             onClick={handleClearHistory}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-2 -mx-2 py-[11px] -my-[11px] text-[12px] text-paper-muted hover:text-paper-fail transition-colors duration-150"
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-2.5 py-2 rounded-[6px] text-[12px] text-paper-muted hover:text-paper-fail hover:bg-paper-raised/60 transition-colors duration-150"
           >
             <Trash2 className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
             <span>ล้างประวัติการสอบ</span>

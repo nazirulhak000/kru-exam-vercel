@@ -218,7 +218,7 @@ export default function HomeDashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary uppercase tracking-wider">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary font-medium">
                 Archive
               </span>
               <h2 className="font-title font-medium text-[18px] text-paper-ink">
@@ -229,17 +229,17 @@ export default function HomeDashboardPage() {
               รวบรวมข้อสอบจริงและข้อสอบจำมาจากสนามสอบ สพฐ. ภาค ก และ ภาค ข พร้อมเฉลยละเอียดรายตัวเลือก แยกเก็บต่างหากจากชุดมาตรฐานแกนกลาง
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Link
               href="/bank?tab=roonpii"
-              className="h-9 px-4 rounded-[8px] bg-paper-ink text-paper-card hover:bg-paper-ink/90 text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+              className="h-10 sm:h-9 px-4 rounded-[8px] bg-paper-ink text-paper-card hover:bg-paper-ink/90 text-[13px] font-medium flex items-center justify-center gap-2 transition-colors duration-150 ease-calm w-full sm:w-auto"
             >
               <Archive className="w-3.5 h-3.5" strokeWidth={1.5} />
               <span>เปิดดูคลังข้อสอบจริง</span>
             </Link>
             <Link
               href="/exam?collection=roonpii"
-              className="h-9 px-3.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card hover:bg-paper-raised text-paper-ink text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150 ease-calm"
+              className="h-10 sm:h-9 px-3.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card hover:bg-paper-raised text-paper-ink text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150 ease-calm w-full sm:w-auto"
             >
               <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
               <span>จำลองสอบชุดนี้</span>
