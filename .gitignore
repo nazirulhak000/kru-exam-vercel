@@ -35,3 +35,6 @@ next-env.d.ts
 
 __pycache__/
 *.pyc
+
+# Claude Code personal settings
+.claude/settings.local.json

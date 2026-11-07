@@ -49,7 +49,7 @@ export default function HomeDashboardPage() {
     <div className="space-y-8">
       {/* Top Asymmetric Header & Compact Stat Row */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end pb-6 border-b border-[#1f1b16]/[0.08]">
-        <div className="lg:col-span-7 space-y-3">
+        <div className="lg:col-span-7 space-y-3 min-w-0">
           <div className="text-[12px] font-mono text-paper-muted">
             การสอบแข่งขันเพื่อบรรจุและแต่งตั้งบุคคลเข้ารับราชการครู (ภาค ก และ ภาค ข)
           </div>
@@ -63,44 +63,44 @@ export default function HomeDashboardPage() {
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
               href="/exam"
-              className="h-11 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+              className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
-              <Play className="w-4 h-4" strokeWidth={1.5} />
-              <span>เริ่มสุ่มทำข้อสอบ</span>
+              <Play className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+              <span className="min-w-0">เริ่มสุ่มทำข้อสอบ</span>
             </Link>
 
             <Link
               href="/bank"
-              className="h-11 px-5 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+              className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
               <BookOpen
-                className="w-4 h-4 text-paper-secondary"
+                className="w-4 h-4 text-paper-secondary shrink-0"
                 strokeWidth={1.5}
               />
-              <span>เปิดดูคลังข้อสอบและคำอธิบาย</span>
+              <span className="min-w-0">เปิดดูคลังข้อสอบและคำอธิบาย</span>
             </Link>
 
             {isAdmin && (
               <Link
                 href="/upload"
-                className="h-11 px-5 rounded-[8px] bg-paper-passBg hover:bg-paper-pass/20 border border-paper-pass/30 text-paper-pass text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+                className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-paper-passBg hover:bg-paper-pass/20 border border-paper-pass/30 text-paper-pass text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
               >
-                <FileUp className="w-4 h-4" strokeWidth={1.5} />
-                <span>นำเข้าไฟล์ PDF (Admin)</span>
+                <FileUp className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+                <span className="min-w-0">นำเข้าไฟล์ PDF (Admin)</span>
               </Link>
             )}
           </div>
         </div>
 
         {/* Compact Numeric Stat Cards (ภาค ก / ภาค ข ตัดเกณฑ์แยกกันตาม ก.ค.ศ.) */}
-        <div className="lg:col-span-5 grid grid-cols-2 gap-3">
+        <div className="lg:col-span-5 grid grid-cols-2 gap-3 min-w-0">
           {stats.partStats.map((p) => {
             const hasData = p.attemptedCount > 0;
             const diff = p.accuracyPercent - 60;
             return (
               <div
                 key={p.part}
-                className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]"
+                className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words"
               >
                 <span className="text-[12px] text-paper-muted">
                   ความพร้อม {p.part}
@@ -127,7 +127,7 @@ export default function HomeDashboardPage() {
             );
           })}
 
-          <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]">
+          <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words">
             <span className="text-[12px] text-paper-muted">คลังข้อสอบทั้งหมด</span>
             <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
               {stats.totalQuestionsInBank}
@@ -139,7 +139,7 @@ export default function HomeDashboardPage() {
             </span>
           </div>
 
-          <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]">
+          <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words">
             <span className="text-[12px] text-paper-muted">ข้อที่ต้องทบทวนซ้ำ</span>
             <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
               {stats.activeMistakesCount}
@@ -154,11 +154,11 @@ export default function HomeDashboardPage() {
       {/* Main Content Split: 2/3 Readiness Chart & Preview | 1/3 Recent Log & Mistake Queue */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left 8 Columns: Main Readiness Chart + Live Statute Preview */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 space-y-6 min-w-0">
           {/* Moment 1: Subject Readiness Chart with 60% OTEPC Benchmark Line */}
-          <div className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-5">
+          <div className="p-4 sm:p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-5 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 pb-4 border-b border-[#1f1b16]/[0.08]">
-              <div>
+              <div className="min-w-0">
                 <h2 className="font-title font-medium text-[18px] text-paper-ink">
                   ระดับความแม่นยำรายหมวดวิชาเทียบเกณฑ์ผ่าน ก.ค.ศ.
                 </h2>
@@ -166,13 +166,13 @@ export default function HomeDashboardPage() {
                   เส้นประแนวตั้งแสดงเกณฑ์ขั้นต่ำร้อยละ 60 ที่ต้องทำได้ในแต่ละภาค
                 </p>
               </div>
-              <div className="flex items-center gap-4 text-[12px] font-mono text-paper-muted">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-mono text-paper-muted shrink-0">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-[2px] bg-paper-accent inline-block" />
+                  <span className="w-2.5 h-2.5 rounded-[2px] bg-paper-accent inline-block shrink-0" />
                   ผ่านเกณฑ์ (60%+)
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[#b8afa2] inline-block" />
+                  <span className="w-2.5 h-2.5 rounded-[2px] bg-[#b8afa2] inline-block shrink-0" />
                   ต่ำกว่าเกณฑ์
                 </span>
               </div>
@@ -187,23 +187,23 @@ export default function HomeDashboardPage() {
                 return (
                   <div
                     key={cat.id}
-                    className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center py-1"
+                    className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-12 gap-x-4 gap-y-2 items-center py-1"
                   >
                     {/* Label Column */}
-                    <div className="md:col-span-4 flex items-center justify-between md:justify-start gap-2">
-                      <span className="font-mono text-[11px] px-1.5 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary shrink-0">
+                    <div className="sm:col-span-2 xl:col-span-4 flex items-center justify-between xl:justify-start gap-2 min-w-0">
+                      <span className="font-mono text-[12px] px-1.5 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary shrink-0 whitespace-nowrap">
                         {cat.part}
                       </span>
-                      <span className="text-[14px] text-paper-ink truncate">
+                      <span className="text-[14px] text-paper-ink truncate min-w-0">
                         {cat.shortName}
                       </span>
-                      <span className="font-mono text-[12px] text-paper-muted ml-auto md:ml-0 tabular-nums">
+                      <span className="font-mono text-[12px] text-paper-muted ml-auto xl:ml-0 tabular-nums shrink-0">
                         ({cat.bankCount})
                       </span>
                     </div>
 
                     {/* Bar Column with 60% Benchmark Marker */}
-                    <div className="md:col-span-5 relative h-6 flex items-center">
+                    <div className="xl:col-span-5 relative h-6 flex items-center min-w-0">
                       <div className="w-full h-2.5 rounded-[4px] bg-paper-raised overflow-hidden relative">
                         <div
                           className={`h-full rounded-[4px] transition-colors duration-150 ${
@@ -227,15 +227,15 @@ export default function HomeDashboardPage() {
                     </div>
 
                     {/* Figure & Action Column */}
-                    <div className="md:col-span-3 flex items-center justify-end gap-3">
-                      <span className="font-mono text-[13px] text-paper-secondary tabular-nums min-w-[76px] text-right">
+                    <div className="xl:col-span-3 flex items-center justify-end gap-3">
+                      <span className="font-mono text-[13px] text-paper-secondary tabular-nums min-w-[76px] text-right whitespace-nowrap">
                         {hasAttempted
                           ? `${cat.accuracyPercent}% (${cat.correctCount}/${cat.attemptedCount})`
                           : "ยังไม่สอบ"}
                       </span>
                       <Link
                         href={`/exam?category=${cat.id}&autostart=1`}
-                        className="h-8 px-3 rounded-[6px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[12px] font-medium flex items-center transition-colors duration-150 ease-calm shrink-0"
+                        className="h-10 xl:h-8 px-3 rounded-[6px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[12px] font-medium flex items-center whitespace-nowrap transition-colors duration-150 ease-calm shrink-0"
                       >
                         ฝึกหมวดนี้
                       </Link>
@@ -248,21 +248,21 @@ export default function HomeDashboardPage() {
 
           {/* Moment 2: Sample Exam Sheet & Statute Footnote Preview */}
           {sampleQuestion && (
-            <div className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-[#1f1b16]/[0.08]">
-                <div className="flex items-center gap-2">
+            <div className="p-4 sm:p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08]">
+                <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[12px] font-mono text-paper-muted">
                     ตัวอย่างรูปแบบอรรถาธิบายรายข้อในคลังข้อสอบ
                   </span>
                 </div>
                 {sampleQuestion.lawReference && (
-                  <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary">
+                  <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary max-w-full break-words">
                     [{sampleQuestion.lawReference}]
                   </span>
                 )}
               </div>
 
-              <p className="text-[15px] leading-[24px] font-medium text-paper-ink">
+              <p className="text-[15px] leading-[24px] font-medium text-paper-ink break-words">
                 ข้อ 1. {sampleQuestion.question}
               </p>
 
@@ -288,7 +288,7 @@ export default function HomeDashboardPage() {
                       >
                         {letters[idx]}
                       </span>
-                      <span>{opt}</span>
+                      <span className="min-w-0 break-words">{opt}</span>
                     </div>
                   );
                 })}
@@ -299,11 +299,11 @@ export default function HomeDashboardPage() {
                 <div className="text-paper-ink font-medium">
                   {getExplanationLabel(sampleQuestion.category)}:
                 </div>
-                <p className="text-paper-secondary leading-[21px]">
+                <p className="text-paper-secondary leading-[21px] break-words">
                   {sampleQuestion.explanation}
                 </p>
                 {sampleQuestion.keyTakeaway && (
-                  <div className="pt-2 border-t border-[#1f1b16]/[0.08] text-paper-ink font-mono text-[12px]">
+                  <div className="pt-2 border-t border-[#1f1b16]/[0.08] text-paper-ink font-mono text-[12px] break-words">
                     หลักจำ: {sampleQuestion.keyTakeaway}
                   </div>
                 )}
@@ -313,14 +313,14 @@ export default function HomeDashboardPage() {
         </div>
 
         {/* Right 4 Columns: Mistake Queue & Recent Exam Ledger */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-6 min-w-0">
           {/* Mistake Review Callout */}
-          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
-            <div className="flex items-baseline justify-between">
+          <div className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+            <div className="flex items-baseline justify-between gap-3">
               <h3 className="font-title font-medium text-[16px] text-paper-ink">
                 สมุดทบทวนข้อที่เคยผิด
               </h3>
-              <span className="font-mono text-[13px] text-paper-secondary tabular-nums">
+              <span className="font-mono text-[13px] text-paper-secondary tabular-nums shrink-0 whitespace-nowrap">
                 {stats.activeMistakesCount} ข้อคงค้าง
               </span>
             </div>
@@ -333,11 +333,11 @@ export default function HomeDashboardPage() {
                   ? "/exam?mode=mistake_review&autostart=1"
                   : "/history"
               }
-              className="w-full h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium flex items-center justify-between transition-colors duration-150 ease-calm"
+              className="w-full min-h-[44px] sm:min-h-[40px] py-2 px-4 gap-3 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium flex items-center justify-between transition-colors duration-150 ease-calm"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 min-w-0">
                 <RotateCcw
-                  className="w-4 h-4 text-paper-muted"
+                  className="w-4 h-4 text-paper-muted shrink-0"
                   strokeWidth={1.5}
                 />
                 <span>
@@ -347,21 +347,21 @@ export default function HomeDashboardPage() {
                 </span>
               </span>
               <ArrowRight
-                className="w-4 h-4 text-paper-muted"
+                className="w-4 h-4 text-paper-muted shrink-0"
                 strokeWidth={1.5}
               />
             </Link>
           </div>
 
           {/* Recent Exam Attempts Ledger */}
-          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
-            <div className="flex items-baseline justify-between pb-3 border-b border-[#1f1b16]/[0.08]">
+          <div className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#1f1b16]/[0.08]">
               <h3 className="font-title font-medium text-[16px] text-paper-ink">
                 บันทึกผลการสอบล่าสุด
               </h3>
               <Link
                 href="/history"
-                className="text-[12px] text-paper-secondary hover:text-paper-ink transition-colors duration-150"
+                className="inline-flex items-center shrink-0 whitespace-nowrap px-2 -mx-2 py-[11px] -my-[11px] text-[12px] text-paper-secondary hover:text-paper-ink transition-colors duration-150"
               >
                 ดูประวัติทั้งหมด
               </Link>
@@ -374,7 +374,7 @@ export default function HomeDashboardPage() {
                 </p>
                 <Link
                   href="/exam"
-                  className="inline-flex h-9 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium items-center"
+                  className="inline-flex h-11 sm:h-9 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium items-center"
                 >
                   เริ่มทำข้อสอบชุดแรก
                 </Link>
@@ -388,7 +388,7 @@ export default function HomeDashboardPage() {
                     className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3 group"
                   >
                     <div className="min-w-0">
-                      <div className="text-[14px] text-paper-ink group-hover:text-paper-accent truncate transition-colors duration-150">
+                      <div className="text-[14px] text-paper-ink group-hover:text-paper-accent line-clamp-2 break-words transition-colors duration-150">
                         {att.title}
                       </div>
                       <div className="text-[12px] text-paper-muted mt-0.5">
@@ -404,7 +404,7 @@ export default function HomeDashboardPage() {
                       >
                         {att.scorePercent}%
                       </div>
-                      <div className="text-[11px] text-paper-muted">
+                      <div className="text-[12px] text-paper-muted">
                         {att.correctCount}/{att.totalQuestions}
                       </div>
                     </div>

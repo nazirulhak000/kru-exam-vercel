@@ -17,13 +17,22 @@ export interface CategoryMeta {
 
 export const EXAM_CATEGORIES: CategoryMeta[] = [
   {
-    id: "law",
-    name: "กฎหมายการศึกษา & พ.ร.บ. สำคัญ",
-    shortName: "กฎหมายการศึกษา",
-    part: "ภาค ข",
+    id: "general",
+    name: "ความสามารถในการคิดวิเคราะห์ (คณิต & ภาษาไทย)",
+    shortName: "คิดวิเคราะห์ (ก.)",
+    part: "ภาค ก",
     description:
-      "พ.ร.บ.การศึกษาแห่งชาติ, พ.ร.บ.ครูฯ 2547, สภาครู, การศึกษาภาคบังคับ, คุ้มครองเด็ก",
-    color: "blue",
+      "อนุกรม, ตรรกศาสตร์, อุปมาอุปไมย, คณิตศาสตร์ทั่วไป, การสะกดคำและสรุปความภาษาไทย",
+    color: "amber",
+  },
+  {
+    id: "english",
+    name: "ทักษะภาษาอังกฤษเพื่อการสื่อสาร",
+    shortName: "ภาษาอังกฤษ (ก.)",
+    part: "ภาค ก",
+    description:
+      "บทสนทนาในชั้นเรียนและที่ทำงาน, ไวยากรณ์ (Grammar), คำศัพท์ และการอ่านจับใจความ",
+    color: "purple",
   },
   {
     id: "gov",
@@ -44,22 +53,13 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
     color: "emerald",
   },
   {
-    id: "general",
-    name: "ความสามารถในการคิดวิเคราะห์ (คณิต & ภาษาไทย)",
-    shortName: "คิดวิเคราะห์ (ก.)",
-    part: "ภาค ก",
+    id: "law",
+    name: "กฎหมายการศึกษา & พ.ร.บ. สำคัญ",
+    shortName: "กฎหมายการศึกษา",
+    part: "ภาค ข",
     description:
-      "อนุกรม, ตรรกศาสตร์, อุปมาอุปไมย, คณิตศาสตร์ทั่วไป, การสะกดคำและสรุปความภาษาไทย",
-    color: "amber",
-  },
-  {
-    id: "english",
-    name: "ทักษะภาษาอังกฤษเพื่อการสื่อสาร",
-    shortName: "ภาษาอังกฤษ (ก.)",
-    part: "ภาค ก",
-    description:
-      "บทสนทนาในชั้นเรียนและที่ทำงาน, ไวยากรณ์ (Grammar), คำศัพท์ และการอ่านจับใจความ",
-    color: "purple",
+      "พ.ร.บ.การศึกษาแห่งชาติ, พ.ร.บ.ครูฯ 2547, สภาครู, การศึกษาภาคบังคับ, คุ้มครองเด็ก",
+    color: "blue",
   },
   {
     id: "major",
@@ -101,6 +101,15 @@ export function normalizeMajorSubject(raw?: string | null): string {
   if (!cleaned) return UNSPECIFIED_MAJOR;
   const alias = MAJOR_ALIASES.find((a) => a.pattern.test(cleaned));
   return alias ? alias.canonical : cleaned;
+}
+
+// เดาสาขาวิชาเอกจากชื่อชุดเอกสาร เช่น "ชุดที่ 7: วิชาเอกการศึกษาปฐมวัย (ข้อ 601-700)"
+// ใช้เมื่อข้อสอบไม่มี majorSubject (เช่น สกัดจาก PDF ใหม่แล้วป้ายหาย) คืนค่าว่างถ้าเดาไม่ได้
+export function inferMajorFromSource(source?: string | null): string {
+  const match = (source || "").match(/วิชาเอก\s*([^()\d:]+?)\s*(?:\(|$)/);
+  if (!match) return "";
+  const guess = normalizeMajorSubject(match[1]);
+  return guess === UNSPECIFIED_MAJOR ? "" : guess;
 }
 
 // หัวข้อกล่องเฉลยตามลักษณะของหมวดวิชา (แทนการเขียนว่า "เหตุผลทางกฎหมาย" ตายตัวทุกข้อ)

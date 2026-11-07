@@ -803,9 +803,9 @@ function ExamSimulatorContent() {
 
         {/* Resume Unfinished Session Banner */}
         {savedSession && (
-          <div className="p-5 rounded-[14px] bg-paper-warnBg border border-paper-warn/25 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-[14px] font-medium text-paper-ink">
+          <div className="p-4 sm:p-5 rounded-[14px] bg-paper-warnBg border border-paper-warn/25 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <div className="text-[14px] font-medium text-paper-ink break-words">
                 มีชุดข้อสอบที่ทำค้างไว้: {savedSession.title}
               </div>
               <div className="font-mono text-[12px] text-paper-secondary tabular-nums">
@@ -814,11 +814,11 @@ function ExamSimulatorContent() {
                 {formatTime(savedSession.secondsElapsed)}
               </div>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={handleResumeSession}
-                className="h-9 px-4 rounded-[8px] bg-paper-ink text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+                className="h-10 sm:h-9 px-4 rounded-[8px] bg-paper-ink text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
               >
                 <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
                 <span>ทำต่อจากข้อเดิม</span>
@@ -826,7 +826,7 @@ function ExamSimulatorContent() {
               <button
                 type="button"
                 onClick={handleDiscardSavedSession}
-                className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/15 hover:bg-paper-raised text-paper-secondary text-[13px] transition-colors duration-150"
+                className="h-10 sm:h-9 px-3 rounded-[8px] border border-[#1f1b16]/15 hover:bg-paper-raised text-paper-secondary text-[13px] transition-colors duration-150"
               >
                 ยกเลิกชุดเดิม
               </button>
@@ -835,9 +835,9 @@ function ExamSimulatorContent() {
         )}
 
         {/* Setup Panel */}
-        <div className="p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="p-4 sm:p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
           {/* Left 7 Columns */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 space-y-6 min-w-0">
             <div className="space-y-2.5">
               <label className="block text-[13px] font-medium text-paper-ink">
                 1. เลือกรูปแบบการทดสอบ
@@ -906,20 +906,20 @@ function ExamSimulatorContent() {
             {quizMode === "exam" && (
               <div className="p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-3">
                 <div className="flex items-start justify-between gap-3">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
+                  <label className="flex items-start gap-2.5 cursor-pointer min-w-0">
                     <input
                       type="checkbox"
                       checked={isBlueprint}
                       onChange={(e) => setIsBlueprint(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-paper-accent rounded"
+                      className="w-5 h-5 sm:w-4 sm:h-4 mt-0.5 accent-paper-accent rounded shrink-0"
                     />
-                    <div>
-                      <span className="text-[13px] font-medium text-paper-ink flex items-center gap-1.5">
+                    <div className="min-w-0">
+                      <span className="text-[13px] font-medium text-paper-ink flex items-start sm:items-center gap-1.5">
                         <ShieldCheck
-                          className="w-4 h-4 text-paper-accent"
+                          className="w-4 h-4 mt-0.5 sm:mt-0 text-paper-accent shrink-0"
                           strokeWidth={1.5}
                         />
-                        <span>
+                        <span className="min-w-0">
                           จัดชุดสอบตามโครงสร้างมาตรฐาน ก.ค.ศ. (สุ่มถ่วงน้ำหนักครบทั้ง ภาค ก และ ภาค ข)
                         </span>
                       </span>
@@ -934,7 +934,7 @@ function ExamSimulatorContent() {
                   <span className="text-[12px] text-paper-secondary">
                     ระดับเวลาต่อข้อ:
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="grid grid-cols-3 w-full sm:w-auto sm:flex sm:flex-wrap sm:items-center gap-1.5">
                     {[
                       { sec: 60, label: "เข้มข้น (60 วิ/ข้อ)" },
                       { sec: 75, label: "มาตรฐาน (75 วิ/ข้อ)" },
@@ -944,7 +944,7 @@ function ExamSimulatorContent() {
                         key={t.sec}
                         type="button"
                         onClick={() => setSecondsPerQuestion(t.sec)}
-                        className={`h-7 px-2.5 rounded-[6px] font-mono text-[11px] transition-colors duration-150 ${
+                        className={`min-h-[44px] sm:min-h-0 sm:h-7 px-1.5 sm:px-2.5 py-1 sm:py-0 rounded-[6px] font-mono text-[12px] leading-tight transition-colors duration-150 ${
                           secondsPerQuestion === t.sec
                             ? "bg-paper-ink text-paper-card font-medium"
                             : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -961,7 +961,7 @@ function ExamSimulatorContent() {
             {quizMode !== "mistake_review" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                  <div className="min-w-0">
                     <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
                       2. เลือกหมวดวิชา
                     </label>
@@ -969,7 +969,7 @@ function ExamSimulatorContent() {
                       value={isBlueprint ? "all" : selectedCat}
                       disabled={isBlueprint}
                       onChange={(e) => setSelectedCat(e.target.value)}
-                      className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
+                      className="w-full min-w-0 max-w-full h-11 sm:h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
                     >
                       <option value="all">
                         {isBlueprint
@@ -1010,14 +1010,14 @@ function ExamSimulatorContent() {
                     </select>
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
                       3. เลือกชุดเอกสารหรือไฟล์ PDF ต้นทาง
                     </label>
                     <select
                       value={selectedSource}
                       onChange={(e) => setSelectedSource(e.target.value)}
-                      className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
+                      className="w-full min-w-0 max-w-full h-11 sm:h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
                     >
                       <option value="all">
                         {effectiveCat === "all"
@@ -1060,11 +1060,11 @@ function ExamSimulatorContent() {
 
                 {showMajorPicker && (
                   <div className="p-3.5 rounded-[10px] bg-paper-bg border border-paper-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-[13px] font-medium text-paper-ink">
                         สาขาวิชาเอกของคุณ (ระบบจำค่าไว้ใช้ครั้งถัดไป)
                       </div>
-                      <p className="text-[11.5px] text-paper-secondary">
+                      <p className="text-[12px] text-paper-secondary">
                         คัดเฉพาะข้อสอบวิชาเอกของสาขาที่เลือก ไม่นำวิชาเอกสาขาอื่นมาปน
                         (สาขาที่ยังไม่มีข้อสอบจะเปิดให้เลือกเมื่อคลังอัปเดต)
                       </p>
@@ -1072,7 +1072,7 @@ function ExamSimulatorContent() {
                     <select
                       value={selectedMajor}
                       onChange={(e) => handleSelectMajor(e.target.value)}
-                      className="h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-card text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent shrink-0 max-w-full"
+                      className="w-full sm:w-auto min-w-0 max-w-full sm:max-w-[55%] h-11 sm:h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-card text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent sm:shrink-0"
                     >
                       <option value="all">ทุกสาขาวิชาเอกรวมกัน</option>
                       {majorCounts.map((maj) => (
@@ -1094,7 +1094,7 @@ function ExamSimulatorContent() {
           </div>
 
           {/* Right 5 Columns */}
-          <div className="lg:col-span-5 flex flex-col justify-between space-y-6 lg:pl-6 lg:border-l border-[#1f1b16]/[0.08]">
+          <div className="lg:col-span-5 flex flex-col justify-between space-y-6 min-w-0 lg:pl-6 lg:border-l border-[#1f1b16]/[0.08]">
             <div className="space-y-5">
               <div>
                 <label className="block text-[13px] font-medium text-paper-ink mb-2">
@@ -1106,7 +1106,7 @@ function ExamSimulatorContent() {
                       key={String(cnt)}
                       type="button"
                       onClick={() => setSelectedCount(cnt)}
-                      className={`h-10 rounded-[8px] border font-mono text-[13px] tabular-nums transition-colors duration-150 ${
+                      className={`h-11 sm:h-10 min-w-0 px-1 rounded-[8px] border font-mono text-[13px] tabular-nums transition-colors duration-150 ${
                         selectedCount === cnt
                           ? "border-paper-accent bg-paper-accent text-paper-card font-medium"
                           : "border-[#1f1b16]/[0.12] bg-paper-bg text-paper-ink hover:bg-paper-raised"
@@ -1122,21 +1122,21 @@ function ExamSimulatorContent() {
                 <div className="text-[12px] font-medium text-paper-secondary">
                   การสุ่มเพื่อป้องกันการจำตำแหน่งคำตอบ
                 </div>
-                <label className="flex items-center cursor-pointer text-[13px] text-paper-ink">
+                <label className="flex items-center min-h-[40px] sm:min-h-0 cursor-pointer text-[13px] text-paper-ink">
                   <input
                     type="checkbox"
                     checked={shuffleQuestions}
                     onChange={(e) => setShuffleQuestions(e.target.checked)}
-                    className="w-4 h-4 accent-paper-accent rounded mr-2.5"
+                    className="w-5 h-5 sm:w-4 sm:h-4 accent-paper-accent rounded mr-2.5 shrink-0"
                   />
                   <span>สุ่มลำดับข้อคำถามใหม่ทุกครั้ง</span>
                 </label>
-                <label className="flex items-center cursor-pointer text-[13px] text-paper-ink">
+                <label className="flex items-center min-h-[40px] sm:min-h-0 cursor-pointer text-[13px] text-paper-ink">
                   <input
                     type="checkbox"
                     checked={shuffleOptions}
                     onChange={(e) => setShuffleOptions(e.target.checked)}
-                    className="w-4 h-4 accent-paper-accent rounded mr-2.5"
+                    className="w-5 h-5 sm:w-4 sm:h-4 accent-paper-accent rounded mr-2.5 shrink-0"
                   />
                   <span>สลับตำแหน่งตัวเลือก ก ข ค ง ทุกครั้ง</span>
                 </label>
@@ -1227,25 +1227,38 @@ function ExamSimulatorContent() {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left 8 Columns: Exam Question Paper */}
-        <div className="lg:col-span-8 space-y-4">
+        <div className="lg:col-span-8 space-y-4 min-w-0">
           {/* Paper Header Bar */}
-          <div className="px-5 py-3.5 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink">
+          <div className="px-4 sm:px-5 py-3 sm:py-3.5 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap min-w-0">
+              <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink max-w-full break-words">
                 {q.categoryName}
               </span>
-              <span className="font-mono text-[13px] text-paper-secondary tabular-nums">
+              <span className="font-mono text-[13px] text-paper-secondary tabular-nums whitespace-nowrap">
                 ข้อที่ {currentIndex + 1} จาก {total}
+              </span>
+              {/* Compact timer for phones/tablets (the full answer sheet sits below the question until lg) */}
+              <span
+                className={`lg:hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-[5px] border font-mono text-[12px] font-medium tabular-nums whitespace-nowrap ${
+                  isTimeCritical
+                    ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
+                    : isTimeWarning
+                    ? "bg-paper-warnBg border-paper-warn/40 text-paper-warn"
+                    : "bg-paper-bg border-[#1f1b16]/[0.1] text-paper-ink"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                <span>{displayTime}</span>
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {quizMode === "exam" && isAnswered && (
                 <button
                   type="button"
                   onClick={handleClearCurrentAnswer}
                   title="ล้างคำตอบข้อนี้เพื่อเว้นว่างไว้ก่อน"
-                  className="h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink text-[12px] flex items-center gap-1 transition-colors duration-150"
+                  className="h-10 min-w-[40px] sm:h-8 sm:min-w-0 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink text-[12px] flex items-center justify-center gap-1 transition-colors duration-150"
                 >
                   <Eraser className="w-3.5 h-3.5" strokeWidth={1.5} />
                   <span className="hidden sm:inline">ล้างคำตอบ</span>
@@ -1255,21 +1268,21 @@ function ExamSimulatorContent() {
               <button
                 type="button"
                 onClick={() => handleToggleFlag(currentIndex)}
-                className={`h-8 px-3 rounded-[6px] border text-[12px] flex items-center gap-1.5 transition-colors duration-150 ${
+                className={`h-10 sm:h-8 px-3 rounded-[6px] border text-[12px] flex items-center gap-1.5 transition-colors duration-150 ${
                   isFlagged
                     ? "border-paper-warn bg-paper-warnBg text-paper-warn font-medium"
                     : "border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink"
                 }`}
               >
-                <Flag className="w-3.5 h-3.5" strokeWidth={1.5} />
-                <span>{isFlagged ? "ติดธงทบทวนแล้ว" : "ติดธงไม่แน่ใจ"}</span>
+                <Flag className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                <span className="whitespace-nowrap">{isFlagged ? "ติดธงทบทวนแล้ว" : "ติดธงไม่แน่ใจ"}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleToggleBookmark(q.id)}
                 title="บันทึกไว้ในสมุดทบทวน (กด B)"
-                className={`h-8 px-2.5 rounded-[6px] border text-[12px] flex items-center gap-1 transition-colors duration-150 ${
+                className={`h-10 min-w-[40px] sm:h-8 sm:min-w-0 px-2.5 rounded-[6px] border text-[12px] flex items-center justify-center gap-1 transition-colors duration-150 ${
                   isBookmarked
                     ? "border-paper-accent bg-paper-accent/[0.08] text-paper-accent font-medium"
                     : "border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink"
@@ -1284,13 +1297,13 @@ function ExamSimulatorContent() {
           </div>
 
           {/* Question Sheet Body */}
-          <div className="p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
+          <div className="p-4 sm:p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-5 sm:space-y-6">
             {/* Stem */}
-            <div className="flex items-baseline gap-3">
+            <div className="flex items-baseline gap-2.5 sm:gap-3">
               <span className="font-mono text-[15px] font-medium text-paper-muted tabular-nums shrink-0">
                 {currentIndex + 1}.
               </span>
-              <h2 className="text-[17px] leading-[28px] font-medium text-paper-ink">
+              <h2 className="min-w-0 break-words text-[17px] leading-[28px] font-medium text-paper-ink">
                 {q.question}
               </h2>
             </div>
@@ -1303,7 +1316,7 @@ function ExamSimulatorContent() {
                 const isStriked = strikedOptions.includes(optIdx);
 
                 let rowClass =
-                  "w-full p-4 rounded-[10px] border text-left transition-colors duration-150 flex items-center justify-between gap-3 cursor-pointer ";
+                  "w-full p-3 sm:p-4 rounded-[10px] border text-left transition-colors duration-150 flex items-center justify-between gap-2 sm:gap-3 cursor-pointer ";
                 let bubbleClass =
                   "w-7 h-7 rounded-full font-mono text-[12px] flex items-center justify-center shrink-0 border transition-colors duration-150 ";
 
@@ -1340,10 +1353,10 @@ function ExamSimulatorContent() {
                     onClick={() => handleSelectOption(optIdx)}
                     className={rowClass}
                   >
-                    <div className="flex items-center gap-3.5">
+                    <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
                       <span className={bubbleClass}>{letters[optIdx]}</span>
                       <span
-                        className={`text-[15px] leading-[23px] ${
+                        className={`min-w-0 break-words text-[15px] leading-[23px] ${
                           isStriked && !isSelected
                             ? "line-through text-paper-muted"
                             : ""
@@ -1360,7 +1373,7 @@ function ExamSimulatorContent() {
                           handleToggleStrikethrough(e, currentIndex, optIdx)
                         }
                         title="ขีดฆ่าตัดตัวเลือกนี้"
-                        className={`h-7 px-2.5 rounded-[6px] text-[12px] shrink-0 flex items-center gap-1 transition-colors duration-150 ${
+                        className={`h-10 w-10 sm:h-7 sm:w-auto sm:px-2.5 rounded-[6px] text-[12px] shrink-0 flex items-center justify-center gap-1 transition-colors duration-150 ${
                           isStriked
                             ? "bg-paper-raised text-paper-ink"
                             : "text-paper-muted hover:bg-paper-raised hover:text-paper-ink"
@@ -1379,27 +1392,27 @@ function ExamSimulatorContent() {
 
             {/* Statute & Option Breakdown Card */}
             {showInstantExplanation && (
-              <div className="p-5 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.12] space-y-4">
+              <div className="p-4 sm:p-5 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.12] space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08]">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                     <span className="font-title font-medium text-[14px] text-paper-ink">
                       {getExplanationLabel(q.category)}
                     </span>
-                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass font-medium">
+                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass font-medium max-w-full break-words">
                       เฉลยข้อ {letters[q.answer]}. {q.options[q.answer]}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <GlobalQuestionStat stat={globalStats[q.id]} />
                     {q.lawReference && (
-                      <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary">
+                      <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary max-w-full break-words">
                         [{q.lawReference}]
                       </span>
                     )}
                   </div>
                 </div>
 
-                <p className="text-[14px] leading-[22px] text-paper-ink">
+                <p className="text-[14px] leading-[22px] text-paper-ink break-words">
                   {q.explanation}
                 </p>
 
@@ -1438,14 +1451,14 @@ function ExamSimulatorContent() {
                 type="button"
                 disabled={currentIndex === 0}
                 onClick={() => setCurrentIndex((c) => Math.max(0, c - 1))}
-                className="h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover disabled:opacity-40 text-paper-ink text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150"
+                className="h-11 sm:h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover disabled:opacity-40 text-paper-ink text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150"
               >
                 <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
                 <span>ข้อก่อนหน้า</span>
               </button>
 
-              <div className="hidden md:flex items-center gap-1.5 text-[11px] font-mono text-paper-muted">
-                <Keyboard className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <div className="hidden md:flex items-center gap-1.5 min-w-0 text-[11px] font-mono text-paper-muted">
+                <Keyboard className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                 <span>คีย์ลัด: กด 1–4 เลือกคำตอบ • ลูกศรซ้าย/ขวา เปลี่ยนข้อ • F ติดธง • B เก็บเข้าสมุด</span>
               </div>
 
@@ -1455,7 +1468,7 @@ function ExamSimulatorContent() {
                   onClick={() =>
                     setCurrentIndex((c) => Math.min(total - 1, c + 1))
                   }
-                  className="h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150"
+                  className="h-11 sm:h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150"
                 >
                   <span>ข้อถัดไป</span>
                   <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
@@ -1464,7 +1477,7 @@ function ExamSimulatorContent() {
                 <button
                   type="button"
                   onClick={handleConfirmFinish}
-                  className="h-10 px-5 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium flex items-center justify-center gap-2 transition-colors duration-150"
+                  className="h-11 sm:h-10 px-5 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium flex items-center justify-center gap-2 transition-colors duration-150"
                 >
                   <Check className="w-4 h-4" strokeWidth={1.5} />
                   <span>ส่งกระดาษคำตอบ</span>
@@ -1475,16 +1488,16 @@ function ExamSimulatorContent() {
         </div>
 
         {/* Right 4 Columns: Optical Answer Sheet (กระดาษคำตอบ) */}
-        <div className="lg:col-span-4 p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4 sticky top-20">
+        <div className="lg:col-span-4 min-w-0 p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto custom-scrollbar">
           {/* Timer & Progress Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-[#1f1b16]/[0.08]">
-            <div>
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#1f1b16]/[0.08]">
+            <div className="min-w-0">
               <div className="text-[12px] text-paper-muted">กระดาษคำตอบ</div>
               <div className="font-mono text-[13px] text-paper-ink tabular-nums mt-0.5">
                 ตอบแล้ว {answeredTotal} / {total} ข้อ
               </div>
               {quizMode !== "exam" && answeredTotal > 0 && (
-                <div className="font-mono text-[11px] text-paper-secondary tabular-nums mt-0.5">
+                <div className="font-mono text-[12px] text-paper-secondary tabular-nums mt-0.5">
                   ถูก <span className="text-paper-pass">{liveCorrectCount}</span>{" "}
                   • ผิด <span className="text-paper-fail">{liveWrongCount}</span>
                 </div>
@@ -1492,7 +1505,7 @@ function ExamSimulatorContent() {
             </div>
 
             <div
-              className={`px-3 py-1.5 rounded-[8px] border flex items-center gap-2 font-mono text-[14px] font-medium tabular-nums ${
+              className={`shrink-0 px-3 py-1.5 rounded-[8px] border flex items-center gap-2 font-mono text-[14px] font-medium tabular-nums ${
                 isTimeCritical
                   ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
                   : isTimeWarning
@@ -1523,11 +1536,11 @@ function ExamSimulatorContent() {
           </div>
 
           {/* Answer Sheet Filter Pills */}
-          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono tabular-nums">
+          <div className="grid grid-cols-3 gap-1.5 text-[12px] lg:text-[11px] font-mono tabular-nums">
             <button
               type="button"
               onClick={() => setSheetFilter("all")}
-              className={`h-7 rounded-[6px] transition-colors ${
+              className={`h-10 lg:h-7 min-w-0 px-1 leading-tight rounded-[6px] transition-colors ${
                 sheetFilter === "all"
                   ? "bg-paper-ink text-paper-card font-medium"
                   : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
@@ -1538,7 +1551,7 @@ function ExamSimulatorContent() {
             <button
               type="button"
               onClick={() => setSheetFilter("unanswered")}
-              className={`h-7 rounded-[6px] transition-colors ${
+              className={`h-10 lg:h-7 min-w-0 px-1 leading-tight rounded-[6px] transition-colors ${
                 sheetFilter === "unanswered"
                   ? "bg-paper-ink text-paper-card font-medium"
                   : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
@@ -1549,7 +1562,7 @@ function ExamSimulatorContent() {
             <button
               type="button"
               onClick={() => setSheetFilter("flagged")}
-              className={`h-7 rounded-[6px] transition-colors ${
+              className={`h-10 lg:h-7 min-w-0 px-1 leading-tight rounded-[6px] transition-colors ${
                 sheetFilter === "flagged"
                   ? "bg-paper-warn text-paper-card font-medium"
                   : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
@@ -1565,7 +1578,7 @@ function ExamSimulatorContent() {
               ไม่มีรายการข้อสอบในตัวกรองนี้
             </div>
           ) : (
-            <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-5 gap-2 max-h-[min(340px,60vh)] overflow-y-auto overscroll-contain pr-1 custom-scrollbar">
               {sheetIndices.map((idx) => {
                 const item = activeQuiz[idx];
                 const ansIdx = userAnswers[idx];
@@ -1582,7 +1595,7 @@ function ExamSimulatorContent() {
                     key={item.id + idx}
                     type="button"
                     onClick={() => setCurrentIndex(idx)}
-                    className={`h-9 rounded-[6px] border font-mono text-[12px] tabular-nums flex items-center justify-center gap-1 transition-colors duration-150 ${
+                    className={`h-10 lg:h-9 min-w-0 rounded-[6px] border font-mono text-[12px] tabular-nums flex items-center justify-center gap-0.5 sm:gap-1 transition-colors duration-150 ${
                       isCurrent
                         ? "border-paper-accent bg-paper-accent text-paper-card font-medium"
                         : flagged
@@ -1598,7 +1611,7 @@ function ExamSimulatorContent() {
                   >
                     <span>{idx + 1}</span>
                     {answered && (
-                      <span className="text-[11px] opacity-80">
+                      <span className="text-[12px] lg:text-[11px] opacity-80">
                         :{letters[ansIdx]}
                       </span>
                     )}
@@ -1610,7 +1623,7 @@ function ExamSimulatorContent() {
 
           {/* Legend & Submit */}
           <div className="pt-3 border-t border-[#1f1b16]/[0.08] space-y-3">
-            <div className="flex items-center justify-between text-[12px] text-paper-muted">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[12px] text-paper-muted">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-[2px] bg-paper-raised border border-[#1f1b16]/25 inline-block" />
                 ฝนคำตอบแล้ว
@@ -1624,7 +1637,7 @@ function ExamSimulatorContent() {
             <button
               type="button"
               onClick={handleConfirmFinish}
-              className="w-full h-10 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium transition-colors duration-150"
+              className="w-full h-11 sm:h-10 px-3 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium transition-colors duration-150"
             >
               ส่งกระดาษคำตอบและตรวจคะแนน
             </button>
@@ -1646,12 +1659,12 @@ function ExamSimulatorContent() {
   return (
     <div className="space-y-8">
       {/* Result Summary Ledger */}
-      <div className="p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
+      <div className="p-4 sm:p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-[#1f1b16]/[0.08]">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2.5">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
               <span
-                className={`font-mono text-[12px] px-2.5 py-0.5 rounded-[5px] font-medium ${
+                className={`max-w-full break-words font-mono text-[12px] px-2.5 py-0.5 rounded-[5px] font-medium ${
                   lastAttempt.passed
                     ? "bg-paper-passBg text-paper-pass border border-paper-pass/20"
                     : "bg-paper-failBg text-paper-fail border border-paper-fail/20"
@@ -1672,12 +1685,12 @@ function ExamSimulatorContent() {
                 </span>
               )}
             </div>
-            <h1 className="font-title font-normal text-[26px] md:text-[30px] text-paper-ink">
+            <h1 className="font-title font-normal text-[26px] md:text-[30px] text-paper-ink break-words">
               รายงานผลการทดสอบ: {lastAttempt.title}
             </h1>
           </div>
 
-          <div className="flex items-baseline gap-4 font-mono tabular-nums">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 font-mono tabular-nums md:shrink-0">
             <div className="text-right">
               <div className="text-[12px] text-paper-muted">คะแนนรวม</div>
               <div className="text-[32px] font-medium leading-none text-paper-ink mt-1">
@@ -1704,9 +1717,9 @@ function ExamSimulatorContent() {
               {Object.values(lastAttempt.partBreakdown).map((partInfo) => (
                 <div
                   key={partInfo.part}
-                  className="p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between"
+                  className="p-3.5 sm:p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between gap-3"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <div className="font-title font-medium text-[14px] text-paper-ink">
                       สรุปคะแนน {partInfo.part}
                     </div>
@@ -1714,16 +1727,16 @@ function ExamSimulatorContent() {
                       เกณฑ์ผ่านขั้นต่ำ ก.ค.ศ. ร้อยละ 60
                     </div>
                   </div>
-                  <div className="text-right font-mono tabular-nums">
+                  <div className="text-right font-mono tabular-nums shrink-0">
                     <div
-                      className={`text-[16px] font-medium ${
+                      className={`text-[16px] font-medium whitespace-nowrap ${
                         partInfo.passed ? "text-paper-pass" : "text-paper-fail"
                       }`}
                     >
                       {partInfo.correct}/{partInfo.total} ({partInfo.scorePercent}
                       %)
                     </div>
-                    <div className="text-[11px] text-paper-muted">
+                    <div className="text-[12px] text-paper-muted whitespace-nowrap">
                       {partInfo.passed ? "ผ่านเกณฑ์ภาคนี้" : "ต่ำกว่าเกณฑ์ 60%"}
                     </div>
                   </div>
@@ -1765,11 +1778,11 @@ function ExamSimulatorContent() {
               return (
                 <div
                   key={catId}
-                  className="p-3.5 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between text-[13px]"
+                  className="p-3.5 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between gap-3 text-[13px]"
                 >
-                  <span className="text-paper-ink">{info.name}</span>
+                  <span className="text-paper-ink min-w-0 break-words">{info.name}</span>
                   <span
-                    className={`font-mono tabular-nums font-medium ${
+                    className={`font-mono tabular-nums font-medium shrink-0 whitespace-nowrap ${
                       pct >= 60 ? "text-paper-pass" : "text-paper-fail"
                     }`}
                   >
@@ -1783,11 +1796,11 @@ function ExamSimulatorContent() {
 
         {/* Filter & Navigation Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setReviewFilter("all")}
-              className={`h-9 px-3.5 rounded-[8px] text-[13px] font-medium transition-colors duration-150 ${
+              className={`h-10 sm:h-9 px-3.5 rounded-[8px] text-[13px] font-medium transition-colors duration-150 ${
                 reviewFilter === "all"
                   ? "bg-paper-ink text-paper-card"
                   : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -1798,7 +1811,7 @@ function ExamSimulatorContent() {
             <button
               type="button"
               onClick={() => setReviewFilter("wrong")}
-              className={`h-9 px-3.5 rounded-[8px] text-[13px] font-medium transition-colors duration-150 ${
+              className={`h-10 sm:h-9 px-3.5 rounded-[8px] text-[13px] font-medium transition-colors duration-150 ${
                 reviewFilter === "wrong"
                   ? "bg-paper-fail text-paper-card"
                   : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -1813,9 +1826,9 @@ function ExamSimulatorContent() {
               <button
                 type="button"
                 onClick={handleRetryWrongFromAttempt}
-                className="h-9 px-4 rounded-[8px] bg-paper-failBg hover:bg-paper-fail/15 border border-paper-fail/25 text-paper-fail text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+                className="min-h-[40px] sm:min-h-0 sm:h-9 max-w-full px-4 py-1.5 sm:py-0 rounded-[8px] bg-paper-failBg hover:bg-paper-fail/15 border border-paper-fail/25 text-paper-fail text-[13px] font-medium text-left flex items-center gap-2 transition-colors duration-150"
               >
-                <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                 <span>ซ้อมเฉพาะข้อที่ผิดในรอบนี้ ({lastAttempt.wrongCount})</span>
               </button>
             )}
@@ -1828,7 +1841,7 @@ function ExamSimulatorContent() {
             <button
               type="button"
               onClick={() => setScreen("setup")}
-              className="h-9 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+              className="h-10 sm:h-9 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
             >
               <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
               <span>สุ่มชุดใหม่</span>
@@ -1836,7 +1849,7 @@ function ExamSimulatorContent() {
             <button
               type="button"
               onClick={() => router.push("/history")}
-              className="h-9 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium transition-colors duration-150"
+              className="h-10 sm:h-9 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium transition-colors duration-150"
             >
               ไปหน้าประวัติรวม
             </button>
@@ -1856,10 +1869,10 @@ function ExamSimulatorContent() {
             return (
               <div
                 key={ans.questionId + idx}
-                className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
+                className="p-4 sm:p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-baseline gap-3">
+                <div className="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
+                  <div className="flex items-baseline gap-3 min-w-0 sm:flex-1">
                     <span
                       className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 ${
                         ans.isCorrect
@@ -1869,25 +1882,25 @@ function ExamSimulatorContent() {
                     >
                       {ans.isCorrect ? "ถูก" : "ผิด"}
                     </span>
-                    <h3 className="text-[15px] leading-[24px] font-medium text-paper-ink">
+                    <h3 className="min-w-0 break-words text-[15px] leading-[24px] font-medium text-paper-ink">
                       {ans.questionText}
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-mono text-[12px] text-paper-muted">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 min-w-0 sm:max-w-[45%] sm:shrink-0">
+                    <span className="min-w-0 break-words font-mono text-[12px] text-paper-muted sm:text-right">
                       {ans.categoryName}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleToggleBookmark(ans.questionId)}
-                      className={`h-7 px-2 rounded-[6px] border text-[11px] flex items-center gap-1 transition-colors ${
+                      className={`h-10 sm:h-7 px-3 sm:px-2 shrink-0 whitespace-nowrap rounded-[6px] border text-[12px] flex items-center gap-1 transition-colors ${
                         isBookmarked
                           ? "border-paper-accent bg-paper-accent/[0.08] text-paper-accent font-medium"
                           : "border-[#1f1b16]/[0.1] bg-paper-bg text-paper-muted hover:text-paper-ink"
                       }`}
                     >
-                      <Bookmark className="w-3 h-3" strokeWidth={1.5} />
+                      <Bookmark className="w-3.5 h-3.5 sm:w-3 sm:h-3 shrink-0" strokeWidth={1.5} />
                       <span>{isBookmarked ? "ติดดาวแล้ว" : "ติดดาว"}</span>
                     </button>
                   </div>
@@ -1909,9 +1922,9 @@ function ExamSimulatorContent() {
                             : "border-[#1f1b16]/[0.08] bg-paper-bg/40 text-paper-secondary"
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <span
-                            className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
+                            className={`w-6 h-6 rounded-full font-mono text-[12px] flex items-center justify-center shrink-0 border ${
                               isCorrect
                                 ? "bg-paper-pass text-paper-card border-paper-pass"
                                 : isUserSelected && !isCorrect
@@ -1921,7 +1934,7 @@ function ExamSimulatorContent() {
                           >
                             {letters[oIdx]}
                           </span>
-                          <span>{opt}</span>
+                          <span className="min-w-0 break-words">{opt}</span>
                         </div>
                         {isCorrect && (
                           <Check className="w-4 h-4 text-paper-pass shrink-0" />
@@ -1934,7 +1947,7 @@ function ExamSimulatorContent() {
                   })}
                 </div>
 
-                <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2.5 text-[13px]">
+                <div className="p-3.5 sm:p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2.5 text-[13px] break-words">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-paper-ink">
                       {getExplanationLabel(ans.category)}:

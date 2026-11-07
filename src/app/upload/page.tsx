@@ -94,7 +94,7 @@ export default function UploadPdfPage() {
 
   if (!isAdmin) {
     return (
-      <div className="max-w-[600px] mx-auto my-12 p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.1] text-center space-y-5">
+      <div className="max-w-[600px] mx-auto my-8 sm:my-12 p-5 sm:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.1] text-center space-y-5">
         <div className="w-12 h-12 rounded-full bg-paper-raised flex items-center justify-center mx-auto text-paper-muted">
           <Lock className="w-6 h-6" strokeWidth={1.5} />
         </div>
@@ -385,23 +385,23 @@ export default function UploadPdfPage() {
     <div className="space-y-8">
       {/* Page Header */}
       <div className="pb-6 border-b border-[#1f1b16]/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <div className="text-[12px] font-mono text-paper-pass flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>
+        <div className="space-y-1 min-w-0">
+          <div className="text-[12px] font-mono text-paper-pass flex items-start sm:items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5 sm:mt-0" />
+            <span className="min-w-0 break-words">
               โหมดผู้ดูแลระบบ (Admin) • นำเข้าข้อสอบเข้าสู่คลังข้อสอบกลางของระบบ
             </span>
           </div>
-          <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink">
+          <h1 className="font-title font-normal text-[24px] sm:text-[28px] md:text-[32px] leading-[1.2] sm:leading-[1.15] text-paper-ink break-words">
             นำเข้าไฟล์ข้อสอบ PDF เข้าสู่คลังข้อสอบกลาง
           </h1>
         </div>
         <button
           type="button"
           onClick={handleAddBlankQuestion}
-          className="h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150 self-start md:self-auto"
+          className="h-10 md:h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150 self-start md:self-auto shrink-0"
         >
-          <Plus className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
+          <Plus className="w-4 h-4 text-paper-muted shrink-0" strokeWidth={1.5} />
           <span>สร้างข้อสอบเอง 1 ข้อ</span>
         </button>
       </div>
@@ -409,9 +409,9 @@ export default function UploadPdfPage() {
       {/* Main 2-Column Split: Left Upload Controls | Right Preview & Edit */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left 5 Columns: Upload & Engine Config */}
-        <div className="lg:col-span-5 space-y-5">
+        <div className="lg:col-span-5 space-y-5 min-w-0">
           {/* 1. Extraction Mode */}
-          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+          <div className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
             <h2 className="font-title font-medium text-[16px] text-paper-ink">
               1. เลือกรูปแบบการแปลงและคัดกรองข้อสอบ
             </h2>
@@ -451,10 +451,10 @@ export default function UploadPdfPage() {
                         : "border-[#1f1b16]/[0.08] bg-paper-bg/50 hover:bg-paper-raised/50"
                     }`}
                   >
-                    <div className="text-[13px] font-medium text-paper-ink">
+                    <div className="text-[13px] font-medium text-paper-ink break-words">
                       {m.title}
                     </div>
-                    <p className="text-[12px] leading-[18px] text-paper-secondary mt-0.5">
+                    <p className="text-[12px] leading-[18px] text-paper-secondary mt-0.5 break-words">
                       {m.desc}
                     </p>
                   </button>
@@ -475,7 +475,7 @@ export default function UploadPdfPage() {
                   onChange={(e) =>
                     setTargetGenerateCount(Number(e.target.value))
                   }
-                  className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                  className="w-full min-w-0 h-10 sm:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
                 />
               </div>
             )}
@@ -491,7 +491,7 @@ export default function UploadPdfPage() {
                   onChange={(e) =>
                     setDefaultCategory(e.target.value as ExamCategory)
                   }
-                  className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                  className="w-full min-w-0 max-w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
                 >
                   {EXAM_CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -509,7 +509,7 @@ export default function UploadPdfPage() {
                   <select
                     value={selectedMajorSubject}
                     onChange={(e) => setSelectedMajorSubject(e.target.value)}
-                    className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.14] bg-paper-card text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                    className="w-full min-w-0 max-w-full h-10 sm:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.14] bg-paper-card text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
                   >
                     {MAJOR_SUBJECTS.map((maj) => (
                       <option key={maj} value={maj}>
@@ -522,7 +522,7 @@ export default function UploadPdfPage() {
                     value={customMajorSubject}
                     onChange={(e) => setCustomMajorSubject(e.target.value)}
                     placeholder="หรือพิมพ์ชื่อวิชาเอกอื่นๆ เอง เช่น ดนตรีสากล, ภาษาจีน..."
-                    className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card text-[12.5px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                    className="w-full min-w-0 h-10 sm:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card text-[12.5px] text-paper-ink focus:outline-none focus:border-paper-accent"
                   />
                 </div>
               )}
@@ -530,21 +530,21 @@ export default function UploadPdfPage() {
           </div>
 
           {/* 2. File Dropzone & Text Paste */}
-          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-title font-medium text-[16px] text-paper-ink">
+          <div className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <h2 className="font-title font-medium text-[16px] text-paper-ink min-w-0 break-words">
                 2. อัปโหลดไฟล์ PDF หรือวางข้อความ
               </h2>
               <button
                 type="button"
                 onClick={handleLoadSampleText}
-                className="text-[12px] text-paper-accent hover:underline font-medium"
+                className="min-h-[40px] sm:min-h-0 inline-flex items-center shrink-0 text-[12px] text-paper-accent hover:underline font-medium"
               >
                 ลองใช้ข้อความตัวอย่าง
               </button>
             </div>
 
-            <label className="block p-5 rounded-[10px] border border-dashed border-[#1f1b16]/25 hover:border-paper-accent bg-paper-bg/50 hover:bg-paper-raised/40 text-center cursor-pointer transition-colors duration-150">
+            <label className="block min-w-0 p-4 sm:p-5 rounded-[10px] border border-dashed border-[#1f1b16]/25 hover:border-paper-accent bg-paper-bg/50 hover:bg-paper-raised/40 text-center cursor-pointer transition-colors duration-150">
               <input
                 type="file"
                 accept=".pdf,application/pdf"
@@ -556,11 +556,11 @@ export default function UploadPdfPage() {
                 strokeWidth={1.5}
               />
               {selectedFile ? (
-                <div className="space-y-0.5">
-                  <div className="text-[13px] font-medium text-paper-ink">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="text-[13px] font-medium text-paper-ink break-words [overflow-wrap:anywhere]">
                     {selectedFile.name}
                   </div>
-                  <div className="font-mono text-[11px] text-paper-muted">
+                  <div className="font-mono text-[12px] text-paper-muted break-words">
                     {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • คลิกเพื่อเปลี่ยนไฟล์
                   </div>
                 </div>
@@ -569,7 +569,7 @@ export default function UploadPdfPage() {
                   <div className="text-[13px] font-medium text-paper-ink">
                     คลิกเพื่อเลือกไฟล์ข้อสอบ .PDF
                   </div>
-                  <div className="text-[11px] text-paper-muted">
+                  <div className="text-[12px] text-paper-muted break-words">
                     ระบบจะคัดกรองเฉพาะข้อสอบจริงและตัดข้อซ้ำให้อัตโนมัติ
                   </div>
                 </div>
@@ -585,7 +585,7 @@ export default function UploadPdfPage() {
                 value={sourceName}
                 onChange={(e) => setSourceName(e.target.value)}
                 placeholder="เช่น แนวข้อสอบจริง ก.ค.ศ. ปี 2567"
-                className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                className="w-full min-w-0 h-10 sm:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
               />
             </div>
 
@@ -598,18 +598,18 @@ export default function UploadPdfPage() {
                 value={rawTextInput}
                 onChange={(e) => setRawTextInput(e.target.value)}
                 placeholder="วางโจทย์ข้อสอบพร้อมตัวเลือก ก. ข. ค. ง. ที่คัดลอกมาจากเอกสาร..."
-                className="w-full p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] leading-[20px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                className="block w-full min-w-0 max-w-full p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] leading-[20px] text-paper-ink focus:outline-none focus:border-paper-accent"
               />
             </div>
 
             {isProcessing && (
               <div className="p-3.5 rounded-[8px] bg-paper-raised space-y-2">
-                <div className="flex items-center justify-between text-[12px]">
-                  <span className="text-paper-ink flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-paper-accent" />
-                    {progressStatus}
+                <div className="flex items-start justify-between gap-3 text-[12px]">
+                  <span className="min-w-0 text-paper-ink flex items-start gap-2">
+                    <Loader2 className="w-3.5 h-3.5 shrink-0 mt-0.5 animate-spin text-paper-accent" />
+                    <span className="min-w-0 break-words">{progressStatus}</span>
                   </span>
-                  <span className="font-mono text-paper-secondary tabular-nums">
+                  <span className="shrink-0 font-mono text-paper-secondary tabular-nums">
                     {progressPercent}%
                   </span>
                 </div>
@@ -625,7 +625,7 @@ export default function UploadPdfPage() {
             {errorMsg && (
               <div className="p-3.5 rounded-[8px] bg-paper-failBg border border-paper-fail/20 text-paper-fail text-[12px] flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{errorMsg}</span>
+                <span className="min-w-0 break-words">{errorMsg}</span>
               </div>
             )}
 
@@ -633,17 +633,17 @@ export default function UploadPdfPage() {
               type="button"
               disabled={isProcessing}
               onClick={handleProcessPdfOrText}
-              className="w-full h-11 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover disabled:opacity-50 text-paper-card text-[14px] font-medium flex items-center justify-center gap-2 transition-colors duration-150"
+              className="w-full min-h-[44px] px-3 py-2 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover disabled:opacity-50 text-paper-card text-[14px] font-medium flex items-center justify-center gap-2 text-center transition-colors duration-150"
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>กำลังประมวลผลและคัดกรองข้อสอบ...</span>
+                  <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                  <span className="min-w-0">กำลังประมวลผลและคัดกรองข้อสอบ...</span>
                 </>
               ) : (
                 <>
-                  <FileText className="w-4 h-4" strokeWidth={1.5} />
-                  <span>เริ่มสกัดและคัดกรองข้อสอบจริง</span>
+                  <FileText className="w-4 h-4 shrink-0" strokeWidth={1.5} />
+                  <span className="min-w-0">เริ่มสกัดและคัดกรองข้อสอบจริง</span>
                 </>
               )}
             </button>
@@ -651,13 +651,13 @@ export default function UploadPdfPage() {
         </div>
 
         {/* Right 7 Columns: Extracted Questions Preview & Save */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="font-title font-medium text-[18px] text-paper-ink">
+        <div className="lg:col-span-7 space-y-4 min-w-0">
+          <div className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="font-title font-medium text-[17px] sm:text-[18px] text-paper-ink break-words">
                 3. ตรวจสอบความถูกต้องก่อนบันทึกลงคลังกลาง ({previewQuestions.length} ข้อ)
               </h2>
-              <p className="text-[12px] text-paper-secondary mt-0.5">
+              <p className="text-[12px] text-paper-secondary mt-0.5 break-words">
                 {aiRejectedFakeCount > 0
                   ? `คัดกรองผ่าน ${previewQuestions.length} ข้อ (ตัดข้อความที่ไม่ใช่ข้อสอบจริงออกอัตโนมัติ ${aiRejectedFakeCount} รายการ)`
                   : "คุณสามารถแก้ไขข้อความ เลือกข้อที่ถูก และระบุสาขาวิชาเอกก่อนบันทึกเข้าสู่คลังกลางได้"}
@@ -668,9 +668,9 @@ export default function UploadPdfPage() {
               <button
                 type="button"
                 onClick={handleSaveToBank}
-                className="h-10 px-4 rounded-[8px] bg-paper-pass hover:opacity-95 text-paper-card text-[13px] font-medium flex items-center gap-2 shrink-0 transition-opacity"
+                className="w-full sm:w-auto h-11 sm:h-10 px-4 rounded-[8px] bg-paper-pass hover:opacity-95 text-paper-card text-[13px] font-medium flex items-center justify-center gap-2 shrink-0 transition-opacity"
               >
-                <Save className="w-4 h-4" strokeWidth={1.5} />
+                <Save className="w-4 h-4 shrink-0" strokeWidth={1.5} />
                 <span>บันทึกเข้าคลังกลาง ({previewQuestions.length} ข้อ)</span>
               </button>
             )}
@@ -679,9 +679,9 @@ export default function UploadPdfPage() {
           {savedSuccess && saveReport && (
             <div className="p-4 rounded-[10px] bg-paper-passBg border border-paper-pass/25 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-[13px] text-paper-pass font-medium">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>
+                <div className="min-w-0 flex items-start sm:items-center gap-2 text-[13px] text-paper-pass font-medium">
+                  <Check className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" />
+                  <span className="min-w-0 break-words">
                     อัปเดตคลังข้อสอบกลางสำเร็จ! เพิ่มข้อสอบใหม่ {saveReport.addedCount} ข้อ
                     {saveReport.duplicateCount > 0
                       ? ` (ข้ามข้อซ้ำที่มีอยู่แล้ว ${saveReport.duplicateCount} ข้อ` +
@@ -694,9 +694,9 @@ export default function UploadPdfPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/exam")}
-                  className="h-8 px-3.5 rounded-[6px] bg-paper-pass text-paper-card text-[12px] font-medium flex items-center gap-1.5 shrink-0"
+                  className="w-full sm:w-auto h-10 sm:h-8 px-3.5 rounded-[6px] bg-paper-pass text-paper-card text-[12px] font-medium flex items-center justify-center gap-1.5 shrink-0"
                 >
-                  <Play className="w-3.5 h-3.5" />
+                  <Play className="w-3.5 h-3.5 shrink-0" />
                   <span>ไปสุ่มทำข้อสอบทันที</span>
                 </button>
               </div>
@@ -704,7 +704,7 @@ export default function UploadPdfPage() {
           )}
 
           {previewQuestions.length === 0 ? (
-            <div className="p-12 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] text-center space-y-2">
+            <div className="px-5 py-10 sm:p-12 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] text-center space-y-2">
               <p className="text-[14px] text-paper-secondary">
                 ยังไม่มีรายการข้อสอบในหน้าตัวอย่าง
               </p>
@@ -717,11 +717,11 @@ export default function UploadPdfPage() {
               {previewQuestions.map((q, idx) => (
                 <div
                   key={q.id}
-                  className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
+                  className="p-4 sm:p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4 min-w-0"
                 >
-                  <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08] flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-[12px] px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-ink">
+                  <div className="flex items-start sm:items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08]">
+                    <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                      <span className="shrink-0 font-mono text-[12px] px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-ink">
                         ข้อที่ {idx + 1}
                       </span>
                       <select
@@ -746,7 +746,7 @@ export default function UploadPdfPage() {
                                 : meta?.shortName || "ทั่วไป",
                           });
                         }}
-                        className="h-7 px-2 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12px] text-paper-ink"
+                        className="min-w-0 max-w-full h-10 sm:h-7 px-2 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12px] text-paper-ink"
                       >
                         {EXAM_CATEGORIES.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -765,7 +765,7 @@ export default function UploadPdfPage() {
                               categoryName: `วิชาเอก: ${maj}`,
                             });
                           }}
-                          className="h-7 px-2 rounded-[6px] border border-paper-accent/40 bg-paper-accent/[0.06] text-[12px] text-paper-ink font-medium"
+                          className="w-full sm:w-auto min-w-0 max-w-full h-10 sm:h-7 px-2 rounded-[6px] border border-paper-accent/40 bg-paper-accent/[0.06] text-[12px] text-paper-ink font-medium"
                         >
                           {Array.from(
                             new Set([
@@ -784,8 +784,9 @@ export default function UploadPdfPage() {
                     <button
                       type="button"
                       onClick={() => handleRemovePreviewItem(idx)}
-                      className="text-paper-muted hover:text-paper-fail p-1"
+                      className="shrink-0 w-10 h-10 sm:w-auto sm:h-auto -mr-2 -mt-1 sm:m-0 flex items-center justify-center rounded-[6px] text-paper-muted hover:text-paper-fail p-1"
                       title="ลบข้อนี้ออก"
+                      aria-label="ลบข้อนี้ออก"
                     >
                       <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                     </button>
@@ -793,7 +794,7 @@ export default function UploadPdfPage() {
 
                   {/* Question Stem */}
                   <div>
-                    <label className="block text-[11px] font-mono text-paper-muted mb-1">
+                    <label className="block text-[12px] sm:text-[11px] font-mono text-paper-muted mb-1">
                       โจทย์คำถาม
                     </label>
                     <textarea
@@ -804,7 +805,7 @@ export default function UploadPdfPage() {
                           question: e.target.value,
                         })
                       }
-                      className="w-full p-2.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                      className="block w-full min-w-0 max-w-full p-2.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
                     />
                   </div>
 
@@ -815,7 +816,7 @@ export default function UploadPdfPage() {
                       return (
                         <div
                           key={optIdx}
-                          className={`p-2.5 rounded-[8px] border flex items-center gap-2 ${
+                          className={`min-w-0 p-2 sm:p-2.5 rounded-[8px] border flex items-center gap-2 ${
                             isCorrect
                               ? "border-paper-accent bg-paper-accent/[0.04]"
                               : "border-[#1f1b16]/[0.1] bg-paper-bg/50"
@@ -827,7 +828,7 @@ export default function UploadPdfPage() {
                               handleUpdatePreviewItem(idx, { answer: optIdx })
                             }
                             title="คลิกเพื่อตั้งเป็นข้อที่ถูกต้อง"
-                            className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
+                            className={`w-10 h-10 sm:w-6 sm:h-6 rounded-full font-mono text-[13px] sm:text-[11px] flex items-center justify-center shrink-0 border ${
                               isCorrect
                                 ? "bg-paper-accent text-paper-card border-paper-accent"
                                 : "border-[#1f1b16]/25 text-paper-secondary"
@@ -845,7 +846,7 @@ export default function UploadPdfPage() {
                                 e.target.value
                               )
                             }
-                            className="w-full bg-transparent text-[13px] text-paper-ink focus:outline-none"
+                            className="flex-1 w-full min-w-0 h-10 sm:h-auto bg-transparent text-[13px] text-paper-ink focus:outline-none"
                           />
                         </div>
                       );
@@ -854,8 +855,8 @@ export default function UploadPdfPage() {
 
                   {/* Explanation & Law Reference */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 border-t border-[#1f1b16]/[0.06]">
-                    <div className="sm:col-span-4">
-                      <label className="block text-[11px] font-mono text-paper-muted mb-1">
+                    <div className="sm:col-span-4 min-w-0">
+                      <label className="block text-[12px] sm:text-[11px] font-mono text-paper-muted mb-1">
                         มาตรา / กฎหมายอ้างอิง
                       </label>
                       <input
@@ -867,11 +868,11 @@ export default function UploadPdfPage() {
                           })
                         }
                         placeholder="เช่น มาตรา 22 พ.ร.บ.การศึกษาฯ"
-                        className="w-full h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                        className="w-full min-w-0 h-10 sm:h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
                       />
                     </div>
-                    <div className="sm:col-span-8">
-                      <label className="block text-[11px] font-mono text-paper-muted mb-1">
+                    <div className="sm:col-span-8 min-w-0">
+                      <label className="block text-[12px] sm:text-[11px] font-mono text-paper-muted mb-1">
                         คำอธิบายเฉลยละเอียด
                       </label>
                       <input
@@ -882,7 +883,7 @@ export default function UploadPdfPage() {
                             explanation: e.target.value,
                           })
                         }
-                        className="w-full h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                        className="w-full min-w-0 h-10 sm:h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
                       />
                     </div>
                   </div>

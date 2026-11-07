@@ -40,3 +40,22 @@
   background: #d5cdc0;
   border-radius: 4px;
 }
+
+/* Scrollable but scrollbar-less (desktop nav fallback when the row gets tight) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* iOS Safari zooms the page when a focused field's text is under 16px.
+   Keep form controls at 16px on phones; desktop keeps each field's own size. */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

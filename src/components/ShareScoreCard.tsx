@@ -336,39 +336,39 @@ export default function ShareScoreCard({
       <button
         type="button"
         onClick={handleOpen}
-        className="h-9 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+        className="min-h-[40px] sm:min-h-0 sm:h-9 max-w-full px-4 py-1.5 sm:py-0 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium text-left flex items-center gap-2 transition-colors duration-150"
       >
-        <ImageIcon className="w-3.5 h-3.5" strokeWidth={1.5} />
+        <ImageIcon className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
         <span>สร้างรูปสรุปคะแนนไว้แชร์</span>
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-[#1f1b16]/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[#1f1b16]/40 flex items-center justify-center p-3 sm:p-4"
           onClick={() => setOpen(false)}
           role="dialog"
           aria-modal="true"
           aria-label="รูปสรุปคะแนน"
         >
           <div
-            className="w-full max-w-[420px] rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.12] p-5 space-y-4 max-h-[92vh] overflow-y-auto"
+            className="w-full max-w-[420px] rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.12] p-4 sm:p-5 space-y-4 max-h-[calc(100vh-1.5rem)] sm:max-h-[92vh] overflow-y-auto overscroll-contain"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <h2 className="font-title font-medium text-[16px] text-paper-ink">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="min-w-0 font-title font-medium text-[16px] text-paper-ink">
                 รูปสรุปคะแนน
               </h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="ปิด"
-                className="w-8 h-8 rounded-[8px] hover:bg-paper-raised flex items-center justify-center text-paper-muted hover:text-paper-ink"
+                className="w-10 h-10 sm:w-8 sm:h-8 -mr-1 sm:mr-0 shrink-0 rounded-[8px] hover:bg-paper-raised flex items-center justify-center text-paper-muted hover:text-paper-ink"
               >
                 <X className="w-4 h-4" strokeWidth={1.5} />
               </button>
             </div>
 
-            <div className="rounded-[10px] overflow-hidden border border-[#1f1b16]/[0.08] bg-paper-bg aspect-[4/5] flex items-center justify-center">
+            <div className="rounded-[10px] overflow-hidden border border-[#1f1b16]/[0.08] bg-paper-bg aspect-[4/5] max-h-[60vh] flex items-center justify-center">
               {busy || !previewUrl ? (
                 <span className="text-[13px] text-paper-muted">
                   {busy ? "กำลังสร้างรูป" : "สร้างรูปไม่สำเร็จ ลองอีกครั้ง"}
@@ -388,7 +388,7 @@ export default function ShareScoreCard({
                 href={previewUrl || undefined}
                 download="krubanjoo-score.png"
                 aria-disabled={!previewUrl}
-                className={`h-10 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center justify-center gap-2 ${
+                className={`h-11 sm:h-10 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center justify-center gap-2 ${
                   !previewUrl ? "pointer-events-none opacity-40" : ""
                 } ${canShareFile ? "" : "col-span-2"}`}
               >
@@ -399,7 +399,7 @@ export default function ShareScoreCard({
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="h-10 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center justify-center gap-2"
+                  className="h-11 sm:h-10 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center justify-center gap-2"
                 >
                   <Share2 className="w-4 h-4" strokeWidth={1.5} />
                   แชร์

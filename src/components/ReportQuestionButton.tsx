@@ -44,8 +44,8 @@ export default function ReportQuestionButton({
 
   if (sent) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[12px] text-paper-pass">
-        <Check className="w-3.5 h-3.5" strokeWidth={1.5} />
+      <span className="inline-flex items-start sm:items-center gap-1.5 text-[12px] text-paper-pass">
+        <Check className="w-3.5 h-3.5 shrink-0 mt-0.5 sm:mt-0" strokeWidth={1.5} />
         ส่งเรื่องให้แอดมินตรวจสอบแล้ว ขอบคุณที่ช่วยแจ้ง
       </span>
     );
@@ -56,21 +56,21 @@ export default function ReportQuestionButton({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-[12px] text-paper-secondary hover:text-paper-warn transition-colors duration-150"
+        className="inline-flex items-center gap-1.5 min-h-[40px] sm:min-h-0 max-w-full py-1.5 sm:py-0 text-left text-[12px] text-paper-secondary hover:text-paper-warn transition-colors duration-150"
       >
-        <AlertTriangle className="w-3.5 h-3.5" strokeWidth={1.5} />
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
         <span>แจ้งข้อสอบคลาดเคลื่อน / กฎหมายอัปเดต</span>
       </button>
 
       {open && (
-        <div className="p-3.5 rounded-[8px] bg-paper-card border border-paper-warn/30 space-y-2.5">
+        <div className="p-3 sm:p-3.5 rounded-[8px] bg-paper-card border border-paper-warn/30 space-y-2.5">
           <div className="flex flex-wrap gap-1.5">
             {ISSUE_TYPES.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setIssueType(t.id)}
-                className={`h-7 px-2.5 rounded-[6px] text-[12px] transition-colors duration-150 ${
+                className={`min-h-[40px] sm:min-h-0 sm:h-7 px-3 sm:px-2.5 py-1 sm:py-0 max-w-full rounded-[6px] text-[12px] leading-tight transition-colors duration-150 ${
                   issueType === t.id
                     ? "bg-paper-warn text-paper-card font-medium"
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -86,13 +86,13 @@ export default function ReportQuestionButton({
             rows={2}
             maxLength={900}
             placeholder="ระบุสิ่งที่คลาดเคลื่อน เช่น เฉลยที่ถูกควรเป็นข้อใด หรือมาตราที่อัปเดตแล้ว"
-            className="w-full px-3 py-2 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+            className="block w-full max-w-full px-3 py-2 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[16px] sm:text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
           />
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="h-8 px-3 rounded-[6px] text-[12px] text-paper-secondary hover:bg-paper-raised"
+              className="h-10 sm:h-8 px-3 rounded-[6px] text-[12px] text-paper-secondary hover:bg-paper-raised"
             >
               ยกเลิก
             </button>
@@ -100,7 +100,7 @@ export default function ReportQuestionButton({
               type="button"
               onClick={handleSubmit}
               disabled={!message.trim()}
-              className="h-8 px-3 rounded-[6px] bg-paper-ink text-paper-card text-[12px] font-medium disabled:opacity-40"
+              className="h-10 sm:h-8 px-3 rounded-[6px] bg-paper-ink text-paper-card text-[12px] font-medium disabled:opacity-40"
             >
               ส่งเรื่องให้แอดมิน
             </button>

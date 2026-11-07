@@ -6,6 +6,7 @@ import {
   MistakeRecord,
   QuestionComment,
   QuestionItem,
+  inferMajorFromSource,
   normalizeMajorSubject,
 } from "@/types/exam";
 import { SEED_QUESTIONS } from "@/lib/seed-questions";
@@ -162,7 +163,12 @@ export function getAllQuestions(): QuestionItem[] {
 
   return [...custom, ...seeds].map((q) =>
     q.category === "major"
-      ? { ...q, majorSubject: normalizeMajorSubject(q.majorSubject) }
+      ? {
+          ...q,
+          majorSubject: normalizeMajorSubject(
+            q.majorSubject || inferMajorFromSource(q.sourcePdf)
+          ),
+        }
       : q
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -52,6 +52,9 @@ import {
   fetchGlobalQuestionStats,
 } from "@/lib/global-stats";
 
+// จำนวนการ์ดข้อสอบที่แสดงต่อหนึ่งชุด (กด "แสดงเพิ่ม" เพื่อโหลดชุดถัดไป)
+const PAGE_SIZE = 30;
+
 export default function QuestionBankPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [availableMajors, setAvailableMajors] =
@@ -92,6 +95,21 @@ export default function QuestionBankPage() {
   );
   const [suggestedAns, setSuggestedAns] = useState<number | null>(null);
   const [commentText, setCommentText] = useState<string>("");
+
+  // แสดงผลทีละชุด (incremental rendering) เพื่อไม่ให้เรนเดอร์การ์ดข้อสอบนับพันข้อพร้อมกัน
+  const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
+
+  const categoryCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const q of questions) {
+      map[q.category] = (map[q.category] || 0) + 1;
+    }
+    return map;
+  }, [questions]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery, selectedCat, selectedMajor, selectedSource, commentFilter]);
 
   const loadData = () => {
     setQuestions(getAllQuestions());
@@ -192,6 +210,9 @@ export default function QuestionBankPage() {
     return true;
   });
 
+  const visibleQuestions = filteredQuestions.slice(0, visibleCount);
+  const remainingCount = filteredQuestions.length - visibleQuestions.length;
+
   const handleDelete = (id: string) => {
     if (!isAdmin) return;
     if (
@@ -274,16 +295,16 @@ export default function QuestionBankPage() {
     <div className="space-y-8">
       {/* Page Header & Actions */}
       <div className="pb-6 border-b border-[#1f1b16]/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <div className="text-[12px] font-mono text-paper-muted flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-paper-pass" />
-            <span>
+        <div className="space-y-1 min-w-0">
+          <div className="text-[12px] font-mono text-paper-muted flex items-start gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-paper-pass shrink-0 mt-[1px]" />
+            <span className="min-w-0">
               {isAdmin
                 ? "โหมดผู้ดูแลระบบ (Admin) • สามารถแก้ไข/ลบข้อสอบ และจัดการคำท้วงติงได้ทุกข้อ"
                 : "คลังข้อสอบกลาง • หากพบข้อสงสัยสามารถกดคอมเมนต์หรือแจ้งท้วงติงเฉลยรายข้อได้"}
             </span>
           </div>
-          <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink">
+          <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink break-words">
             คลังข้อสอบและอรรถาธิบาย ({filteredQuestions.length} / {questions.length} ข้อ)
           </h1>
         </div>
@@ -295,7 +316,7 @@ export default function QuestionBankPage() {
               setShowExplanations((v) => !v);
               setSelfTestAnswers({});
             }}
-            className={`h-9 px-3.5 rounded-[8px] text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ${
+            className={`h-10 lg:h-9 px-3.5 rounded-[8px] text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ${
               !showExplanations
                 ? "bg-paper-accent text-paper-card"
                 : "bg-paper-raised hover:bg-paper-hover text-paper-ink"
@@ -321,7 +342,7 @@ export default function QuestionBankPage() {
             <>
               <Link
                 href="/upload"
-                className="h-9 px-3.5 rounded-[8px] bg-paper-passBg hover:bg-paper-pass/20 border border-paper-pass/30 text-paper-pass text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+                className="h-10 lg:h-9 px-3.5 rounded-[8px] bg-paper-passBg hover:bg-paper-pass/20 border border-paper-pass/30 text-paper-pass text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
               >
                 <FileUp className="w-4 h-4" strokeWidth={1.5} />
                 <span>นำเข้า PDF</span>
@@ -330,7 +351,7 @@ export default function QuestionBankPage() {
               <button
                 type="button"
                 onClick={handleExportBackup}
-                className="h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+                className="h-10 lg:h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
               >
                 <Download
                   className="w-4 h-4 text-paper-muted"
@@ -339,7 +360,7 @@ export default function QuestionBankPage() {
                 <span>ส่งออก (.json)</span>
               </button>
 
-              <label className="h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2 cursor-pointer transition-colors duration-150">
+              <label className="h-10 lg:h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2 cursor-pointer transition-colors duration-150">
                 <Upload
                   className="w-4 h-4 text-paper-muted"
                   strokeWidth={1.5}
@@ -367,7 +388,7 @@ export default function QuestionBankPage() {
       <div className="space-y-4">
         <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="relative">
+            <div className="relative min-w-0">
               <Search
                 className="w-4 h-4 text-paper-muted absolute left-3 top-3"
                 strokeWidth={1.5}
@@ -389,12 +410,12 @@ export default function QuestionBankPage() {
                   setSelectedMajor("all");
                 }
               }}
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
             >
               <option value="all">ทุกหมวดวิชา ({questions.length})</option>
               {EXAM_CATEGORIES.map((c) => (
                 <option key={c.id} value={c.id}>
-                  [{c.part}] {c.shortName}
+                  [{c.part}] {c.shortName} ({categoryCounts[c.id] || 0})
                 </option>
               ))}
             </select>
@@ -402,7 +423,7 @@ export default function QuestionBankPage() {
             <select
               value={selectedSource}
               onChange={(e) => setSelectedSource(e.target.value)}
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
             >
               <option value="all">ทุกชุดเอกสารต้นทาง</option>
               {sources.map((src) => (
@@ -421,7 +442,7 @@ export default function QuestionBankPage() {
               <select
                 value={selectedMajor}
                 onChange={(e) => setSelectedMajor(e.target.value)}
-                className="h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-bg text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent"
+                className="w-full sm:w-auto min-w-0 max-w-full h-10 lg:h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-bg text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent"
               >
                 <option value="all">ทุกสาขาวิชาเอก</option>
                 {availableMajors.map((maj) => (
@@ -436,13 +457,13 @@ export default function QuestionBankPage() {
           {/* Comment & Dispute Filter Bar */}
           <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12px] text-paper-secondary">
+              <span className="w-full sm:w-auto text-[12px] text-paper-secondary">
                 สถานะความคิดเห็น/การท้วงติง:
               </span>
               <button
                 type="button"
                 onClick={() => setCommentFilter("all")}
-                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors ${
+                className={`min-h-10 lg:min-h-8 py-1 px-3 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
                   commentFilter === "all"
                     ? "bg-paper-ink text-paper-card"
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -453,13 +474,13 @@ export default function QuestionBankPage() {
               <button
                 type="button"
                 onClick={() => setCommentFilter("pending_reports")}
-                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium flex items-center gap-1.5 transition-colors ${
+                className={`min-h-10 lg:min-h-8 py-1 px-3 rounded-[6px] text-[12px] font-medium text-left flex items-center gap-1.5 transition-colors ${
                   commentFilter === "pending_reports"
                     ? "bg-paper-warn text-paper-card"
                     : "bg-paper-warnBg text-paper-warn hover:opacity-90"
                 }`}
               >
-                <AlertTriangle className="w-3.5 h-3.5" />
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   มีผู้ท้วงติงเฉลย รอตรวจ ({pendingReportQuestionCount})
                 </span>
@@ -467,19 +488,19 @@ export default function QuestionBankPage() {
               <button
                 type="button"
                 onClick={() => setCommentFilter("has_comments")}
-                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium flex items-center gap-1.5 transition-colors ${
+                className={`min-h-10 lg:min-h-8 py-1 px-3 rounded-[6px] text-[12px] font-medium text-left flex items-center gap-1.5 transition-colors ${
                   commentFilter === "has_comments"
                     ? "bg-paper-accent text-paper-card"
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
                 }`}
               >
-                <MessageSquare className="w-3.5 h-3.5" />
+                <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                 <span>มีคอมเมนต์ ({commentedQuestionCount})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCommentFilter("my_mistakes")}
-                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors ${
+                className={`min-h-10 lg:min-h-8 py-1 px-3 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
                   commentFilter === "my_mistakes"
                     ? "bg-paper-fail text-paper-card"
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -493,7 +514,7 @@ export default function QuestionBankPage() {
                 type="button"
                 onClick={() => setCommentFilter("hard")}
                 title={`ข้อที่มีผู้สอบทำอย่างน้อย ${HARD_QUESTION_MIN_ATTEMPTS} ครั้ง และตอบถูกไม่เกิน ${HARD_QUESTION_MAX_RATE}%`}
-                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors ${
+                className={`min-h-10 lg:min-h-8 py-1 px-3 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
                   commentFilter === "hard"
                     ? "bg-paper-ink text-paper-card"
                     : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
@@ -506,15 +527,15 @@ export default function QuestionBankPage() {
         </div>
 
         {!showExplanations && (
-          <div className="px-4 py-2.5 rounded-[8px] bg-paper-accent/[0.06] border border-paper-accent/20 text-[12px] text-paper-ink flex items-center justify-between">
-            <span>
+          <div className="px-4 py-2.5 rounded-[8px] bg-paper-accent/[0.06] border border-paper-accent/20 text-[12px] text-paper-ink flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0">
+            <span className="min-w-0">
               โหมดฝึกนึกคำตอบด้วยตัวเอง (Active Recall): คลิกที่ตัวเลือก ก–ง ของข้อใดก็ได้เพื่อตรวจคำตอบและดูคำอธิบายเฉพาะข้อนั้น
             </span>
             {Object.keys(selfTestAnswers).length > 0 && (
               <button
                 type="button"
                 onClick={() => setSelfTestAnswers({})}
-                className="font-mono text-paper-accent hover:underline shrink-0 ml-2"
+                className="font-mono text-paper-accent hover:underline shrink-0 self-start sm:self-auto min-h-10 lg:min-h-0 sm:ml-2 text-left"
               >
                 ล้างคำตอบที่ลองทำ ({Object.keys(selfTestAnswers).length})
               </button>
@@ -523,8 +544,13 @@ export default function QuestionBankPage() {
         )}
 
         {/* Question Cards */}
+        {filteredQuestions.length > 0 && (
+          <div className="text-[12px] text-paper-muted tabular-nums">
+            แสดง {visibleQuestions.length} จาก {filteredQuestions.length} ข้อ
+          </div>
+        )}
         <div className="space-y-4">
-          {filteredQuestions.map((q, idx) => {
+          {visibleQuestions.map((q, idx) => {
             const userPicked = selfTestAnswers[q.id];
             const isRevealed = showExplanations || userPicked !== undefined;
             const isBookmarked = !!bookmarkedIds[q.id];
@@ -542,45 +568,45 @@ export default function QuestionBankPage() {
             return (
               <div
                 key={q.id}
-                className={`p-6 rounded-[14px] bg-paper-card border space-y-4 ${
+                className={`p-4 sm:p-6 rounded-[14px] bg-paper-card border space-y-4 ${
                   hasPendingReport
                     ? "border-paper-warn/40"
                     : "border-[#1f1b16]/[0.08]"
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink tabular-nums">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink tabular-nums whitespace-nowrap shrink-0">
                       ข้อ {idx + 1}
                     </span>
-                    <span className="text-[12px] text-paper-secondary">
+                    <span className="text-[12px] text-paper-secondary min-w-0 [overflow-wrap:anywhere]">
                       {q.categoryName}
                     </span>
                     {q.majorSubject && (
-                      <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-accent/[0.08] text-paper-accent">
+                      <span className="text-[12px] lg:text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-accent/[0.08] text-paper-accent max-w-full [overflow-wrap:anywhere]">
                         เอก{q.majorSubject}
                       </span>
                     )}
                     {q.lawReference && (
-                      <span className="font-mono text-[12px] text-paper-muted">
+                      <span className="font-mono text-[12px] text-paper-muted min-w-0 max-w-full [overflow-wrap:anywhere]">
                         [{q.lawReference}]
                       </span>
                     )}
                     {hasPendingReport && (
-                      <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-warnBg text-paper-warn flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
+                      <span className="text-[12px] lg:text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-warnBg text-paper-warn flex items-center gap-1 max-w-full">
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
                         <span>มีผู้ท้วงติงเฉลย (รอแอดมินตรวจสอบ)</span>
                       </span>
                     )}
                     {hasResolvedReport && (
-                      <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
+                      <span className="text-[12px] lg:text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass flex items-center gap-1 max-w-full">
+                        <CheckCircle2 className="w-3 h-3 shrink-0" />
                         <span>แอดมินตรวจสอบแล้ว</span>
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 flex-wrap md:flex-nowrap md:shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -593,25 +619,30 @@ export default function QuestionBankPage() {
                           setCommentText("");
                         }
                       }}
-                      className={`h-8 px-2.5 rounded-[6px] text-[12px] font-medium flex items-center gap-1.5 transition-colors duration-150 ${
+                      className={`h-10 lg:h-8 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors duration-150 ${
                         isCommentOpen || qComments.length > 0
                           ? "bg-paper-accent/[0.08] text-paper-accent"
                           : "text-paper-secondary hover:text-paper-ink hover:bg-paper-raised"
                       }`}
                       title="คอมเมนต์หรือแจ้งท้วงติงว่าข้อสอบ/เฉลยข้อนี้อาจไม่ถูกต้อง"
                     >
-                      <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.5} />
-                      <span>
-                        {qComments.length > 0
-                          ? `ความคิดเห็น (${qComments.length})`
-                          : "ท้วงติงเฉลย / คอมเมนต์"}
-                      </span>
+                      <MessageSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                      {qComments.length > 0 ? (
+                        <span>{`ความคิดเห็น (${qComments.length})`}</span>
+                      ) : (
+                        <>
+                          <span className="sm:hidden">ท้วงติง/คอมเมนต์</span>
+                          <span className="hidden sm:inline">
+                            ท้วงติงเฉลย / คอมเมนต์
+                          </span>
+                        </>
+                      )}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleToggleBookmark(q.id)}
-                      className={`p-1.5 rounded-[6px] transition-colors duration-150 ${
+                      className={`p-3 lg:p-1.5 rounded-[6px] transition-colors duration-150 ${
                         isBookmarked
                           ? "text-paper-accent bg-paper-accent/[0.08]"
                           : "text-paper-muted hover:text-paper-ink hover:bg-paper-raised"
@@ -637,7 +668,7 @@ export default function QuestionBankPage() {
                               ],
                             })
                           }
-                          className="text-paper-muted hover:text-paper-ink hover:bg-paper-raised p-1.5 rounded-[6px] transition-colors duration-150"
+                          className="text-paper-muted hover:text-paper-ink hover:bg-paper-raised p-3 lg:p-1.5 rounded-[6px] transition-colors duration-150"
                           title="[Admin] แก้ไขโจทย์ เฉลย หรือคำอธิบาย"
                         >
                           <Pencil className="w-4 h-4" strokeWidth={1.5} />
@@ -646,7 +677,7 @@ export default function QuestionBankPage() {
                         <button
                           type="button"
                           onClick={() => handleDelete(q.id)}
-                          className="text-paper-muted hover:text-paper-fail hover:bg-paper-failBg p-1.5 rounded-[6px] transition-colors duration-150"
+                          className="text-paper-muted hover:text-paper-fail hover:bg-paper-failBg p-3 lg:p-1.5 rounded-[6px] transition-colors duration-150"
                           title="[Admin] ลบข้อสอบข้อนี้ออกจากคลังกลางถาวร"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={1.5} />
@@ -656,7 +687,7 @@ export default function QuestionBankPage() {
                   </div>
                 </div>
 
-                <h3 className="text-[15px] leading-[24px] font-medium text-paper-ink">
+                <h3 className="text-[15px] leading-[24px] font-medium text-paper-ink break-words">
                   {q.question}
                 </h3>
 
@@ -689,7 +720,7 @@ export default function QuestionBankPage() {
                             : "border-[#1f1b16]/[0.08] bg-paper-bg/40 hover:bg-paper-raised/40 text-paper-secondary"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <span
                             className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
                               isCorrect
@@ -701,7 +732,7 @@ export default function QuestionBankPage() {
                           >
                             {letters[oIdx]}
                           </span>
-                          <span>{opt}</span>
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{opt}</span>
                         </div>
                         {isCorrect && (
                           <Check className="w-4 h-4 text-paper-pass shrink-0" />
@@ -717,14 +748,14 @@ export default function QuestionBankPage() {
                 {isRevealed && (
                   <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2 text-[13px]">
                     <GlobalQuestionStat stat={globalStats[q.id]} />
-                    <p className="text-paper-secondary leading-[21px]">
+                    <p className="text-paper-secondary leading-[21px] break-words">
                       <strong className="text-paper-ink font-medium">
                         {getExplanationLabel(q.category)}:{" "}
                       </strong>
                       {q.explanation}
                     </p>
                     {q.keyTakeaway && (
-                      <div className="pt-2 border-t border-[#1f1b16]/[0.06] font-mono text-[12px] text-paper-ink">
+                      <div className="pt-2 border-t border-[#1f1b16]/[0.06] font-mono text-[12px] text-paper-ink break-words">
                         หลักจำ: {q.keyTakeaway}
                       </div>
                     )}
@@ -733,18 +764,18 @@ export default function QuestionBankPage() {
 
                 {/* แผงคอมเมนต์และแจ้งท้วงติงเฉลยรายข้อ */}
                 {isCommentOpen && (
-                  <div className="p-4 rounded-[10px] bg-paper-raised/60 border border-[#1f1b16]/[0.1] space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-paper-ink flex items-center gap-1.5">
-                        <MessageSquare className="w-4 h-4 text-paper-accent" />
-                        <span>
+                  <div className="p-3 sm:p-4 rounded-[10px] bg-paper-raised/60 border border-[#1f1b16]/[0.1] space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <span className="text-[13px] font-medium text-paper-ink flex items-center gap-1.5 min-w-0">
+                        <MessageSquare className="w-4 h-4 text-paper-accent shrink-0" />
+                        <span className="min-w-0">
                           ความคิดเห็นและการท้วงติงของข้อนี้ ({qComments.length})
                         </span>
                       </span>
                       <button
                         type="button"
                         onClick={() => setOpenCommentQId(null)}
-                        className="text-[12px] text-paper-muted hover:text-paper-ink"
+                        className="min-h-10 lg:min-h-0 whitespace-nowrap shrink-0 text-[12px] text-paper-muted hover:text-paper-ink"
                       >
                         ซ่อนหน้าต่างนี้
                       </button>
@@ -768,9 +799,9 @@ export default function QuestionBankPage() {
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap min-w-0">
                                 <span
-                                  className={`font-mono text-[11px] px-1.5 py-0.5 rounded-[4px] font-medium ${
+                                  className={`font-mono text-[12px] lg:text-[11px] px-1.5 py-0.5 rounded-[4px] font-medium ${
                                     cmt.isAdminAuthor
                                       ? "bg-paper-passBg text-paper-pass"
                                       : "bg-paper-raised text-paper-ink"
@@ -779,7 +810,7 @@ export default function QuestionBankPage() {
                                   {cmt.authorKey}
                                 </span>
                                 {cmt.type === "report_wrong" ? (
-                                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-paper-warn/15 text-paper-warn">
+                                  <span className="text-[12px] lg:text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-paper-warn/15 text-paper-warn max-w-full">
                                     ⚠️ แจ้งเฉลยอาจไม่ถูกต้อง
                                     {typeof cmt.suggestedAnswer === "number" &&
                                     letters[cmt.suggestedAnswer]
@@ -789,11 +820,11 @@ export default function QuestionBankPage() {
                                       : ""}
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] text-paper-muted">
+                                  <span className="text-[12px] lg:text-[11px] text-paper-muted">
                                     💡 ความคิดเห็นเพิ่มเติม
                                   </span>
                                 )}
-                                <span className="text-[11px] text-paper-muted">
+                                <span className="text-[12px] lg:text-[11px] text-paper-muted tabular-nums">
                                   {cmt.displayDate}
                                 </span>
                               </div>
@@ -808,7 +839,7 @@ export default function QuestionBankPage() {
                                         onClick={() =>
                                           handleResolveComment(q.id, cmt.id)
                                         }
-                                        className="h-6 px-2 rounded-[5px] bg-paper-pass text-paper-card text-[11px] font-medium flex items-center gap-1"
+                                        className="h-10 lg:h-6 px-3 lg:px-2 rounded-[5px] bg-paper-pass text-paper-card text-[12px] lg:text-[11px] font-medium flex items-center gap-1"
                                       >
                                         <Check className="w-3 h-3" />
                                         <span>ตรวจสอบ/แก้ไขแล้ว</span>
@@ -819,7 +850,7 @@ export default function QuestionBankPage() {
                                     onClick={() =>
                                       handleDeleteComment(q.id, cmt.id)
                                     }
-                                    className="text-[11px] text-paper-muted hover:text-paper-fail"
+                                    className="min-h-10 lg:min-h-0 px-2 lg:px-0 text-[12px] lg:text-[11px] text-paper-muted hover:text-paper-fail"
                                   >
                                     ลบ
                                   </button>
@@ -827,14 +858,14 @@ export default function QuestionBankPage() {
                               )}
                             </div>
 
-                            <p className="text-paper-ink leading-relaxed">
+                            <p className="text-paper-ink leading-relaxed break-words [overflow-wrap:anywhere]">
                               {cmt.message}
                             </p>
 
                             {cmt.status === "resolved" && (
                               <div className="pt-1 text-[11.5px] text-paper-pass flex items-center gap-1 font-medium">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>
+                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                <span className="min-w-0">
                                   {cmt.resolvedNote ||
                                     "แอดมินตรวจสอบและปรับปรุงข้อสอบเรียบร้อยแล้ว"}
                                 </span>
@@ -851,7 +882,7 @@ export default function QuestionBankPage() {
                         <button
                           type="button"
                           onClick={() => setCommentType("report_wrong")}
-                          className={`h-7 px-2.5 rounded-[6px] text-[12px] font-medium transition-colors ${
+                          className={`min-h-10 lg:min-h-7 py-1 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
                             commentType === "report_wrong"
                               ? "bg-paper-warn text-paper-card"
                               : "bg-paper-card text-paper-secondary border border-[#1f1b16]/[0.1]"
@@ -862,7 +893,7 @@ export default function QuestionBankPage() {
                         <button
                           type="button"
                           onClick={() => setCommentType("comment")}
-                          className={`h-7 px-2.5 rounded-[6px] text-[12px] font-medium transition-colors ${
+                          className={`min-h-10 lg:min-h-7 py-1 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
                             commentType === "comment"
                               ? "bg-paper-accent text-paper-card"
                               : "bg-paper-card text-paper-secondary border border-[#1f1b16]/[0.1]"
@@ -872,8 +903,8 @@ export default function QuestionBankPage() {
                         </button>
 
                         {commentType === "report_wrong" && (
-                          <div className="flex items-center gap-1.5 ml-auto">
-                            <span className="text-[12px] text-paper-secondary">
+                          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:ml-auto">
+                            <span className="basis-full sm:basis-auto text-[12px] text-paper-secondary">
                               คิดว่าข้อที่ถูกคือ:
                             </span>
                             {letters.map((letChar, lIdx) => (
@@ -885,7 +916,7 @@ export default function QuestionBankPage() {
                                     suggestedAns === lIdx ? null : lIdx
                                   )
                                 }
-                                className={`w-7 h-7 rounded-full font-mono text-[12px] font-medium border ${
+                                className={`w-10 h-10 lg:w-7 lg:h-7 rounded-full font-mono text-[12px] font-medium border ${
                                   suggestedAns === lIdx
                                     ? "bg-paper-warn text-paper-card border-paper-warn"
                                     : "bg-paper-card text-paper-ink border-[#1f1b16]/[0.15]"
@@ -914,12 +945,12 @@ export default function QuestionBankPage() {
                               ? "ระบุเหตุผลหรือมาตราที่ถูกต้อง เพื่อให้แอดมินตรวจสอบแก้ไข..."
                               : "พิมพ์ความคิดเห็นหรือเทคนิคการจำสำหรับข้อนี้..."
                           }
-                          className="flex-1 h-9 px-3 rounded-[8px] bg-paper-card border border-[#1f1b16]/[0.14] text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                          className="w-full min-w-0 sm:flex-1 h-10 lg:h-9 px-3 rounded-[8px] bg-paper-card border border-[#1f1b16]/[0.14] text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
                         />
                         <button
                           type="button"
                           onClick={() => handleSubmitComment(q.id)}
-                          className="h-9 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[12.5px] font-medium flex items-center justify-center gap-1.5 shrink-0"
+                          className="h-10 lg:h-9 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[12.5px] font-medium flex items-center justify-center gap-1.5 shrink-0"
                         >
                           <Send className="w-3.5 h-3.5" />
                           <span>ส่งข้อความ</span>
@@ -932,20 +963,31 @@ export default function QuestionBankPage() {
             );
           })}
         </div>
+
+        {remainingCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="w-full min-h-11 px-4 py-2 rounded-[10px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium transition-colors duration-150"
+          >
+            แสดงเพิ่มอีก {Math.min(PAGE_SIZE, remainingCount)} ข้อ (เหลือ{" "}
+            {remainingCount} ข้อ)
+          </button>
+        )}
       </div>
 
       {/* Edit Question Modal (สำหรับ Admin เท่านั้น) */}
       {isAdmin && editingQuestion && (
-        <div className="fixed inset-0 z-50 bg-[#1f1b16]/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-[640px] rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.12] p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#1f1b16]/[0.08]">
-              <h2 className="font-title font-medium text-[18px] text-paper-ink">
+        <div className="fixed inset-0 z-50 bg-[#1f1b16]/40 flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-[640px] min-w-0 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.12] p-4 sm:p-6 space-y-5 max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#1f1b16]/[0.08]">
+              <h2 className="font-title font-medium text-[18px] text-paper-ink min-w-0 break-words">
                 [Admin] แก้ไขข้อสอบและคำอธิบายในคลังกลาง
               </h2>
               <button
                 type="button"
                 onClick={() => setEditingQuestion(null)}
-                className="w-8 h-8 rounded-[8px] hover:bg-paper-raised flex items-center justify-center text-paper-muted hover:text-paper-ink"
+                className="w-10 h-10 lg:w-8 lg:h-8 shrink-0 -mr-1 -mt-1 lg:m-0 rounded-[8px] hover:bg-paper-raised flex items-center justify-center text-paper-muted hover:text-paper-ink"
               >
                 <X className="w-4 h-4" strokeWidth={1.5} />
               </button>
@@ -953,7 +995,7 @@ export default function QuestionBankPage() {
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0">
                   <label className="block text-[12px] text-paper-secondary mb-1">
                     หมวดวิชา
                   </label>
@@ -976,7 +1018,7 @@ export default function QuestionBankPage() {
                             : meta?.shortName || "ทั่วไป",
                       });
                     }}
-                    className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
+                    className="w-full min-w-0 h-10 lg:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
                   >
                     {EXAM_CATEGORIES.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -987,7 +1029,7 @@ export default function QuestionBankPage() {
                 </div>
 
                 {editingQuestion.category === "major" && (
-                  <div>
+                  <div className="min-w-0">
                     <label className="block text-[12px] text-paper-secondary mb-1">
                       สาขาวิชาเอก
                     </label>
@@ -1001,7 +1043,7 @@ export default function QuestionBankPage() {
                           categoryName: `วิชาเอก: ${maj}`,
                         });
                       }}
-                      className="w-full h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-bg text-[13px] text-paper-ink"
+                      className="w-full min-w-0 h-10 lg:h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-bg text-[13px] text-paper-ink"
                     >
                       {availableMajors.map((m) => (
                         <option key={m} value={m}>
@@ -1012,7 +1054,7 @@ export default function QuestionBankPage() {
                   </div>
                 )}
 
-                <div>
+                <div className="min-w-0">
                   <label className="block text-[12px] text-paper-secondary mb-1">
                     มาตราหรือทฤษฎีอ้างอิง
                   </label>
@@ -1025,7 +1067,7 @@ export default function QuestionBankPage() {
                         lawReference: e.target.value,
                       })
                     }
-                    className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[12px] text-paper-ink"
+                    className="w-full min-w-0 h-10 lg:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[12px] text-paper-ink"
                   />
                 </div>
               </div>
@@ -1043,7 +1085,7 @@ export default function QuestionBankPage() {
                       question: e.target.value,
                     })
                   }
-                  className="w-full p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink"
+                  className="block w-full min-w-0 p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink"
                 />
               </div>
 
@@ -1057,7 +1099,7 @@ export default function QuestionBankPage() {
                     return (
                       <div
                         key={oIdx}
-                        className={`p-2.5 rounded-[8px] border flex items-center gap-2.5 ${
+                        className={`p-2.5 rounded-[8px] border flex items-center gap-2.5 min-w-0 ${
                           isAns
                             ? "border-paper-accent bg-paper-accent/[0.04]"
                             : "border-[#1f1b16]/[0.1] bg-paper-bg"
@@ -1071,7 +1113,7 @@ export default function QuestionBankPage() {
                               answer: oIdx,
                             })
                           }
-                          className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
+                          className={`w-10 h-10 lg:w-6 lg:h-6 rounded-full font-mono text-[12px] lg:text-[11px] flex items-center justify-center shrink-0 border ${
                             isAns
                               ? "bg-paper-accent text-paper-card border-paper-accent"
                               : "border-[#1f1b16]/25 text-paper-secondary"
@@ -1095,7 +1137,7 @@ export default function QuestionBankPage() {
                               options: nextOpts,
                             });
                           }}
-                          className="w-full bg-transparent text-[13px] text-paper-ink focus:outline-none"
+                          className="flex-1 w-full min-w-0 bg-transparent text-[13px] text-paper-ink focus:outline-none"
                         />
                       </div>
                     );
@@ -1116,7 +1158,7 @@ export default function QuestionBankPage() {
                       explanation: e.target.value,
                     })
                   }
-                  className="w-full p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
+                  className="block w-full min-w-0 p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
                 />
               </div>
 
@@ -1133,25 +1175,25 @@ export default function QuestionBankPage() {
                       keyTakeaway: e.target.value,
                     })
                   }
-                  className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
+                  className="w-full min-w-0 h-10 lg:h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1f1b16]/[0.08]">
+            <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-[#1f1b16]/[0.08]">
               <button
                 type="button"
                 onClick={() => setEditingQuestion(null)}
-                className="h-9 px-4 rounded-[8px] bg-paper-raised text-[13px] text-paper-ink font-medium"
+                className="w-full sm:w-auto h-10 lg:h-9 px-4 rounded-[8px] bg-paper-raised text-[13px] text-paper-ink font-medium"
               >
                 ยกเลิก
               </button>
               <button
                 type="button"
                 onClick={handleSaveEdit}
-                className="h-9 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2"
+                className="w-full sm:w-auto min-h-10 lg:min-h-9 py-1.5 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center justify-center gap-2"
               >
-                <Save className="w-4 h-4" strokeWidth={1.5} />
+                <Save className="w-4 h-4 shrink-0" strokeWidth={1.5} />
                 <span>บันทึกการแก้ไขลงคลังกลาง</span>
               </button>
             </div>

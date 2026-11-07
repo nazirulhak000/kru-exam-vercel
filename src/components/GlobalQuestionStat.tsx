@@ -22,12 +22,12 @@ export default function GlobalQuestionStat({
     stat.correctRate <= HARD_QUESTION_MAX_RATE;
 
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
+    <span className="inline-flex flex-wrap items-center gap-1.5 max-w-full">
       <span
-        className="inline-flex items-center gap-1 font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary tabular-nums"
+        className="inline-flex items-center gap-1 max-w-full font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary tabular-nums"
         title={`ตอบถูก ${stat.correct} จาก ${stat.attempts} ครั้ง`}
       >
-        <Users className="w-3 h-3" strokeWidth={1.5} />
+        <Users className="w-3 h-3 shrink-0" strokeWidth={1.5} />
         ผู้สอบทั้งระบบตอบถูก {stat.correctRate}%
       </span>
       {isHard && (
