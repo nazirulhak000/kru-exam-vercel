@@ -23,6 +23,7 @@ import {
   getExamAttempts,
   getMistakeQuestions,
   getMistakeRecordsMap,
+  MAX_ATTEMPTS_HISTORY,
   removeMistakeRecord,
   setMistakeMastered,
   toggleBookmarkQuestion,
@@ -206,6 +207,11 @@ export default function HistoryAndMistakesPage() {
       {/* TAB 1: ATTEMPTS LIST */}
       {activeTab === "attempts" && (
         <div className="space-y-3">
+          {attempts.length >= MAX_ATTEMPTS_HISTORY - 5 && (
+            <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/20 text-[12px] text-amber-800 dark:text-amber-300">
+              ประวัติการสอบมีจำนวน {attempts.length}/{MAX_ATTEMPTS_HISTORY} รอบ (ใกล้ครบเพดาน) ระบบจะจัดเก็บรอบเก่าแบบสรุปคะแนนอัตโนมัติเพื่อประหยัดพื้นที่
+            </div>
+          )}
           {attempts.length === 0 ? (
             <div className="px-5 py-10 sm:p-12 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] text-center space-y-3">
               <div className="text-[15px] font-medium text-paper-ink">
@@ -333,8 +339,13 @@ export default function HistoryAndMistakesPage() {
                       <div className="text-[12px] font-mono text-paper-muted">
                         รายการคำตอบรายข้อในรอบนี้
                       </div>
-                      <div className="space-y-2.5">
-                        {att.answers.map((ans, idx) => (
+                      {(!att.answers || att.answers.length === 0) ? (
+                        <div className="p-4 rounded-[10px] bg-paper-card border border-[#1f1b16]/[0.08] text-[13px] text-paper-muted text-center">
+                          รายละเอียดคำตอบรายข้อของรอบสอบนี้ถูกย่อเพื่อประหยัดพื้นที่จัดเก็บ (ยังคงเก็บบันทึกคะแนนและสถิติครบถ้วน)
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {att.answers.map((ans, idx) => (
                           <div
                             key={ans.questionId + idx}
                             className="p-3 sm:p-4 rounded-[10px] bg-paper-card border border-[#1f1b16]/[0.08] text-[13px] space-y-2"
@@ -411,8 +422,9 @@ export default function HistoryAndMistakesPage() {
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
                 </div>
               );
             })

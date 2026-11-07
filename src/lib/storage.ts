@@ -710,6 +710,24 @@ export function getExamAttemptById(id: string): ExamAttempt | undefined {
   return getExamAttempts().find((a) => a.id === id);
 }
 
+export const MAX_ATTEMPTS_HISTORY = 100;
+export const MAX_FULL_ANSWER_ATTEMPTS = 20;
+
+export function pruneOlderAttemptAnswers(attempts: ExamAttempt[]): ExamAttempt[] {
+  return attempts.map((att, idx) => {
+    if (idx < MAX_FULL_ANSWER_ATTEMPTS) {
+      return att;
+    }
+    if (att.answers && att.answers.length > 0) {
+      return {
+        ...att,
+        answers: [],
+      };
+    }
+    return att;
+  });
+}
+
 export function saveExamAttempt(attempt: ExamAttempt): void {
   if (!isBrowser()) return;
 
@@ -738,18 +756,22 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
     })),
   };
 
+  let isEmergencyEviction = false;
   try {
     const attempts = getExamAttempts();
-    const updated = [leanAttempt, ...attempts].slice(0, 50);
+    const updated = pruneOlderAttemptAnswers(
+      [leanAttempt, ...attempts].slice(0, MAX_ATTEMPTS_HISTORY)
+    );
     localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(updated));
   } catch (e) {
-    console.warn("Storage quota full, evicting older attempts...", e);
+    console.warn("Storage quota full, stripping older attempt answers...", e);
+    isEmergencyEviction = true;
     try {
-      const attempts = getExamAttempts().slice(0, 15);
-      localStorage.setItem(
-        KEYS.ATTEMPTS_HISTORY,
-        JSON.stringify([leanAttempt, ...attempts])
-      );
+      const attempts = getExamAttempts();
+      const minimal = [leanAttempt, ...attempts]
+        .slice(0, MAX_ATTEMPTS_HISTORY)
+        .map((a, i) => (i < 5 ? a : { ...a, answers: [] }));
+      localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(minimal));
     } catch {
       // ignore if still full
     }
@@ -792,7 +814,9 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
   });
 
   localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(mistakes));
-  void pushLocalStateToCloud();
+  if (!isEmergencyEviction) {
+    void pushLocalStateToCloud();
+  }
 }
 
 export function deleteExamAttempt(
@@ -1603,9 +1627,11 @@ export async function syncWithCloudDatabase(): Promise<{
         attemptMap.set(a.id, a);
       }
     });
-    const mergedAttempts = Array.from(attemptMap.values())
-      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-      .slice(0, 100);
+    const mergedAttempts = pruneOlderAttemptAnswers(
+      Array.from(attemptMap.values())
+        .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+        .slice(0, MAX_ATTEMPTS_HISTORY)
+    );
 
     // 4. Merge mistake records
     const remoteMistakes: Record<string, MistakeRecord> =
