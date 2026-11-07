@@ -1,29 +1,38 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  BookOpen,
   Check,
   FileText,
   FileUp,
-  KeyRound,
   Loader2,
+  Lock,
   Play,
   Plus,
   Save,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { EXAM_CATEGORIES, ExamCategory, QuestionItem } from "@/types/exam";
+import {
+  EXAM_CATEGORIES,
+  ExamCategory,
+  MAJOR_SUBJECTS,
+  QuestionItem,
+} from "@/types/exam";
 import {
   ExtractedPdfPage,
   extractPdfPagesClient,
   parseThaiExamTextHeuristic,
 } from "@/lib/pdf-parser";
 import {
-  addCustomQuestions,
+  addCustomQuestionsWithReport,
+  AddQuestionsReport,
   getSavedGeminiApiKey,
-  saveGeminiApiKey,
+  isAdminMode,
 } from "@/lib/storage";
 
 const SAMPLE_EXAM_TEXT = `1. ตามพระราชบัญญัติการศึกษาแห่งชาติ พ.ศ. 2542 การจัดการศึกษาต้องยึดหลักว่าผู้เรียนทุกคนมีความสามารถในการเรียนรู้และพัฒนาตนเองได้ และถือว่าใครมีความสำคัญที่สุด?
@@ -49,13 +58,18 @@ const SAMPLE_EXAM_TEXT = `1. ตามพระราชบัญญัติก
 
 export default function UploadPdfPage() {
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   const [engineMode, setEngineMode] = useState<
     "auto_regex" | "ai_extract" | "ai_generate"
   >("auto_regex");
   const [defaultCategory, setDefaultCategory] = useState<ExamCategory>("law");
+  const [selectedMajorSubject, setSelectedMajorSubject] = useState<string>(
+    MAJOR_SUBJECTS[0]
+  );
+  const [customMajorSubject, setCustomMajorSubject] = useState<string>("");
   const [targetGenerateCount, setTargetGenerateCount] = useState<number>(10);
-  const [apiKey, setApiKey] = useState<string>(() => getSavedGeminiApiKey());
+  const [apiKey] = useState<string>(() => getSavedGeminiApiKey());
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [rawTextInput, setRawTextInput] = useState<string>("");
@@ -67,8 +81,55 @@ export default function UploadPdfPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [previewQuestions, setPreviewQuestions] = useState<QuestionItem[]>([]);
+  const [aiRejectedFakeCount, setAiRejectedFakeCount] = useState<number>(0);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
-  const [savedAddedCount, setSavedAddedCount] = useState<number>(0);
+  const [saveReport, setSaveReport] = useState<AddQuestionsReport | null>(null);
+
+  useEffect(() => {
+    const syncRole = () => setIsAdmin(isAdminMode());
+    syncRole();
+    window.addEventListener("kru-cloud-synced", syncRole);
+    return () => window.removeEventListener("kru-cloud-synced", syncRole);
+  }, []);
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-[600px] mx-auto my-12 p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.1] text-center space-y-5">
+        <div className="w-12 h-12 rounded-full bg-paper-raised flex items-center justify-center mx-auto text-paper-muted">
+          <Lock className="w-6 h-6" strokeWidth={1.5} />
+        </div>
+        <div className="space-y-2">
+          <h1 className="font-title font-medium text-[22px] text-paper-ink">
+            สงวนสิทธิ์การนำเข้าข้อสอบเฉพาะผู้ดูแลระบบ (Admin)
+          </h1>
+          <p className="text-[14px] leading-relaxed text-paper-secondary">
+            เพื่อควบคุมคุณภาพและความถูกต้องของคลังข้อสอบกลาง ระบบจึงเปิดให้เฉพาะแอดมินเป็นผู้นำเข้าไฟล์ข้อสอบเท่านั้น ผู้เข้าสอบทั่วไปสามารถเข้าทำข้อสอบหรืออ่านคลังข้อสอบได้ทันที
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <Link
+            href="/exam"
+            className="h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2"
+          >
+            <Play className="w-4 h-4" strokeWidth={1.5} />
+            <span>ไปห้องสอบจำลอง</span>
+          </Link>
+          <Link
+            href="/bank"
+            className="h-10 px-5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2"
+          >
+            <BookOpen className="w-4 h-4" strokeWidth={1.5} />
+            <span>เปิดดูคลังข้อสอบ</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const effectiveMajorSubject =
+    defaultCategory === "major"
+      ? (customMajorSubject.trim() || selectedMajorSubject).trim()
+      : undefined;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -87,9 +148,32 @@ export default function UploadPdfPage() {
     setErrorMsg(null);
   };
 
+  const applyMajorSubjectTag = (items: QuestionItem[]): QuestionItem[] => {
+    return items.map((q) => {
+      const cat = q.category || defaultCategory;
+      const maj =
+        cat === "major"
+          ? q.majorSubject ||
+            effectiveMajorSubject ||
+            "วิชาเอกทั่วไป (ไม่ระบุสาขา)"
+          : undefined;
+      const meta = EXAM_CATEGORIES.find((c) => c.id === cat);
+      return {
+        ...q,
+        category: cat,
+        majorSubject: maj,
+        categoryName:
+          cat === "major" && maj
+            ? `วิชาเอก: ${maj}`
+            : q.categoryName || meta?.shortName || "ทั่วไป",
+      };
+    });
+  };
+
   const handleProcessPdfOrText = async () => {
     setErrorMsg(null);
     setSavedSuccess(false);
+    setAiRejectedFakeCount(0);
 
     if (!selectedFile && !rawTextInput.trim()) {
       setErrorMsg(
@@ -98,120 +182,141 @@ export default function UploadPdfPage() {
       return;
     }
 
-    if (apiKey.trim()) {
-      saveGeminiApiKey(apiKey);
-    }
-
     setIsProcessing(true);
     setProgressPercent(5);
 
     try {
+      let fullText = rawTextInput.trim();
       let pages: ExtractedPdfPage[] = [];
-      const finalSourceName =
-        sourceName.trim() ||
-        (selectedFile ? selectedFile.name : "ข้อสอบนำเข้า");
 
       if (selectedFile) {
-        setProgressStatus(`กำลังอ่านไฟล์ PDF (${selectedFile.name})`);
-        pages = await extractPdfPagesClient(selectedFile, (cur, total) => {
-          setProgressStatus(`กำลังอ่านข้อความหน้า ${cur} จาก ${total}`);
-          setProgressPercent(Math.round((cur / total) * 40));
-        });
-      } else {
-        pages = [{ pageNumber: 1, text: rawTextInput.trim() }];
-        setProgressPercent(35);
+        setProgressStatus("กำลังอ่านหน้าเอกสาร PDF...");
+        pages = await extractPdfPagesClient(
+          selectedFile,
+          (curr: number, total: number) => {
+            setProgressStatus(`กำลังอ่านหน้า ${curr} จาก ${total}...`);
+            setProgressPercent(Math.round((curr / total) * 55));
+          }
+        );
+        fullText = pages.map((p) => p.text).join("\n\n");
       }
 
-      const fullCombinedText = pages.map((p) => p.text).join("\n\n");
+      const finalSourceTitle =
+        sourceName.trim() ||
+        selectedFile?.name.replace(/\.pdf$/i, "") ||
+        "เอกสารนำเข้า";
 
       if (engineMode === "auto_regex") {
-        setProgressStatus("กำลังแยกโครงสร้างโจทย์ ตัวเลือก ก-ข-ค-ง และคำอธิบาย");
+        setProgressStatus("กำลังแยกโจทย์ ตัวเลือก ก–ง และเฉลย...");
         setProgressPercent(75);
 
-        const extracted = parseThaiExamTextHeuristic(
-          fullCombinedText,
-          finalSourceName,
+        let parsed = parseThaiExamTextHeuristic(
+          fullText,
+          finalSourceTitle,
           defaultCategory
         );
 
-        if (extracted.length === 0) {
-          setErrorMsg(
-            "ไม่พบรูปแบบข้อสอบปรนัยมาตรฐาน (ข้อ 1. ... ก. ... ข. ... ค. ... ง.) แนะนำให้เลือกโหมดสกัดด้วย Gemini AI หรือโหมดสร้างข้อสอบจากเนื้อหาแทน"
+        if (parsed.length === 0) {
+          setProgressStatus(
+            "ไม่พบรูปแบบตัวเลือก ก–ง หรือเป็นไฟล์ PDF สแกนรูปภาพ กำลังส่งให้ Gemini AI วิเคราะห์อัตโนมัติ..."
           );
-        } else {
-          setPreviewQuestions(extracted);
+          const pageImages = pages
+            .filter((p) => p.imageDataUrl)
+            .slice(0, 6)
+            .map((p) => p.imageDataUrl as string);
+
+          const res = await fetch("/api/extract-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: fullText,
+              images: pageImages,
+              mode: "extract",
+              defaultCategory,
+              defaultMajorSubject: effectiveMajorSubject,
+              sourcePdf: finalSourceTitle,
+              targetCount: targetGenerateCount,
+              apiKey: apiKey.trim(),
+            }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(
+              data.error ||
+                "เอกสารนี้เป็นไฟล์สแกนรูปภาพหรือไม่มีรูปแบบข้อสอบ ก. ข. ค. ง."
+            );
+          }
+          parsed = data.questions || [];
+          setAiRejectedFakeCount(Number(data.rejectedCount || 0));
         }
+
+        if (parsed.length === 0) {
+          throw new Error(
+            "ไม่พบข้อสอบจริงที่ผ่านเกณฑ์ความถูกต้องในเอกสารนี้ กรุณาตรวจสอบไฟล์ต้นฉบับ"
+          );
+        }
+
+        setPreviewQuestions(applyMajorSubjectTag(parsed));
         setProgressPercent(100);
-        setIsProcessing(false);
-        return;
-      }
-
-      const BATCH_SIZE = 4;
-      const totalBatches = Math.ceil(pages.length / BATCH_SIZE);
-      const accumulatedQuestions: QuestionItem[] = [];
-
-      for (let b = 0; b < totalBatches; b++) {
-        const batchPages = pages.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
-        const startPage = batchPages[0].pageNumber;
-        const endPage = batchPages[batchPages.length - 1].pageNumber;
-
+        setProgressStatus(`สกัดข้อสอบสำเร็จ ${parsed.length} ข้อ!`);
+      } else {
         setProgressStatus(
-          `กำลังประมวลผลหน้าที่ ${startPage}–${endPage} (ชุดที่ ${
-            b + 1
-          }/${totalBatches}) • สกัดได้แล้ว ${accumulatedQuestions.length} ข้อ`
+          engineMode === "ai_extract"
+            ? "กำลังส่งเอกสารให้ Gemini AI ตรวจสอบข้อสอบจริงและแยกสาขาวิชาเอก..."
+            : `กำลังให้ Gemini AI ออกข้อสอบคู่ขนานจำนวน ${targetGenerateCount} ข้อ...`
         );
-        setProgressPercent(40 + Math.round(((b + 0.5) / totalBatches) * 55));
+        setProgressPercent(70);
 
-        const perBatchTarget = Math.max(
-          2,
-          Math.ceil(targetGenerateCount / totalBatches)
-        );
+        const pageImages = pages
+          .filter((p) => p.imageDataUrl)
+          .slice(0, 6)
+          .map((p) => p.imageDataUrl as string);
 
         const res = await fetch("/api/extract-pdf", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            text: fullText,
+            images: pageImages,
             mode: engineMode === "ai_extract" ? "extract" : "generate",
-            pages: batchPages,
-            sourcePdf: finalSourceName,
-            targetCount: perBatchTarget,
             defaultCategory,
+            defaultMajorSubject: effectiveMajorSubject,
+            sourcePdf: finalSourceTitle,
+            targetCount: targetGenerateCount,
             apiKey: apiKey.trim(),
           }),
         });
 
         const data = await res.json();
         if (!res.ok) {
+          throw new Error(data.error || "เกิดข้อผิดพลาดในการประมวลผลด้วย AI");
+        }
+
+        const aiQuestions: QuestionItem[] = data.questions || [];
+        setAiRejectedFakeCount(Number(data.rejectedCount || 0));
+        if (aiQuestions.length === 0) {
           throw new Error(
-            data.error || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ประมวลผล"
+            "ไม่พบข้อสอบจริงในเอกสาร (ระบบคัดกรองตัดข้อความที่ไม่ใช่ข้อสอบออกทั้งหมด)"
           );
         }
 
-        if (Array.isArray(data.questions)) {
-          accumulatedQuestions.push(...data.questions);
-          setPreviewQuestions([...accumulatedQuestions]);
-        }
+        setPreviewQuestions(applyMajorSubjectTag(aiQuestions));
+        setProgressPercent(100);
+        setProgressStatus(`ประมวลผลข้อสอบจริงสำเร็จ ${aiQuestions.length} ข้อ!`);
       }
-
-      if (accumulatedQuestions.length === 0) {
-        setErrorMsg(
-          "ไม่พบข้อสอบในหน้าเอกสารดังกล่าว กรุณาตรวจสอบไฟล์ PDF หรือลองใช้โหมดออกข้อสอบใหม่จากเนื้อหา"
-        );
-      }
-      setProgressPercent(100);
     } catch (err: unknown) {
-      console.error(err);
-      setErrorMsg(
+      const msg =
         err instanceof Error
           ? err.message
-          : "เกิดข้อผิดพลาดระหว่างอ่านไฟล์ PDF"
-      );
+          : "เกิดข้อผิดพลาดในการอ่านเอกสาร PDF";
+      setErrorMsg(msg);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleUpdatePreviewQuestion = (
+  const handleUpdatePreviewItem = (
     idx: number,
     patch: Partial<QuestionItem>
   ) => {
@@ -228,529 +333,565 @@ export default function UploadPdfPage() {
     setPreviewQuestions((prev) =>
       prev.map((item, i) => {
         if (i !== qIdx) return item;
-        const newOpts = [...item.options] as [string, string, string, string];
-        newOpts[optIdx] = val;
-        return { ...item, options: newOpts };
+        const nextOpts = [...item.options] as [string, string, string, string];
+        nextOpts[optIdx] = val;
+        return { ...item, options: nextOpts };
       })
     );
   };
 
-  const handleRemovePreviewQuestion = (idx: number) => {
+  const handleRemovePreviewItem = (idx: number) => {
     setPreviewQuestions((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleAddBlankQuestion = () => {
-    const catMeta =
-      EXAM_CATEGORIES.find((c) => c.id === defaultCategory) ||
-      EXAM_CATEGORIES[0];
+    const catMeta = EXAM_CATEGORIES.find((c) => c.id === defaultCategory);
+    const maj =
+      defaultCategory === "major"
+        ? effectiveMajorSubject || MAJOR_SUBJECTS[0]
+        : undefined;
     const newQ: QuestionItem = {
-      id: `custom-${Date.now()}`,
-      category: catMeta.id,
-      categoryName: catMeta.shortName,
-      sourcePdf: sourceName || "บันทึกเพิ่มเติม",
-      question: "ระบุโจทย์คำถาม",
+      id: `manual-${Date.now()}`,
+      category: defaultCategory,
+      categoryName:
+        defaultCategory === "major" && maj
+          ? `วิชาเอก: ${maj}`
+          : catMeta?.shortName || "ทั่วไป",
+      majorSubject: maj,
+      sourcePdf: sourceName || "เพิ่มด้วยตนเอง",
+      question: "พิมพ์โจทย์คำถามของคุณที่นี่...",
       options: ["ตัวเลือก ก", "ตัวเลือก ข", "ตัวเลือก ค", "ตัวเลือก ง"],
       answer: 0,
-      explanation: "ระบุคำอธิบายและเหตุผลประกอบ",
-      lawReference: "พ.ร.บ. หรือทฤษฎีอ้างอิง",
-      keyTakeaway: "สรุปประเด็นสำคัญ",
+      explanation: "พิมพ์คำอธิบายเฉลยและเหตุผลทางกฎหมายหรือวิชาการ...",
+      lawReference: "",
+      keyTakeaway: "",
+      verified: true,
+      confidenceScore: 100,
       createdAt: new Date().toISOString(),
     };
     setPreviewQuestions((prev) => [newQ, ...prev]);
   };
 
-  const handleSaveAllToBank = (startExamImmediately: boolean) => {
+  const handleSaveToBank = () => {
     if (previewQuestions.length === 0) return;
-    const added = addCustomQuestions(previewQuestions);
-    setSavedAddedCount(added);
+    const report = addCustomQuestionsWithReport(previewQuestions);
+    setSaveReport(report);
     setSavedSuccess(true);
-
-    if (startExamImmediately) {
-      const sourceParam = encodeURIComponent(
-        previewQuestions[0].sourcePdf || ""
-      );
-      router.push(`/exam?source=${sourceParam}&autostart=1`);
-    }
   };
 
   const letters = ["ก", "ข", "ค", "ง"];
 
   return (
     <div className="space-y-8">
-      {/* Page Title */}
-      <div className="pb-6 border-b border-[#1f1b16]/[0.08] space-y-2">
-        <div className="text-[12px] font-mono text-paper-muted">
-          เครื่องมือนำเข้าและแปลงเอกสารข้อสอบ (รองรับการแบ่งชุดหน้าอัตโนมัติสำหรับ Vercel)
+      {/* Page Header */}
+      <div className="pb-6 border-b border-[#1f1b16]/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-1">
+          <div className="text-[12px] font-mono text-paper-pass flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>
+              โหมดผู้ดูแลระบบ (Admin) • นำเข้าข้อสอบเข้าสู่คลังข้อสอบกลางของระบบ
+            </span>
+          </div>
+          <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink">
+            นำเข้าไฟล์ข้อสอบ PDF เข้าสู่คลังข้อสอบกลาง
+          </h1>
         </div>
-        <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink">
-          นำเข้าไฟล์ PDF เพื่อสกัดหรือสร้างชุดข้อสอบปรนัย
-        </h1>
-        <p className="text-[14px] text-paper-secondary max-w-[42rem]">
-          รองรับทั้งไฟล์แนวข้อสอบที่มีตัวเลือก ก–ง อยู่แล้ว และไฟล์สรุปเนื้อหาหรือตัวบทกฎหมายที่ต้องการให้สร้างโจทย์ปรนัยชุดใหม่พร้อมคำอธิบายรายข้อ
-        </p>
+        <button
+          type="button"
+          onClick={handleAddBlankQuestion}
+          className="h-9 px-3.5 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150 self-start md:self-auto"
+        >
+          <Plus className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
+          <span>สร้างข้อสอบเอง 1 ข้อ</span>
+        </button>
       </div>
 
-      {/* Step 1: Configuration & Upload Panel */}
-      <div className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
-        <div className="space-y-3">
-          <label className="block text-[13px] font-medium text-paper-ink">
-            1. เลือกวิธีการประมวลผลเอกสาร
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => setEngineMode("auto_regex")}
-              className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
-                engineMode === "auto_regex"
-                  ? "border-paper-accent bg-paper-accent/[0.05]"
-                  : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-title font-medium text-[14px] text-paper-ink">
-                  แยกโครงสร้างโจทย์อัตโนมัติ
-                </span>
-                <span className="font-mono text-[11px] text-paper-muted">
-                  ไม่ต้องใช้คีย์
-                </span>
-              </div>
-              <p className="text-[13px] leading-[20px] text-paper-secondary">
-                ดึงข้อคำถามที่มีเลขข้อและตัวเลือก ก. ข. ค. ง. พร้อมคำตอบท้ายข้อโดยตรงในเบราว์เซอร์
-              </p>
-            </button>
+      {/* Main 2-Column Split: Left Upload Controls | Right Preview & Edit */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left 5 Columns: Upload & Engine Config */}
+        <div className="lg:col-span-5 space-y-5">
+          {/* 1. Extraction Mode */}
+          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+            <h2 className="font-title font-medium text-[16px] text-paper-ink">
+              1. เลือกรูปแบบการแปลงและคัดกรองข้อสอบ
+            </h2>
 
-            <button
-              type="button"
-              onClick={() => setEngineMode("ai_extract")}
-              className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
-                engineMode === "ai_extract"
-                  ? "border-paper-accent bg-paper-accent/[0.05]"
-                  : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-title font-medium text-[14px] text-paper-ink">
-                  สกัดข้อสอบและเขียนคำอธิบายรายช้อยส์
-                </span>
-                <span className="font-mono text-[11px] text-paper-muted">
-                  Gemini API
-                </span>
-              </div>
-              <p className="text-[13px] leading-[20px] text-paper-secondary">
-                อ่านไฟล์ PDF (รวมถึงหน้าสแกนรูปภาพ) พร้อมเขียนคำอธิบายและวิเคราะห์ตัวลวงครบทั้ง 4 ตัวเลือก
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setEngineMode("ai_generate")}
-              className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
-                engineMode === "ai_generate"
-                  ? "border-paper-accent bg-paper-accent/[0.05]"
-                  : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-title font-medium text-[14px] text-paper-ink">
-                  ออกข้อสอบใหม่จากไฟล์สรุปเนื้อหา
-                </span>
-                <span className="font-mono text-[11px] text-paper-muted">
-                  Gemini API
-                </span>
-              </div>
-              <p className="text-[13px] leading-[20px] text-paper-secondary">
-                อ่านไฟล์ตัวบท พ.ร.บ. หรือเอกสารสรุปวิชาเอก แล้วสร้างข้อสอบปรนัย 4 ตัวเลือกชุดใหม่
-              </p>
-            </button>
-          </div>
-        </div>
-
-        {/* Metadata Settings */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
-              2. หมวดวิชาหลักของเอกสาร
-            </label>
-            <select
-              value={defaultCategory}
-              onChange={(e) =>
-                setDefaultCategory(e.target.value as ExamCategory)
-              }
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            >
-              {EXAM_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  [{c.part}] {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
-              3. ชื่อชุดข้อสอบหรือเอกสารอ้างอิง
-            </label>
-            <input
-              type="text"
-              value={sourceName}
-              onChange={(e) => setSourceName(e.target.value)}
-              placeholder="เช่น แนวข้อสอบ พ.ร.บ.ครู ชุดที่ 1"
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            />
-          </div>
-
-          {engineMode === "ai_generate" && (
-            <div>
-              <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
-                4. จำนวนข้อที่ต้องการสร้าง
-              </label>
-              <select
-                value={targetGenerateCount}
-                onChange={(e) =>
-                  setTargetGenerateCount(Number(e.target.value))
-                }
-                className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
-              >
-                <option value={5}>5 ข้อ</option>
-                <option value={10}>10 ข้อ</option>
-                <option value={15}>15 ข้อ</option>
-                <option value={20}>20 ข้อ</option>
-                <option value={30}>30 ข้อ</option>
-              </select>
+            <div className="space-y-2">
+              {[
+                {
+                  id: "auto_regex",
+                  title: "สกัดอัตโนมัติ (แนะนำ • รองรับทุกไฟล์)",
+                  desc: "แยกโจทย์ ก–ง ทันที หากเป็นไฟล์สแกนหรือข้อสอบซับซ้อนจะส่งให้ AI คัดกรองเฉพาะข้อสอบจริงให้อัตโนมัติ",
+                },
+                {
+                  id: "ai_extract",
+                  title:
+                    "ให้ Gemini AI สกัด + คัดกรองข้อสอบหลอก + แยกวิชาเอก",
+                  desc: "ใช้ AI ตรวจสอบความสมจริง ตัดหน้าปก/โฆษณา/ข้อสอบปลอมทิ้ง และจัดหมวดวิชาเอกให้อัตโนมัติ",
+                },
+                {
+                  id: "ai_generate",
+                  title: "ให้ Gemini AI ออกข้อสอบใหม่จากเนื้อหาสรุป/พ.ร.บ.",
+                  desc: "อัปโหลดไฟล์สรุปเนื้อหาหรือ พ.ร.บ. แล้วให้ AI ออกข้อสอบปรนัย 4 ตัวเลือกพร้อมคำอธิบาย",
+                },
+              ].map((m) => {
+                const active = engineMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() =>
+                      setEngineMode(
+                        m.id as "auto_regex" | "ai_extract" | "ai_generate"
+                      )
+                    }
+                    className={`w-full p-3.5 rounded-[10px] border text-left transition-colors duration-150 ${
+                      active
+                        ? "border-paper-accent bg-paper-accent/[0.04]"
+                        : "border-[#1f1b16]/[0.08] bg-paper-bg/50 hover:bg-paper-raised/50"
+                    }`}
+                  >
+                    <div className="text-[13px] font-medium text-paper-ink">
+                      {m.title}
+                    </div>
+                    <p className="text-[12px] leading-[18px] text-paper-secondary mt-0.5">
+                      {m.desc}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
 
-        {/* File Dropzone & Text Input */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <label className="rounded-[10px] border border-dashed border-[#1f1b16]/25 hover:border-paper-accent bg-paper-bg/50 hover:bg-paper-raised/40 transition-colors duration-150 p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[184px]">
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <FileUp
-              className="w-5 h-5 text-paper-muted mb-3"
-              strokeWidth={1.5}
-            />
-            {selectedFile ? (
-              <div className="space-y-1">
-                <p className="text-[14px] font-medium text-paper-ink">
-                  {selectedFile.name}
-                </p>
-                <p className="font-mono text-[12px] text-paper-muted tabular-nums">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • คลิกเพื่อเปลี่ยนไฟล์
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-[14px] font-medium text-paper-ink">
-                  เลือกไฟล์ PDF จากเครื่อง หรือลากไฟล์มาวางที่นี่
-                </p>
-                <p className="text-[12px] text-paper-muted">
-                  รองรับไฟล์แนวข้อสอบและไฟล์สรุปเนื้อหาทุกขนาด
-                </p>
+            {engineMode === "ai_generate" && (
+              <div className="pt-3 border-t border-[#1f1b16]/[0.08]">
+                <label className="block text-[12px] font-medium text-paper-ink mb-1">
+                  จำนวนข้อสอบที่ต้องการให้ AI สร้าง
+                </label>
+                <input
+                  type="number"
+                  min={5}
+                  max={30}
+                  value={targetGenerateCount}
+                  onChange={(e) =>
+                    setTargetGenerateCount(Number(e.target.value))
+                  }
+                  className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                />
               </div>
             )}
-          </label>
 
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[13px] font-medium text-paper-ink flex items-center gap-2">
-                <FileText className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
-                <span>หรือวางข้อความข้อสอบโดยตรง</span>
-              </span>
+            {/* Category & Major Subject Selector */}
+            <div className="pt-3 border-t border-[#1f1b16]/[0.08] space-y-3">
+              <div>
+                <label className="block text-[12px] font-medium text-paper-ink mb-1.5">
+                  หมวดวิชาของไฟล์ชุดนี้
+                </label>
+                <select
+                  value={defaultCategory}
+                  onChange={(e) =>
+                    setDefaultCategory(e.target.value as ExamCategory)
+                  }
+                  className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                >
+                  {EXAM_CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      [{c.part}] {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {defaultCategory === "major" && (
+                <div className="p-3.5 rounded-[10px] bg-paper-accent/[0.04] border border-paper-accent/25 space-y-2.5">
+                  <label className="block text-[12px] font-medium text-paper-ink">
+                    ระบุสาขาวิชาเอก (ใช้แยกหมวดหมู่ในคลังข้อสอบและห้องสอบ)
+                  </label>
+                  <select
+                    value={selectedMajorSubject}
+                    onChange={(e) => setSelectedMajorSubject(e.target.value)}
+                    className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.14] bg-paper-card text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                  >
+                    {MAJOR_SUBJECTS.map((maj) => (
+                      <option key={maj} value={maj}>
+                        วิชาเอก: {maj}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={customMajorSubject}
+                    onChange={(e) => setCustomMajorSubject(e.target.value)}
+                    placeholder="หรือพิมพ์ชื่อวิชาเอกอื่นๆ เอง เช่น ดนตรีสากล, ภาษาจีน..."
+                    className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card text-[12.5px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. File Dropzone & Text Paste */}
+          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-title font-medium text-[16px] text-paper-ink">
+                2. อัปโหลดไฟล์ PDF หรือวางข้อความ
+              </h2>
               <button
                 type="button"
                 onClick={handleLoadSampleText}
-                className="text-[12px] text-paper-accent hover:underline"
+                className="text-[12px] text-paper-accent hover:underline font-medium"
               >
-                โหลดข้อความตัวอย่าง 3 ข้อ
+                ลองใช้ข้อความตัวอย่าง
               </button>
             </div>
-            <textarea
-              value={rawTextInput}
-              onChange={(e) => setRawTextInput(e.target.value)}
-              rows={6}
-              placeholder="วางข้อความโจทย์พร้อมตัวเลือก ก. ข. ค. ง. ที่คัดลอกจากเอกสาร..."
-              className="w-full flex-1 p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] leading-[20px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            />
-          </div>
-        </div>
 
-        {/* Error Notice */}
-        {errorMsg && (
-          <div className="p-4 rounded-[8px] bg-paper-failBg border border-paper-fail/20 text-paper-fail text-[13px] flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
-            <span>{errorMsg}</span>
-          </div>
-        )}
+            <label className="block p-5 rounded-[10px] border border-dashed border-[#1f1b16]/25 hover:border-paper-accent bg-paper-bg/50 hover:bg-paper-raised/40 text-center cursor-pointer transition-colors duration-150">
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <FileUp
+                className="w-6 h-6 text-paper-muted mx-auto mb-2"
+                strokeWidth={1.5}
+              />
+              {selectedFile ? (
+                <div className="space-y-0.5">
+                  <div className="text-[13px] font-medium text-paper-ink">
+                    {selectedFile.name}
+                  </div>
+                  <div className="font-mono text-[11px] text-paper-muted">
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • คลิกเพื่อเปลี่ยนไฟล์
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  <div className="text-[13px] font-medium text-paper-ink">
+                    คลิกเพื่อเลือกไฟล์ข้อสอบ .PDF
+                  </div>
+                  <div className="text-[11px] text-paper-muted">
+                    ระบบจะคัดกรองเฉพาะข้อสอบจริงและตัดข้อซ้ำให้อัตโนมัติ
+                  </div>
+                </div>
+              )}
+            </label>
 
-        {/* Progress Bar */}
-        {isProcessing && (
-          <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2">
-            <div className="flex items-center justify-between text-[13px] text-paper-ink">
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-paper-accent" />
-                <span>{progressStatus}</span>
-              </span>
-              <span className="font-mono tabular-nums">{progressPercent}%</span>
-            </div>
-            <div className="w-full bg-paper-raised h-2 rounded-[4px] overflow-hidden">
-              <div
-                className="bg-paper-accent h-full transition-colors duration-150"
-                style={{ width: `${progressPercent}%` }}
+            <div>
+              <label className="block text-[12px] text-paper-secondary mb-1">
+                ชื่อชุดข้อสอบ / แหล่งที่มา (ใช้แสดงอ้างอิงในคลังข้อสอบ)
+              </label>
+              <input
+                type="text"
+                value={sourceName}
+                onChange={(e) => setSourceName(e.target.value)}
+                placeholder="เช่น แนวข้อสอบจริง ก.ค.ศ. ปี 2567"
+                className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
               />
             </div>
-          </div>
-        )}
 
-        {/* Action Row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#1f1b16]/[0.08]">
-          <button
-            type="button"
-            onClick={handleAddBlankQuestion}
-            className="h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover text-paper-ink text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
-          >
-            <Plus className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
-            <span>สร้างข้อสอบเปล่า 1 ข้อ</span>
-          </button>
+            <div>
+              <label className="block text-[12px] text-paper-secondary mb-1">
+                หรือวางข้อความข้อสอบโดยตรง (ก. ข. ค. ง. พร้อมเฉลย)
+              </label>
+              <textarea
+                rows={5}
+                value={rawTextInput}
+                onChange={(e) => setRawTextInput(e.target.value)}
+                placeholder="วางโจทย์ข้อสอบพร้อมตัวเลือก ก. ข. ค. ง. ที่คัดลอกมาจากเอกสาร..."
+                className="w-full p-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] leading-[20px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              />
+            </div>
 
-          <button
-            type="button"
-            disabled={isProcessing}
-            onClick={handleProcessPdfOrText}
-            className="h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover disabled:opacity-50 text-paper-card text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>กำลังประมวลผลเอกสาร</span>
-              </>
-            ) : (
-              <span>แปลงเป็นชุดข้อสอบพร้อมเฉลย</span>
+            {isProcessing && (
+              <div className="p-3.5 rounded-[8px] bg-paper-raised space-y-2">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-paper-ink flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-paper-accent" />
+                    {progressStatus}
+                  </span>
+                  <span className="font-mono text-paper-secondary tabular-nums">
+                    {progressPercent}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-paper-bg overflow-hidden">
+                  <div
+                    className="h-full bg-paper-accent transition-all duration-200"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
             )}
-          </button>
-        </div>
-      </div>
 
-      {/* Step 2: Preview & Edit Studio */}
-      {previewQuestions.length > 0 && (
-        <div className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1f1b16]/[0.08]">
+            {errorMsg && (
+              <div className="p-3.5 rounded-[8px] bg-paper-failBg border border-paper-fail/20 text-paper-fail text-[12px] flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={handleProcessPdfOrText}
+              className="w-full h-11 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover disabled:opacity-50 text-paper-card text-[14px] font-medium flex items-center justify-center gap-2 transition-colors duration-150"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>กำลังประมวลผลและคัดกรองข้อสอบ...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" strokeWidth={1.5} />
+                  <span>เริ่มสกัดและคัดกรองข้อสอบจริง</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Right 7 Columns: Extracted Questions Preview & Save */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="font-title font-medium text-[18px] text-paper-ink">
-                ตรวจสอบและแก้ไขชุดข้อสอบก่อนบันทึก ({previewQuestions.length} ข้อ)
+                3. ตรวจสอบความถูกต้องก่อนบันทึกลงคลังกลาง ({previewQuestions.length} ข้อ)
               </h2>
-              <p className="text-[13px] text-paper-secondary mt-0.5">
-                คลิกที่วงกลม ก ข ค ง หน้าตัวเลือกเพื่อกำหนดข้อที่ถูกต้อง และแก้ไขคำอธิบายได้ตามต้องการ
+              <p className="text-[12px] text-paper-secondary mt-0.5">
+                {aiRejectedFakeCount > 0
+                  ? `คัดกรองผ่าน ${previewQuestions.length} ข้อ (ตัดข้อความที่ไม่ใช่ข้อสอบจริงออกอัตโนมัติ ${aiRejectedFakeCount} รายการ)`
+                  : "คุณสามารถแก้ไขข้อความ เลือกข้อที่ถูก และระบุสาขาวิชาเอกก่อนบันทึกเข้าสู่คลังกลางได้"}
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
+            {previewQuestions.length > 0 && (
               <button
                 type="button"
-                onClick={() => handleSaveAllToBank(false)}
-                className="h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+                onClick={handleSaveToBank}
+                className="h-10 px-4 rounded-[8px] bg-paper-pass hover:opacity-95 text-paper-card text-[13px] font-medium flex items-center gap-2 shrink-0 transition-opacity"
               >
-                <Save className="w-4 h-4 text-paper-secondary" strokeWidth={1.5} />
-                <span>บันทึกเข้าคลังข้อสอบ ({previewQuestions.length})</span>
+                <Save className="w-4 h-4" strokeWidth={1.5} />
+                <span>บันทึกเข้าคลังกลาง ({previewQuestions.length} ข้อ)</span>
               </button>
-              <button
-                type="button"
-                onClick={() => handleSaveAllToBank(true)}
-                className="h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
-              >
-                <Play className="w-4 h-4" strokeWidth={1.5} />
-                <span>บันทึกและเริ่มสอบชุดนี้</span>
-              </button>
-            </div>
+            )}
           </div>
 
-          {savedSuccess && (
-            <div className="p-4 rounded-[8px] bg-paper-passBg border border-paper-pass/20 text-paper-pass text-[13px] flex items-center justify-between">
-              <span className="flex items-center gap-2 font-medium">
-                <Check className="w-4 h-4" strokeWidth={1.5} />
-                <span>
-                  {savedAddedCount === previewQuestions.length
-                    ? `บันทึกข้อสอบใหม่ทั้ง ${savedAddedCount} ข้อ ลงในคลังข้อสอบเรียบร้อยแล้ว`
-                    : `บันทึกข้อสอบใหม่ ${savedAddedCount} ข้อ ลงคลังเรียบร้อย (ข้ามโจทย์ที่ซ้ำในคลัง ${
-                        previewQuestions.length - savedAddedCount
-                      } ข้อ)`}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => router.push("/exam")}
-                className="h-8 px-3 rounded-[6px] bg-paper-pass text-paper-card text-[12px] font-medium"
-              >
-                ไปหน้าห้องสอบ
-              </button>
+          {savedSuccess && saveReport && (
+            <div className="p-4 rounded-[10px] bg-paper-passBg border border-paper-pass/25 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-[13px] text-paper-pass font-medium">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>
+                    อัปเดตคลังข้อสอบกลางสำเร็จ! เพิ่มข้อสอบใหม่ {saveReport.addedCount} ข้อ
+                    {saveReport.duplicateCount > 0
+                      ? ` (ข้ามข้อซ้ำที่มีอยู่แล้ว ${saveReport.duplicateCount} ข้อ` +
+                        (saveReport.upgradedCount > 0
+                          ? ` • อัปเกรดคำอธิบายให้ละเอียดขึ้น ${saveReport.upgradedCount} ข้อ)`
+                          : `)`)
+                      : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push("/exam")}
+                  className="h-8 px-3.5 rounded-[6px] bg-paper-pass text-paper-card text-[12px] font-medium flex items-center gap-1.5 shrink-0"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>ไปสุ่มทำข้อสอบทันที</span>
+                </button>
+              </div>
             </div>
           )}
 
-          <div className="space-y-4">
-            {previewQuestions.map((q, qIdx) => (
-              <div
-                key={q.id}
-                className="p-5 rounded-[10px] border border-[#1f1b16]/[0.08] bg-paper-bg/50 space-y-4"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink tabular-nums">
-                      ข้อ {qIdx + 1}
-                    </span>
-                    <select
-                      value={q.category}
-                      onChange={(e) => {
-                        const newCat = e.target.value as ExamCategory;
-                        const meta = EXAM_CATEGORIES.find(
-                          (c) => c.id === newCat
-                        );
-                        handleUpdatePreviewQuestion(qIdx, {
-                          category: newCat,
-                          categoryName: meta?.shortName || "ทั่วไป",
-                        });
-                      }}
-                      className="h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-card text-[12px] text-paper-ink"
+          {previewQuestions.length === 0 ? (
+            <div className="p-12 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] text-center space-y-2">
+              <p className="text-[14px] text-paper-secondary">
+                ยังไม่มีรายการข้อสอบในหน้าตัวอย่าง
+              </p>
+              <p className="text-[12px] text-paper-muted">
+                อัปโหลดไฟล์ PDF หรือกดปุ่ม &ldquo;ลองใช้ข้อความตัวอย่าง&rdquo; ด้านซ้ายเพื่อดูผลลัพธ์การสกัดข้อสอบ
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {previewQuestions.map((q, idx) => (
+                <div
+                  key={q.id}
+                  className="p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
+                >
+                  <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08] flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[12px] px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-ink">
+                        ข้อที่ {idx + 1}
+                      </span>
+                      <select
+                        value={q.category}
+                        onChange={(e) => {
+                          const cat = e.target.value as ExamCategory;
+                          const meta = EXAM_CATEGORIES.find(
+                            (c) => c.id === cat
+                          );
+                          const maj =
+                            cat === "major"
+                              ? q.majorSubject ||
+                                effectiveMajorSubject ||
+                                MAJOR_SUBJECTS[0]
+                              : undefined;
+                          handleUpdatePreviewItem(idx, {
+                            category: cat,
+                            majorSubject: maj,
+                            categoryName:
+                              cat === "major" && maj
+                                ? `วิชาเอก: ${maj}`
+                                : meta?.shortName || "ทั่วไป",
+                          });
+                        }}
+                        className="h-7 px-2 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12px] text-paper-ink"
+                      >
+                        {EXAM_CATEGORIES.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            [{c.part}] {c.shortName}
+                          </option>
+                        ))}
+                      </select>
+
+                      {q.category === "major" && (
+                        <select
+                          value={q.majorSubject || MAJOR_SUBJECTS[0]}
+                          onChange={(e) => {
+                            const maj = e.target.value;
+                            handleUpdatePreviewItem(idx, {
+                              majorSubject: maj,
+                              categoryName: `วิชาเอก: ${maj}`,
+                            });
+                          }}
+                          className="h-7 px-2 rounded-[6px] border border-paper-accent/40 bg-paper-accent/[0.06] text-[12px] text-paper-ink font-medium"
+                        >
+                          {Array.from(
+                            new Set([
+                              ...(q.majorSubject ? [q.majorSubject] : []),
+                              ...MAJOR_SUBJECTS,
+                            ])
+                          ).map((maj) => (
+                            <option key={maj} value={maj}>
+                              เอก: {maj}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePreviewItem(idx)}
+                      className="text-paper-muted hover:text-paper-fail p-1"
+                      title="ลบข้อนี้ออก"
                     >
-                      {EXAM_CATEGORIES.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.shortName}
-                        </option>
-                      ))}
-                    </select>
+                      <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePreviewQuestion(qIdx)}
-                    className="text-[12px] text-paper-muted hover:text-paper-fail flex items-center gap-1 transition-colors duration-150"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    <span>ลบข้อนี้</span>
-                  </button>
-                </div>
-
-                {/* Question Stem */}
-                <div>
-                  <label className="block text-[12px] text-paper-muted mb-1">
-                    โจทย์คำถาม
-                  </label>
-                  <textarea
-                    value={q.question}
-                    onChange={(e) =>
-                      handleUpdatePreviewQuestion(qIdx, {
-                        question: e.target.value,
-                      })
-                    }
-                    rows={2}
-                    className="w-full p-2.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
-                  />
-                </div>
-
-                {/* 4 Options with Optical Answer Bubbles */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {q.options.map((opt, optIdx) => {
-                    const isCorrect = q.answer === optIdx;
-                    return (
-                      <div
-                        key={optIdx}
-                        className={`p-2.5 rounded-[8px] border flex items-center gap-2.5 ${
-                          isCorrect
-                            ? "border-paper-accent/50 bg-paper-accent/[0.04]"
-                            : "border-[#1f1b16]/[0.1] bg-paper-card"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleUpdatePreviewQuestion(qIdx, {
-                              answer: optIdx,
-                            })
-                          }
-                          title="คลิกเพื่อกำหนดเป็นคำตอบที่ถูกต้อง"
-                          className={`w-6 h-6 rounded-full font-mono text-[12px] flex items-center justify-center shrink-0 border transition-colors duration-150 ${
-                            isCorrect
-                              ? "bg-paper-accent text-paper-card border-paper-accent"
-                              : "border-[#1f1b16]/25 text-paper-secondary hover:border-paper-ink"
-                          }`}
-                        >
-                          {letters[optIdx]}
-                        </button>
-                        <input
-                          type="text"
-                          value={opt}
-                          onChange={(e) =>
-                            handleUpdatePreviewOption(
-                              qIdx,
-                              optIdx,
-                              e.target.value
-                            )
-                          }
-                          className="w-full bg-transparent text-[13px] text-paper-ink focus:outline-none"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Explanation & Statute Reference */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {/* Question Stem */}
                   <div>
-                    <label className="block text-[12px] text-paper-muted mb-1">
-                      คำอธิบายและเหตุผลประกอบ
+                    <label className="block text-[11px] font-mono text-paper-muted mb-1">
+                      โจทย์คำถาม
                     </label>
                     <textarea
-                      value={q.explanation}
+                      rows={2}
+                      value={q.question}
                       onChange={(e) =>
-                        handleUpdatePreviewQuestion(qIdx, {
-                          explanation: e.target.value,
+                        handleUpdatePreviewItem(idx, {
+                          question: e.target.value,
                         })
                       }
-                      rows={2}
-                      className="w-full p-2.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-card text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                      className="w-full p-2.5 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-[12px] text-paper-muted mb-1">
-                        มาตราหรือทฤษฎีอ้างอิง
+
+                  {/* 4 Options with Radio Correct Answer */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {q.options.map((opt, optIdx) => {
+                      const isCorrect = q.answer === optIdx;
+                      return (
+                        <div
+                          key={optIdx}
+                          className={`p-2.5 rounded-[8px] border flex items-center gap-2 ${
+                            isCorrect
+                              ? "border-paper-accent bg-paper-accent/[0.04]"
+                              : "border-[#1f1b16]/[0.1] bg-paper-bg/50"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdatePreviewItem(idx, { answer: optIdx })
+                            }
+                            title="คลิกเพื่อตั้งเป็นข้อที่ถูกต้อง"
+                            className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
+                              isCorrect
+                                ? "bg-paper-accent text-paper-card border-paper-accent"
+                                : "border-[#1f1b16]/25 text-paper-secondary"
+                            }`}
+                          >
+                            {letters[optIdx]}
+                          </button>
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) =>
+                              handleUpdatePreviewOption(
+                                idx,
+                                optIdx,
+                                e.target.value
+                              )
+                            }
+                            className="w-full bg-transparent text-[13px] text-paper-ink focus:outline-none"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Explanation & Law Reference */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 border-t border-[#1f1b16]/[0.06]">
+                    <div className="sm:col-span-4">
+                      <label className="block text-[11px] font-mono text-paper-muted mb-1">
+                        มาตรา / กฎหมายอ้างอิง
                       </label>
                       <input
                         type="text"
                         value={q.lawReference || ""}
                         onChange={(e) =>
-                          handleUpdatePreviewQuestion(qIdx, {
+                          handleUpdatePreviewItem(idx, {
                             lawReference: e.target.value,
                           })
                         }
-                        className="w-full h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-card font-mono text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                        placeholder="เช่น มาตรา 22 พ.ร.บ.การศึกษาฯ"
+                        className="w-full h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg font-mono text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
                       />
                     </div>
-                    <div>
-                      <label className="block text-[12px] text-paper-muted mb-1">
-                        สรุปหลักจำสั้นๆ
+                    <div className="sm:col-span-8">
+                      <label className="block text-[11px] font-mono text-paper-muted mb-1">
+                        คำอธิบายเฉลยละเอียด
                       </label>
                       <input
                         type="text"
-                        value={q.keyTakeaway || ""}
+                        value={q.explanation}
                         onChange={(e) =>
-                          handleUpdatePreviewQuestion(qIdx, {
-                            keyTakeaway: e.target.value,
+                          handleUpdatePreviewItem(idx, {
+                            explanation: e.target.value,
                           })
                         }
-                        className="w-full h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-card text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                        className="w-full h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12px] text-paper-ink focus:outline-none focus:border-paper-accent"
                       />
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

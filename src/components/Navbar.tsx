@@ -96,10 +96,6 @@ export default function Navbar() {
   useEffect(() => {
     refreshLocalMeta();
 
-    if (!hasConfirmedSyncKey()) {
-      setShowCloudModal(true);
-    }
-
     const handleSynced = () => refreshLocalMeta();
     window.addEventListener("kru-cloud-synced", handleSynced);
 
