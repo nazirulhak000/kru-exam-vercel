@@ -4,6 +4,7 @@ import {
   ExamAttempt,
   MAJOR_SUBJECTS,
   MistakeRecord,
+  QuestionComment,
   QuestionItem,
 } from "@/types/exam";
 import { SEED_QUESTIONS } from "@/lib/seed-questions";
@@ -11,9 +12,11 @@ import { SEED_QUESTIONS } from "@/lib/seed-questions";
 const KEYS = {
   USER_ID: "kru_exam_user_id_v1",
   SYNC_KEY_CONFIRMED: "kru_exam_sync_key_confirmed_v1",
+  IS_ADMIN: "kru_exam_is_admin_v1",
   CUSTOM_QUESTIONS: "kru_exam_custom_questions_v1",
   EDITED_SEEDS: "kru_exam_edited_seeds_v1",
   DELETED_QUESTION_IDS: "kru_exam_deleted_ids_v1",
+  QUESTION_COMMENTS: "kru_exam_question_comments_v1",
   ATTEMPTS_HISTORY: "kru_exam_attempts_v1",
   HISTORY_CLEARED_AT: "kru_exam_history_cleared_at_v1",
   MISTAKE_RECORDS: "kru_exam_mistakes_v1",
@@ -25,6 +28,8 @@ const KEYS = {
   LAST_CLOUD_SYNC: "kru_exam_last_cloud_sync_v1",
   CLOUD_PROVIDER: "kru_exam_cloud_provider_v1",
 };
+
+const DEFAULT_ADMIN_KEY = "kru-admin-9999";
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -66,7 +71,13 @@ export function getOrCreateUserId(): string {
   if (!isBrowser()) return "server-user";
   try {
     let uid = localStorage.getItem(KEYS.USER_ID);
-    if (!uid || (uid.startsWith("kru-") && uid.length > 14 && !hasConfirmedSyncKey())) {
+    if (
+      !uid ||
+      (uid.startsWith("kru-") &&
+        uid.length > 14 &&
+        uid !== DEFAULT_ADMIN_KEY &&
+        !hasConfirmedSyncKey())
+    ) {
       uid = generateReadableSyncKey();
       localStorage.setItem(KEYS.USER_ID, uid);
     }
@@ -78,6 +89,22 @@ export function getOrCreateUserId(): string {
 
 export function getDisplaySyncKey(): string {
   return getOrCreateUserId().toUpperCase();
+}
+
+export function isAdminMode(): boolean {
+  if (!isBrowser()) return false;
+  const uid = getOrCreateUserId();
+  if (uid === DEFAULT_ADMIN_KEY) return true;
+  return localStorage.getItem(KEYS.IS_ADMIN) === "1";
+}
+
+function setAdminModeFlag(isAdmin: boolean): void {
+  if (!isBrowser()) return;
+  if (isAdmin || getOrCreateUserId() === DEFAULT_ADMIN_KEY) {
+    localStorage.setItem(KEYS.IS_ADMIN, "1");
+  } else {
+    localStorage.removeItem(KEYS.IS_ADMIN);
+  }
 }
 
 // ==========================================
@@ -124,7 +151,6 @@ export function getAllQuestions(): QuestionItem[] {
     (q) => editedSeeds[q.id] || q
   );
 
-  // Put newly imported PDF questions first so they are easy to see
   return [...custom, ...seeds];
 }
 
@@ -214,7 +240,7 @@ export interface AddQuestionsReport {
 export function addCustomQuestionsWithReport(
   newQuestions: QuestionItem[]
 ): AddQuestionsReport {
-  if (!isBrowser()) {
+  if (!isBrowser() || !isAdminMode()) {
     return {
       addedCount: 0,
       duplicateCount: 0,
@@ -323,7 +349,7 @@ export function addCustomQuestions(newQuestions: QuestionItem[]): number {
 }
 
 export function updateQuestion(updated: QuestionItem): void {
-  if (!isBrowser()) return;
+  if (!isBrowser() || !isAdminMode()) return;
   if (updated.id.startsWith("seed-")) {
     const editedMap = getEditedSeedMap();
     editedMap[updated.id] = updated;
@@ -334,11 +360,11 @@ export function updateQuestion(updated: QuestionItem): void {
     );
     localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(custom));
   }
-  void pushLocalStateToCloud();
+  void pushLocalStateToCloud({ adminAction: "replace_shared_bank" });
 }
 
 export function deleteQuestion(id: string): void {
-  if (!isBrowser()) return;
+  if (!isBrowser() || !isAdminMode()) return;
   const deleted = getDeletedQuestionIds();
   if (!deleted.includes(id)) {
     deleted.push(id);
@@ -348,7 +374,108 @@ export function deleteQuestion(id: string): void {
     const custom = getCustomQuestions().filter((q) => q.id !== id);
     localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(custom));
   }
+  void pushLocalStateToCloud({ adminAction: "replace_shared_bank" });
+}
+
+// ==========================================
+// 1.5 ระบบคอมเมนต์และท้วงติงข้อสอบ (Shared Question Comments)
+// ==========================================
+
+export function getQuestionCommentsMap(): Record<string, QuestionComment[]> {
+  if (!isBrowser()) return {};
+  try {
+    const raw = localStorage.getItem(KEYS.QUESTION_COMMENTS);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getCommentsForQuestion(questionId: string): QuestionComment[] {
+  const map = getQuestionCommentsMap();
+  return Array.isArray(map[questionId]) ? map[questionId] : [];
+}
+
+export function addQuestionComment(params: {
+  questionId: string;
+  type: "report_wrong" | "comment";
+  suggestedAnswer?: number | null;
+  message: string;
+}): QuestionComment | null {
+  if (!isBrowser()) return null;
+  const cleanMsg = (params.message || "").trim();
+  if (!cleanMsg) return null;
+
+  const now = new Date();
+  const isAdmin = isAdminMode();
+  const comment: QuestionComment = {
+    id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    questionId: params.questionId,
+    authorKey: isAdmin ? "ADMIN (ผู้ดูแลระบบ)" : getDisplaySyncKey(),
+    isAdminAuthor: isAdmin,
+    type: params.type,
+    suggestedAnswer:
+      params.type === "report_wrong" ? params.suggestedAnswer ?? null : null,
+    message: cleanMsg.slice(0, 1000),
+    status: params.type === "report_wrong" ? "pending" : undefined,
+    createdAt: now.toISOString(),
+    displayDate: now.toLocaleString("th-TH", {
+      day: "2-digit",
+      month: "short",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
+
+  const map = getQuestionCommentsMap();
+  const list = Array.isArray(map[params.questionId])
+    ? [...map[params.questionId]]
+    : [];
+  list.push(comment);
+  map[params.questionId] = list;
+  localStorage.setItem(KEYS.QUESTION_COMMENTS, JSON.stringify(map));
   void pushLocalStateToCloud();
+  return comment;
+}
+
+export function resolveQuestionComment(
+  questionId: string,
+  commentId: string,
+  resolvedNote?: string
+): void {
+  if (!isBrowser() || !isAdminMode()) return;
+  const map = getQuestionCommentsMap();
+  const list = Array.isArray(map[questionId]) ? map[questionId] : [];
+  map[questionId] = list.map((c) =>
+    c.id === commentId
+      ? {
+          ...c,
+          status: "resolved",
+          resolvedNote:
+            resolvedNote || "แอดมินตรวจสอบและปรับปรุงข้อมูลเรียบร้อยแล้ว",
+        }
+      : c
+  );
+  localStorage.setItem(KEYS.QUESTION_COMMENTS, JSON.stringify(map));
+  void pushLocalStateToCloud({ adminAction: "replace_shared_bank" });
+}
+
+export function deleteQuestionComment(
+  questionId: string,
+  commentId: string
+): void {
+  if (!isBrowser() || !isAdminMode()) return;
+  const map = getQuestionCommentsMap();
+  const list = Array.isArray(map[questionId]) ? map[questionId] : [];
+  const next = list.filter((c) => c.id !== commentId);
+  if (next.length > 0) {
+    map[questionId] = next;
+  } else {
+    delete map[questionId];
+  }
+  localStorage.setItem(KEYS.QUESTION_COMMENTS, JSON.stringify(map));
+  void pushLocalStateToCloud({ adminAction: "replace_shared_bank" });
 }
 
 // ==========================================
@@ -635,7 +762,7 @@ export function getReadinessStats(): ReadinessStats {
 }
 
 // ==========================================
-// 6. Export / Import ข้อมูลสำรองข้ามอุปกรณ์
+// 6. Export / Import ข้อมูลสำรองข้ามอุปกรณ์ (เฉพาะ Admin)
 // ==========================================
 
 export function exportAllDataAsJson(): string {
@@ -646,6 +773,7 @@ export function exportAllDataAsJson(): string {
     customQuestions: getCustomQuestions(),
     editedSeeds: getEditedSeedMap(),
     deletedIds: getDeletedQuestionIds(),
+    questionComments: getQuestionCommentsMap(),
     attempts: getExamAttempts(),
     mistakes: getMistakeRecordsMap(),
   };
@@ -657,6 +785,12 @@ export function importAllDataFromJson(jsonStr: string): {
   message: string;
 } {
   if (!isBrowser()) return { success: false, message: "Not in browser" };
+  if (!isAdminMode()) {
+    return {
+      success: false,
+      message: "เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถนำเข้าคลังข้อสอบได้",
+    };
+  }
   try {
     const data = JSON.parse(jsonStr);
     if (Array.isArray(data.customQuestions)) {
@@ -674,6 +808,12 @@ export function importAllDataFromJson(jsonStr: string): {
         JSON.stringify(data.deletedIds)
       );
     }
+    if (data.questionComments && typeof data.questionComments === "object") {
+      localStorage.setItem(
+        KEYS.QUESTION_COMMENTS,
+        JSON.stringify(data.questionComments)
+      );
+    }
     if (Array.isArray(data.attempts)) {
       localStorage.setItem(
         KEYS.ATTEMPTS_HISTORY,
@@ -683,11 +823,11 @@ export function importAllDataFromJson(jsonStr: string): {
     if (data.mistakes && typeof data.mistakes === "object") {
       localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(data.mistakes));
     }
-    void pushLocalStateToCloud();
+    void pushLocalStateToCloud({ adminAction: "replace_shared_bank" });
     window.dispatchEvent(new Event("kru-cloud-synced"));
     return {
       success: true,
-      message: "นำเข้าข้อมูลคลังข้อสอบและประวัติการสอบสำเร็จเรียบร้อย!",
+      message: "นำเข้าข้อมูลคลังข้อสอบสำเร็จเรียบร้อย!",
     };
   } catch (e) {
     console.error(e);
@@ -754,10 +894,14 @@ export function saveCloudflareConfig(config: {
 
 function buildCloudHeaders(): Record<string, string> {
   const cf = getCloudflareConfig();
+  const uid = getOrCreateUserId();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "x-kru-user-id": getOrCreateUserId(),
+    "x-kru-user-id": uid,
   };
+  if (isAdminMode()) {
+    headers["x-kru-admin-key"] = uid;
+  }
   if (cf.accountId && cf.apiToken) {
     headers["x-cf-account-id"] = cf.accountId;
     headers["x-cf-api-token"] = cf.apiToken;
@@ -768,7 +912,9 @@ function buildCloudHeaders(): Record<string, string> {
   return headers;
 }
 
-export async function pushLocalStateToCloud(): Promise<{
+export async function pushLocalStateToCloud(options?: {
+  adminAction?: "replace_shared_bank";
+}): Promise<{
   ok: boolean;
   provider?: string;
   databaseId?: string;
@@ -783,8 +929,10 @@ export async function pushLocalStateToCloud(): Promise<{
       customQuestions: getCustomQuestions(),
       editedSeeds: getEditedSeedMap(),
       deletedIds: getDeletedQuestionIds(),
+      questionComments: getQuestionCommentsMap(),
       attempts: getExamAttempts(),
       mistakes: getMistakeRecordsMap(),
+      adminAction: options?.adminAction,
     };
 
     const res = await fetch("/api/cloud-sync", {
@@ -794,6 +942,39 @@ export async function pushLocalStateToCloud(): Promise<{
     });
     const data = await res.json();
     if (res.ok && data.ok) {
+      setAdminModeFlag(Boolean(data.isAdmin));
+      if (data.sharedData) {
+        if (Array.isArray(data.sharedData.customQuestions)) {
+          localStorage.setItem(
+            KEYS.CUSTOM_QUESTIONS,
+            JSON.stringify(data.sharedData.customQuestions)
+          );
+        }
+        if (
+          data.sharedData.editedSeeds &&
+          typeof data.sharedData.editedSeeds === "object"
+        ) {
+          localStorage.setItem(
+            KEYS.EDITED_SEEDS,
+            JSON.stringify(data.sharedData.editedSeeds)
+          );
+        }
+        if (Array.isArray(data.sharedData.deletedIds)) {
+          localStorage.setItem(
+            KEYS.DELETED_QUESTION_IDS,
+            JSON.stringify(data.sharedData.deletedIds)
+          );
+        }
+        if (
+          data.sharedData.questionComments &&
+          typeof data.sharedData.questionComments === "object"
+        ) {
+          localStorage.setItem(
+            KEYS.QUESTION_COMMENTS,
+            JSON.stringify(data.sharedData.questionComments)
+          );
+        }
+      }
       const nowIso = new Date().toISOString();
       localStorage.setItem(KEYS.LAST_CLOUD_SYNC, nowIso);
       if (data.provider) {
@@ -840,65 +1021,58 @@ export async function syncWithCloudDatabase(): Promise<{
       };
     }
 
+    setAdminModeFlag(Boolean(result.isAdmin));
+
     const remote = result.data || {};
-    const localCustom = getCustomQuestions();
-    const localEdited = getEditedSeedMap();
-    const localDeleted = getDeletedQuestionIds();
     const localAttempts = getExamAttempts();
     const localMistakes = getMistakeRecordsMap();
+    const localComments = getQuestionCommentsMap();
 
-    // 1. Merge deleted IDs (เฉพาะรายการที่ผู้ใช้คนนี้เคยกดซ่อนไว้เอง)
-    const mergedDeletedSet = new Set<string>([
-      ...localDeleted,
-      ...(Array.isArray(remote.deletedIds) ? remote.deletedIds : []),
-    ]);
-    const mergedDeleted = Array.from(mergedDeletedSet);
+    // 1. คลังข้อสอบกลาง (ยึดตามข้อมูลของ Admin จาก Cloud เป็นหลัก)
+    const remoteDeleted: string[] = Array.isArray(remote.deletedIds)
+      ? remote.deletedIds
+      : [];
+    const deletedSet = new Set(remoteDeleted);
 
-    // 2. Merge custom questions from Shared Bank (Deduplicate by Fingerprint, excluding locally hidden)
-    const fingerprintMap = new Map<string, QuestionItem>();
-    if (Array.isArray(remote.customQuestions)) {
-      remote.customQuestions.forEach((q: QuestionItem) => {
-        if (!q || !validateAuthenticQuestion(q).valid) return;
-        const fp = getQuestionFingerprint(q);
-        if (fp && !mergedDeletedSet.has(q.id)) {
-          fingerprintMap.set(fp, q);
+    const remoteCustom: QuestionItem[] = Array.isArray(remote.customQuestions)
+      ? remote.customQuestions.filter(
+          (q: QuestionItem) =>
+            q && validateAuthenticQuestion(q).valid && !deletedSet.has(q.id)
+        )
+      : getCustomQuestions();
+
+    const remoteEdited: Record<string, QuestionItem> =
+      remote.editedSeeds && typeof remote.editedSeeds === "object"
+        ? remote.editedSeeds
+        : {};
+
+    // 2. Merge Question Comments
+    const remoteComments: Record<string, QuestionComment[]> =
+      remote.questionComments && typeof remote.questionComments === "object"
+        ? remote.questionComments
+        : {};
+    const mergedComments: Record<string, QuestionComment[]> = {
+      ...remoteComments,
+    };
+    let hasUnsyncedLocalComment = false;
+    Object.entries(localComments).forEach(([qId, cList]) => {
+      if (!Array.isArray(cList)) return;
+      const existingList = Array.isArray(mergedComments[qId])
+        ? [...mergedComments[qId]]
+        : [];
+      const existingIds = new Set(existingList.map((c) => c.id));
+      cList.forEach((c) => {
+        if (c && c.id && !existingIds.has(c.id)) {
+          existingList.push(c);
+          hasUnsyncedLocalComment = true;
         }
       });
-    }
-    localCustom.forEach((q) => {
-      if (!q || !validateAuthenticQuestion(q).valid) return;
-      const fp = getQuestionFingerprint(q);
-      if (!fp || mergedDeletedSet.has(q.id)) return;
-      const existing = fingerprintMap.get(fp);
-      if (!existing) {
-        fingerprintMap.set(fp, q);
-      } else {
-        const localExpLen = (q.explanation || "").length;
-        const remExpLen = (existing.explanation || "").length;
-        if (
-          localExpLen > remExpLen ||
-          (!existing.majorSubject && q.majorSubject)
-        ) {
-          fingerprintMap.set(fp, {
-            ...existing,
-            majorSubject: existing.majorSubject || q.majorSubject,
-            explanation:
-              localExpLen > remExpLen ? q.explanation : existing.explanation,
-          });
-        }
+      if (existingList.length > 0) {
+        mergedComments[qId] = existingList;
       }
     });
-    const mergedCustom = Array.from(fingerprintMap.values());
 
-    // 3. Merge edited seeds
-    const mergedEdited: Record<string, QuestionItem> = {
-      ...(remote.editedSeeds && typeof remote.editedSeeds === "object"
-        ? remote.editedSeeds
-        : {}),
-      ...localEdited,
-    };
-
-    // 4. Merge exam attempts (Union by ID, respecting historyClearedAt, sort newest first)
+    // 3. Merge exam attempts (Union by ID, respecting historyClearedAt, sort newest first)
     const localClearedAt = localStorage.getItem(KEYS.HISTORY_CLEARED_AT) || "";
     const remoteClearedAt =
       typeof remote.historyClearedAt === "string"
@@ -933,7 +1107,7 @@ export async function syncWithCloudDatabase(): Promise<{
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
       .slice(0, 100);
 
-    // 5. Merge mistake records (newest lastAttemptAt wins for status flags)
+    // 4. Merge mistake records
     const remoteMistakes: Record<string, MistakeRecord> =
       remote.mistakes && typeof remote.mistakes === "object"
         ? (remote.mistakes as Record<string, MistakeRecord>)
@@ -964,10 +1138,14 @@ export async function syncWithCloudDatabase(): Promise<{
     // Save merged state to localStorage
     localStorage.setItem(
       KEYS.DELETED_QUESTION_IDS,
-      JSON.stringify(mergedDeleted)
+      JSON.stringify(remoteDeleted)
     );
-    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(mergedCustom));
-    localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(mergedEdited));
+    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(remoteCustom));
+    localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(remoteEdited));
+    localStorage.setItem(
+      KEYS.QUESTION_COMMENTS,
+      JSON.stringify(mergedComments)
+    );
     localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(mergedAttempts));
     localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(mergedMistakes));
 
@@ -980,20 +1158,13 @@ export async function syncWithCloudDatabase(): Promise<{
       localStorage.setItem(KEYS.CF_DB_ID, result.databaseId);
     }
 
-    const remoteCustomCount = Array.isArray(remote.customQuestions)
-      ? remote.customQuestions.length
-      : 0;
     const remoteAttemptCount = Array.isArray(remote.attempts)
       ? remote.attempts.length
       : 0;
-    const remoteDeletedCount = Array.isArray(remote.deletedIds)
-      ? remote.deletedIds.length
-      : 0;
 
     if (
-      mergedCustom.length > remoteCustomCount ||
+      hasUnsyncedLocalComment ||
       mergedAttempts.length !== remoteAttemptCount ||
-      mergedDeleted.length > remoteDeletedCount ||
       localClearedAt > remoteClearedAt
     ) {
       await pushLocalStateToCloud();
@@ -1019,6 +1190,7 @@ export async function switchUserSyncKey(
 ): Promise<{
   ok: boolean;
   userId: string;
+  isAdmin: boolean;
   attemptCount: number;
   sharedQuestionCount: number;
   hasExistingRecord: boolean;
@@ -1029,6 +1201,7 @@ export async function switchUserSyncKey(
     return {
       ok: false,
       userId: getOrCreateUserId(),
+      isAdmin: isAdminMode(),
       attemptCount: 0,
       sharedQuestionCount: 0,
       hasExistingRecord: false,
@@ -1038,11 +1211,11 @@ export async function switchUserSyncKey(
   }
 
   localStorage.setItem(KEYS.USER_ID, cleanKey);
+  setAdminModeFlag(cleanKey === DEFAULT_ADMIN_KEY);
 
   if (mode === "start_fresh") {
     localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
     localStorage.removeItem(KEYS.MISTAKE_RECORDS);
-    localStorage.removeItem(KEYS.DELETED_QUESTION_IDS);
     localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
     localStorage.removeItem(KEYS.ACTIVE_SESSION);
   }
@@ -1059,6 +1232,7 @@ export async function switchUserSyncKey(
       return {
         ok: false,
         userId: cleanKey,
+        isAdmin: isAdminMode(),
         attemptCount: 0,
         sharedQuestionCount: getCustomQuestions().length,
         hasExistingRecord: false,
@@ -1066,6 +1240,8 @@ export async function switchUserSyncKey(
           result.error || result.message || "ไม่สามารถดึงข้อมูลจาก Cloud ได้",
       };
     }
+
+    setAdminModeFlag(Boolean(result.isAdmin));
 
     const remote = result.data || {};
     const remoteAttempts: ExamAttempt[] = Array.isArray(remote.attempts)
@@ -1078,6 +1254,14 @@ export async function switchUserSyncKey(
     const remoteDeleted: string[] = Array.isArray(remote.deletedIds)
       ? remote.deletedIds
       : [];
+    const remoteEdited: Record<string, QuestionItem> =
+      remote.editedSeeds && typeof remote.editedSeeds === "object"
+        ? remote.editedSeeds
+        : {};
+    const remoteComments: Record<string, QuestionComment[]> =
+      remote.questionComments && typeof remote.questionComments === "object"
+        ? remote.questionComments
+        : {};
     const remoteClearedAt: string =
       typeof remote.historyClearedAt === "string"
         ? remote.historyClearedAt
@@ -1089,6 +1273,12 @@ export async function switchUserSyncKey(
       KEYS.DELETED_QUESTION_IDS,
       JSON.stringify(remoteDeleted)
     );
+    localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(remoteEdited));
+    localStorage.setItem(
+      KEYS.QUESTION_COMMENTS,
+      JSON.stringify(remoteComments)
+    );
+
     if (remoteClearedAt) {
       localStorage.setItem(KEYS.HISTORY_CLEARED_AT, remoteClearedAt);
     } else {
@@ -1096,23 +1286,10 @@ export async function switchUserSyncKey(
     }
     localStorage.removeItem(KEYS.ACTIVE_SESSION);
 
-    const localCustom = getCustomQuestions();
-    const fpMap = new Map<string, QuestionItem>();
-    if (Array.isArray(remote.customQuestions)) {
-      remote.customQuestions.forEach((q: QuestionItem) => {
-        if (q && validateAuthenticQuestion(q).valid) {
-          fpMap.set(getQuestionFingerprint(q), q);
-        }
-      });
-    }
-    localCustom.forEach((q) => {
-      if (q && validateAuthenticQuestion(q).valid) {
-        const fp = getQuestionFingerprint(q);
-        if (!fpMap.has(fp)) fpMap.set(fp, q);
-      }
-    });
-    const mergedCustom = Array.from(fpMap.values());
-    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(mergedCustom));
+    const remoteCustom: QuestionItem[] = Array.isArray(remote.customQuestions)
+      ? remote.customQuestions
+      : getCustomQuestions();
+    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(remoteCustom));
 
     const nowIso = new Date().toISOString();
     localStorage.setItem(KEYS.LAST_CLOUD_SYNC, nowIso);
@@ -1127,15 +1304,17 @@ export async function switchUserSyncKey(
     return {
       ok: true,
       userId: cleanKey,
+      isAdmin: Boolean(result.isAdmin),
       attemptCount: remoteAttempts.length,
-      sharedQuestionCount: mergedCustom.length,
-      hasExistingRecord: Boolean(result.hasExistingUserRecord),
+      sharedQuestionCount: remoteCustom.length,
+      hasExistingRecord: Boolean(result.hasExistingRecord),
     };
   } catch (e) {
     window.dispatchEvent(new Event("kru-cloud-synced"));
     return {
       ok: false,
       userId: cleanKey,
+      isAdmin: isAdminMode(),
       attemptCount: 0,
       sharedQuestionCount: getCustomQuestions().length,
       hasExistingRecord: false,

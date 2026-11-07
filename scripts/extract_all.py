@@ -81,29 +81,36 @@ pdf_configs = [
         'set': 11,
         'start_q': 1001,
         'end_q': 1100,
-        'source': 'ชุดที่ 11: เติมเต็มหมวด Law และ General (ข้อ 1001-1100)',
+        'source': 'ชุดที่ 11: เติมเต็มหมวด Law และ General ครบ 200 ข้อ (ข้อ 1001-1100)',
         'path': r'C:\Users\nazir\Downloads\รวมข้อสอบครูผู้ช่วย ชุดที่ 11 (ข้อ 1001-1100 เติมเต็มหมวด Law และ General ครบ 200 ข้อ).pdf'
     },
     {
         'set': 12,
         'start_q': 1101,
         'end_q': 1200,
-        'source': 'ชุดที่ 12: หมวดข้าราชการที่ดีและวินัยล้วน (ข้อ 1101-1200)',
+        'source': 'ชุดที่ 12: หมวดข้าราชการที่ดีและวินัยล้วน 100 ข้อ (ข้อ 1101-1200)',
         'path': r'C:\Users\nazir\Downloads\รวมข้อสอบครูผู้ช่วย ชุดที่ 12 (ข้อ 1101-1200 หมวดข้าราชการที่ดีและวินัยล้วน 100 ข้อ).pdf'
     },
     {
         'set': 13,
         'start_q': 1201,
         'end_q': 1300,
-        'source': 'ชุดที่ 13: เติมเต็มหมวด Gov และ English (ข้อ 1201-1300)',
+        'source': 'ชุดที่ 13: เติมเต็มหมวด Gov ครบ 200 ข้อ และเพิ่ม English (ข้อ 1201-1300)',
         'path': r'C:\Users\nazir\Downloads\รวมข้อสอบครูผู้ช่วย ชุดที่ 13 (ข้อ 1201-1300 เติมเต็มหมวด Gov ครบ 200 ข้อ และเพิ่ม English).pdf'
     },
     {
         'set': 14,
         'start_q': 1301,
         'end_q': 1410,
-        'source': 'ชุดที่ 14: หมวดภาษาอังกฤษล้วน (ข้อ 1301-1410)',
+        'source': 'ชุดที่ 14: หมวดภาษาอังกฤษล้วน 110 ข้อ (ข้อ 1301-1410)',
         'path': r'C:\Users\nazir\Downloads\รวมข้อสอบครูผู้ช่วย ชุดที่ 14 (ข้อ 1301-1410 หมวดภาษาอังกฤษล้วน 110 ข้อ ครบทุกหมวด).pdf'
+    },
+    {
+        'set': 15,
+        'start_q': 1411,
+        'end_q': 1510,
+        'source': 'ชุดที่ 15: หมวด Gov 10 ข้อ และ General 90 ข้อ (ข้อ 1411-1510)',
+        'path': r'C:\Users\nazir\Downloads\รวมข้อสอบครูผู้ช่วย ชุดที่ 15 (ข้อ 1411-1510 หมวด Gov 10 ข้อ และ General 90 ข้อ).pdf'
     },
 ]
 
@@ -116,7 +123,7 @@ def clean_lines(text):
             continue
         if re.search(r'Page\s+\d+\s+of\s+\d+', s, re.I):
             continue
-        if s.startswith('คลังข้อสอบ') or s.startswith('โครงการคลังข้อสอบ') or s.startswith('โครงการเติมเต็ม'):
+        if s.startswith('คลังข้อสอบ') or s.startswith('โครงการคลังข้อสอบ'):
             continue
         if re.match(r'^(?:หมวดที่\s*\d+|ส่วนที่\s*1)\s*:', s):
             continue
@@ -124,7 +131,8 @@ def clean_lines(text):
     return '\n'.join(cleaned)
 
 def strip_noise(text):
-    t = re.sub(r'(?:คลังข้อสอบ|โครงการคลังข้อสอบ|โครงการเติมเต็ม)[^\n]+', '', text)
+    t = re.sub(r'คลังข้อสอบ[^\n]+', '', text)
+    t = re.sub(r'โครงการคลังข้อสอบ[^\n]+', '', t)
     t = re.sub(r'(?:^|\n)\s*(?:หมวดที่\s*\d+|ส่วนที่\s*1)\s*:[^\n]+', '', t)
     t = re.sub(r'Page\s+\d+\s+of\s+\d+', '', t, flags=re.I)
     return t.strip()
@@ -132,6 +140,9 @@ def strip_noise(text):
 all_extracted = []
 
 for cfg in pdf_configs:
+    if not os.path.exists(cfg['path']):
+        print(f"Skipping set {cfg['set']} - file not found yet")
+        continue
     doc = pymupdf.open(cfg['path'])
     full_text = ''
     for p in doc:
@@ -173,17 +184,17 @@ for cfg in pdf_configs:
             
     for q_num in range(cfg['start_q'], cfg['end_q'] + 1):
         if q_num not in q_dict:
-            print(f"ERROR: Missing Q{q_num} in Set {cfg['set']}")
+            print("ERROR: Missing Q{} in Set {}".format(q_num, cfg['set']))
             continue
         if q_num not in ans_dict:
-            print(f"ERROR: Missing Ans for Q{q_num} in Set {cfg['set']}")
+            print("ERROR: Missing Ans for Q{} in Set {}".format(q_num, cfg['set']))
             continue
             
         block = q_dict[q_num].replace('\xa0', ' ')
-        opt_pattern = r'(?:^|\s)ก\.(?!\s*(?:ค\.ศ|พ\.|ท\.จ|ศ\.จ))\s*([\s\S]+?)(?:^|\s)ข\.(?!\s*(?:ร\.|จ\.))\s*([\s\S]+?)(?:^|\s)ค\.(?!\s*ศ\.)\s*([\s\S]+?)(?:^|\s)ง\.(?!\s*ป\.)\s*([\s\S]+)$'
+        opt_pattern = r'(?:^|\s)ก\.\s*(?!(?:ค\.ศ|พ\.|ค\.|ท\.จ|ศ\.จ)\b)\s*([\s\S]+?)(?:^|\s)ข\.\s*(?!(?:ร\.|จ\.)\b)\s*([\s\S]+?)(?:^|\s)ค\.\s*(?!ศ\.\b)\s*([\s\S]+?)(?:^|\s)ง\.\s*(?!ป\.\b)\s*([\s\S]+)$'
         opt_match = re.search(opt_pattern, block)
         if not opt_match:
-            print(f"ERROR: Opt match failed for Q{q_num}")
+            print("ERROR: Opt match failed for Q{}".format(q_num))
             continue
             
         stem = block[:opt_match.start()].strip()
@@ -197,9 +208,35 @@ for cfg in pdf_configs:
             strip_noise(opt_match.group(4).strip()).replace('\n', ' ')
         ]
         
-        # Categorization
-        major_subject = None
-        if 1 <= q_num <= 600:
+        # Determine category
+        if 601 <= q_num <= 1000:
+            category = 'major'
+            category_name = 'วิชาเอกการศึกษาปฐมวัย'
+        elif 1001 <= q_num <= 1050:
+            category = 'law'
+            category_name = 'กฎหมายการศึกษา'
+        elif 1051 <= q_num <= 1100:
+            category = 'general'
+            category_name = 'คิดวิเคราะห์ (ก.)'
+        elif 1101 <= q_num <= 1200:
+            category = 'gov'
+            category_name = 'ข้าราชการที่ดี & วินัย'
+        elif 1201 <= q_num <= 1258:
+            category = 'gov'
+            category_name = 'ข้าราชการที่ดี & วินัย'
+        elif 1259 <= q_num <= 1410:
+            category = 'english'
+            category_name = 'ภาษาอังกฤษ (ก.)'
+        elif 1411 <= q_num <= 1420:
+            category = 'gov'
+            category_name = 'ข้าราชการที่ดี & วินัย'
+        elif 1421 <= q_num <= 1510:
+            category = 'general'
+            category_name = 'คิดวิเคราะห์ (ก.)'
+        elif 1511 <= q_num <= 1610:
+            category = 'general'
+            category_name = 'คิดวิเคราะห์ (ก.)'
+        else:
             rem = (q_num - 1) % 100 + 1
             if 1 <= rem <= 30:
                 comb = (stem + ' ' + ' '.join(opts)).lower()
@@ -222,37 +259,8 @@ for cfg in pdf_configs:
             else:
                 category = 'pedagogy'
                 category_name = 'วิชาชีพครู & การสอน'
-        elif 601 <= q_num <= 1000:
-            category = 'major'
-            category_name = 'วิชาเอก: ปฐมวัย'
-            major_subject = 'ปฐมวัย'
-        elif 1001 <= q_num <= 1100:
-            if 1001 <= q_num <= 1024:
-                category = 'law'
-                category_name = 'กฎหมายการศึกษา'
-            elif 1025 <= q_num <= 1092:
-                category = 'general'
-                category_name = 'คิดวิเคราะห์ (ก.)'
-            else:
-                category = 'gov'
-                category_name = 'ข้าราชการที่ดี & วินัย'
-        elif 1101 <= q_num <= 1200:
-            category = 'gov'
-            category_name = 'ข้าราชการที่ดี & วินัย'
-        elif 1201 <= q_num <= 1300:
-            if 1201 <= q_num <= 1258:
-                category = 'gov'
-                category_name = 'ข้าราชการที่ดี & วินัย'
-            else:
-                category = 'english'
-                category_name = 'ภาษาอังกฤษ (ก.)'
-        elif 1301 <= q_num <= 1410:
-            category = 'english'
-            category_name = 'ภาษาอังกฤษ (ก.)'
-        else:
-            category = 'general'
-            category_name = 'คิดวิเคราะห์ (ก.)'
-            
+                
+        # Extract law reference if present
         exp_text = ans_dict[q_num]['explanation'].replace('\n', ' ')
         law_ref = None
         law_match = re.search(r'(?:ตาม|อ้างอิง)\s*(มาตรา\s*\d+[^\n,()—]+|พ\.ร\.บ\.[^\n,()—]+|ระเบียบ[^\n,()—]+)', exp_text)
@@ -269,25 +277,22 @@ for cfg in pdf_configs:
             'answer': ans_dict[q_num]['choice_idx'],
             'explanation': exp_text,
         }
-        if major_subject:
-            item['majorSubject'] = major_subject
         if law_ref:
             item['lawReference'] = law_ref
             
         all_extracted.append(item)
 
-print(f"SUCCESS! Total questions extracted: {len(all_extracted)}")
+print("SUCCESS! Total questions extracted: {}".format(len(all_extracted)))
 cats = {}
 for q in all_extracted:
     cats[q['category']] = cats.get(q['category'], 0) + 1
 print('Categories breakdown:', cats)
 
-output_path_all = r'd:\Programmer\All Project\kru-exam-vercel\src\lib\kru-1000-questions.json'
-with open(output_path_all, 'w', encoding='utf-8') as f:
+output_path_1000 = r'd:\Programmer\All Project\kru-exam-vercel\src\lib\kru-1000-questions.json'
+with open(output_path_1000, 'w', encoding='utf-8') as f:
     json.dump(all_extracted, f, ensure_ascii=False, indent=2)
-print(f"Saved {len(all_extracted)} questions JSON to {output_path_all} (size: {os.path.getsize(output_path_all):,} bytes)")
+print("Saved all questions JSON to {} (size: {:,} bytes)".format(output_path_1000, os.path.getsize(output_path_1000)))
 
-# Keep 800 file in sync as well
 output_path_800 = r'd:\Programmer\All Project\kru-exam-vercel\src\lib\kru-800-questions.json'
 with open(output_path_800, 'w', encoding='utf-8') as f:
     json.dump(all_extracted, f, ensure_ascii=False, indent=2)

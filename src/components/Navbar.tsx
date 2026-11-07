@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Play,
   RefreshCw,
+  ShieldCheck,
   Shuffle,
   X,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import {
   getCloudflareConfig,
   getDisplaySyncKey,
   hasConfirmedSyncKey,
+  isAdminMode,
   markSyncKeyConfirmed,
   switchUserSyncKey,
   syncWithCloudDatabase,
@@ -33,30 +35,35 @@ const NAV_ITEMS = [
     label: "ภาพรวมความพร้อม",
     shortLabel: "หน้าแรก",
     icon: LayoutDashboard,
+    adminOnly: false,
   },
   {
     href: "/exam",
     label: "ห้องสอบจำลอง",
     shortLabel: "ห้องสอบ",
     icon: Play,
+    adminOnly: false,
   },
   {
     href: "/upload",
-    label: "นำเข้าไฟล์ PDF",
+    label: "นำเข้าไฟล์ PDF (Admin)",
     shortLabel: "นำเข้า PDF",
     icon: FileUp,
+    adminOnly: true,
   },
   {
     href: "/bank",
     label: "คลังข้อสอบ",
     shortLabel: "คลังข้อสอบ",
     icon: BookOpen,
+    adminOnly: false,
   },
   {
     href: "/history",
     label: "ประวัติและจุดควรทวน",
     shortLabel: "ประวัติสอบ",
     icon: History,
+    adminOnly: false,
   },
 ];
 
@@ -68,6 +75,7 @@ export default function Navbar() {
   const [showCloudModal, setShowCloudModal] = useState(false);
 
   const [currentSyncKey, setCurrentSyncKey] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [targetSyncKeyInput, setTargetSyncKeyInput] = useState<string>("");
   const [copiedKey, setCopiedKey] = useState(false);
 
@@ -80,6 +88,7 @@ export default function Navbar() {
     const cfg = getCloudflareConfig();
     const dispKey = getDisplaySyncKey();
     setCurrentSyncKey(dispKey);
+    setIsAdmin(isAdminMode());
     setProvider(cfg.provider || "");
     setLastSyncedAt(cfg.lastSyncedAt || "");
   };
@@ -87,7 +96,6 @@ export default function Navbar() {
   useEffect(() => {
     refreshLocalMeta();
 
-    // หากเพิ่งเข้าเว็บและยังไม่เคยยืนยันรหัสประจำตัวผู้สอบ ให้เด้งหน้าต่างให้ตั้ง/ยืนยันรหัสทันที
     if (!hasConfirmedSyncKey()) {
       setShowCloudModal(true);
     }
@@ -105,6 +113,10 @@ export default function Navbar() {
       window.removeEventListener("kru-cloud-synced", handleSynced);
     };
   }, []);
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.adminOnly || isAdmin
+  );
 
   const handleCopySyncKey = async () => {
     if (!currentSyncKey) return;
@@ -141,14 +153,21 @@ export default function Navbar() {
     setTargetSyncKeyInput("");
 
     if (res.ok) {
-      setStatusMessage({
-        type: "pass",
-        text: res.hasExistingRecord
-          ? `สลับเป็นรหัส ${res.userId.toUpperCase()} สำเร็จ! ดึงประวัติการสอบ ${
-              res.attemptCount
-            } ครั้ง และคลังข้อสอบกลางเรียบร้อยแล้ว`
-          : `ตั้งรหัสประจำตัวเป็น ${res.userId.toUpperCase()} เรียบร้อยแล้ว (พร้อมบันทึกประวัติการสอบแยกเฉพาะคุณ)`,
-      });
+      if (res.isAdmin) {
+        setStatusMessage({
+          type: "pass",
+          text: "🛡️ เปิดใช้งานโหมดผู้ดูแลระบบ (Admin) สำเร็จ! คุณสามารถนำเข้า PDF, แก้ไข/ลบข้อสอบ และจัดการคอมเมนต์ท้วงติงได้แล้ว",
+        });
+      } else {
+        setStatusMessage({
+          type: "pass",
+          text: res.hasExistingRecord
+            ? `สลับเป็นรหัส ${res.userId.toUpperCase()} สำเร็จ! ดึงประวัติการสอบ ${
+                res.attemptCount
+              } ครั้ง และคลังข้อสอบกลางเรียบร้อยแล้ว`
+            : `ตั้งรหัสประจำตัวเป็น ${res.userId.toUpperCase()} เรียบร้อยแล้ว (พร้อมบันทึกประวัติการสอบแยกเฉพาะคุณ)`,
+        });
+      }
     } else {
       setStatusMessage({
         type: "fail",
@@ -197,7 +216,7 @@ export default function Navbar() {
 
               {/* Desktop Navigation */}
               <nav className="hidden lg:flex items-center gap-1">
-                {NAV_ITEMS.map((item) => {
+                {visibleNavItems.map((item) => {
                   const Icon = item.icon;
                   const isActive =
                     item.href === "/"
@@ -236,7 +255,11 @@ export default function Navbar() {
                   setStatusMessage(null);
                   setShowCloudModal(true);
                 }}
-                className="h-9 px-3 rounded-[8px] bg-paper-card hover:bg-paper-raised border border-[#1f1b16]/[0.12] text-[12px] text-paper-secondary hover:text-paper-ink flex items-center gap-2 transition-colors duration-150 ease-calm"
+                className={`h-9 px-3 rounded-[8px] border text-[12px] flex items-center gap-2 transition-colors duration-150 ease-calm ${
+                  isAdmin
+                    ? "bg-paper-passBg border-paper-pass/30 text-paper-pass font-medium"
+                    : "bg-paper-card hover:bg-paper-raised border-[#1f1b16]/[0.12] text-paper-secondary hover:text-paper-ink"
+                }`}
                 title="คลิกเพื่อดูหรือเปลี่ยนรหัสประจำตัวผู้สอบ (Sync Key)"
               >
                 {syncing ? (
@@ -244,6 +267,8 @@ export default function Navbar() {
                     className="w-3.5 h-3.5 text-paper-accent animate-spin"
                     strokeWidth={1.5}
                   />
+                ) : isAdmin ? (
+                  <ShieldCheck className="w-4 h-4 text-paper-pass shrink-0" />
                 ) : (
                   <span
                     className={`w-2 h-2 rounded-full ${
@@ -251,13 +276,21 @@ export default function Navbar() {
                     }`}
                   />
                 )}
-                <KeyRound className="w-3.5 h-3.5 text-paper-accent" />
-                <span className="text-paper-secondary hidden sm:inline">
-                  รหัสผู้สอบ:
-                </span>
-                <span className="font-mono font-semibold text-paper-ink">
-                  {currentSyncKey || "ตั้งรหัสสอบ"}
-                </span>
+                {isAdmin ? (
+                  <span className="font-mono font-semibold">
+                    โหมดแอดมิน (ADMIN)
+                  </span>
+                ) : (
+                  <>
+                    <KeyRound className="w-3.5 h-3.5 text-paper-accent" />
+                    <span className="text-paper-secondary hidden sm:inline">
+                      รหัสผู้สอบ:
+                    </span>
+                    <span className="font-mono font-semibold text-paper-ink">
+                      {currentSyncKey || "ตั้งรหัสสอบ"}
+                    </span>
+                  </>
+                )}
               </button>
 
               <Link
@@ -271,7 +304,7 @@ export default function Navbar() {
 
           {/* Mobile / Tablet Navigation */}
           <nav className="flex lg:hidden items-center gap-1 overflow-x-auto pb-2 custom-scrollbar">
-            {NAV_ITEMS.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 item.href === "/"
@@ -307,12 +340,21 @@ export default function Navbar() {
             <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#1f1b16]/[0.08]">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <KeyRound
-                    className="w-4 h-4 text-paper-accent"
-                    strokeWidth={1.5}
-                  />
+                  {isAdmin ? (
+                    <ShieldCheck
+                      className="w-4 h-4 text-paper-pass"
+                      strokeWidth={1.5}
+                    />
+                  ) : (
+                    <KeyRound
+                      className="w-4 h-4 text-paper-accent"
+                      strokeWidth={1.5}
+                    />
+                  )}
                   <h2 className="font-title font-semibold text-[18px] text-paper-ink">
-                    ระบุรหัสประจำตัวผู้สอบของคุณ (Personal Sync Key)
+                    {isAdmin
+                      ? "สถานะผู้ดูแลระบบ (Admin Mode)"
+                      : "ระบุรหัสประจำตัวผู้สอบของคุณ (Personal Sync Key)"}
                   </h2>
                 </div>
                 <p className="text-[13px] text-paper-secondary">
@@ -332,7 +374,7 @@ export default function Navbar() {
             <div className="p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.1] space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-medium text-paper-secondary">
-                  รหัสประจำตัวผู้สอบปัจจุบันของเครื่องนี้:
+                  รหัสประจำตัวปัจจุบันของเครื่องนี้:
                 </span>
                 <span className="text-[12px] font-medium text-paper-pass flex items-center gap-1.5">
                   <Cloud className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -343,8 +385,15 @@ export default function Navbar() {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-[8px] bg-paper-card border border-[#1f1b16]/[0.08]">
-                <div className="font-mono font-semibold text-[22px] tracking-wider text-paper-ink">
-                  {currentSyncKey}
+                <div className="flex items-center gap-2">
+                  <div className="font-mono font-semibold text-[22px] tracking-wider text-paper-ink">
+                    {currentSyncKey}
+                  </div>
+                  {isAdmin && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass">
+                      สิทธิ์แอดมินสูงสุด
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -369,10 +418,10 @@ export default function Navbar() {
                     onClick={handleGenerateNewProfile}
                     disabled={syncing}
                     className="h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.1] hover:bg-paper-raised text-[12px] text-paper-secondary hover:text-paper-ink flex items-center gap-1 transition-colors"
-                    title="สุ่มรหัสผู้สอบใหม่เพื่อเริ่มเก็บประวัติใหม่"
+                    title="สุ่มรหัสผู้สอบใหม่เพื่อเริ่มเก็บประวัติใหม่ (และออกจากโหมดแอดมิน)"
                   >
                     <Shuffle className="w-3.5 h-3.5" />
-                    <span>สุ่มรหัสใหม่</span>
+                    <span>{isAdmin ? "สลับเป็นผู้สอบทั่วไป" : "สุ่มรหัสใหม่"}</span>
                   </button>
                 </div>
               </div>
@@ -423,7 +472,7 @@ export default function Navbar() {
                 </button>
               </div>
               <p className="text-[11.5px] text-paper-muted">
-                * หากรหัสที่กรอกเคยมีประวัติสอบอยู่แล้ว ระบบจะดึงประวัติกลับมาให้ทันที หากเป็นรหัสใหม่จะเริ่มบันทึกแยกเฉพาะรหัสนี้
+                * หากรหัสที่กรอกเคยมีประวัติสอบอยู่แล้ว ระบบจะดึงประวัติกลับมาให้ทันที (สำหรับแอดมิน กรอกรหัสผู้ดูแลระบบในช่องนี้เพื่อเปิดโหมดจัดการข้อสอบ)
               </p>
             </div>
 
