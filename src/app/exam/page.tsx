@@ -173,6 +173,7 @@ function ExamSimulatorContent() {
   const [currentSessionId, setCurrentSessionId] = useState<string>(
     () => `sess-${Date.now()}`
   );
+  const [multiTabAlert, setMultiTabAlert] = useState<string | null>(null);
   const [examTimeLimit, setExamTimeLimit] = useState<number>(1500);
   const [sheetFilter, setSheetFilter] = useState<
     "all" | "unanswered" | "flagged"
@@ -391,6 +392,12 @@ function ExamSimulatorContent() {
     ) {
       return;
     }
+    const currentInStorage = getActiveExamSession();
+    // ป้องกันกรณีเปิดหลายแท็บ: หากเซสชันใน storage ถูกล้าง (ส่งข้อสอบจากแท็บอื่นแล้ว) หรือ id ไม่ตรงกัน
+    // ห้ามเขียนเซสชันเก่ากลับคืนลงไปใน storage เด็ดขาด
+    if (!currentInStorage || currentInStorage.id !== currentSessionId) {
+      return;
+    }
     const session: ActiveExamSession = {
       id: currentSessionId,
       title: quizTitle,
@@ -458,6 +465,41 @@ function ExamSimulatorContent() {
       window.removeEventListener("pagehide", handleBeforeUnload);
     };
   }, [screen, currentSessionId, quizMode, secondsElapsed]);
+
+  // 3.1 ตรวจจับการเปลี่ยนแปลงจากแท็บอื่น (Storage Event ป้องกันชนกันหลายแท็บ)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "kru_exam_active_session_v1") {
+        if (screen === "active") {
+          if (!e.newValue) {
+            // เซสชันถูกส่งกระดาษคำตอบหรือยกเลิกจากแท็บอื่น
+            isSubmittingRef.current = true;
+            setMultiTabAlert(
+              "ชุดข้อสอบนี้ถูกส่งกระดาษคำตอบหรือยกเลิกจากแท็บอื่นแล้ว"
+            );
+          } else {
+            try {
+              const remote: ActiveExamSession = JSON.parse(e.newValue);
+              if (remote.id !== currentSessionId) {
+                isSubmittingRef.current = true;
+                setMultiTabAlert("มีการเริ่มทำชุดข้อสอบใหม่จากแท็บอื่นแล้ว");
+              } else if (remote.userAnswers) {
+                // ซิงก์คำตอบจากแท็บอื่นที่กำลังทำชุดเดียวกัน
+                setUserAnswers((prev) => ({ ...prev, ...remote.userAnswers }));
+              }
+            } catch {
+              // ignore
+            }
+          }
+        } else {
+          refreshFromStorage();
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [screen, currentSessionId]);
 
   // 4. ระบบคีย์ลัด (Keyboard Shortcuts) ในห้องสอบ
   useEffect(() => {
@@ -529,7 +571,8 @@ function ExamSimulatorContent() {
     targetFeedbackMode: "instant" | "after_submit" = feedbackMode
   ) => {
     isSubmittingRef.current = false;
-    setCurrentSessionId(`sess-${Date.now()}`);
+    const newSessionId = `sess-${Date.now()}`;
+    setCurrentSessionId(newSessionId);
     const finalFeedbackMode = mode === "exam" ? "after_submit" : targetFeedbackMode;
     setFeedbackMode(finalFeedbackMode);
 
@@ -650,11 +693,31 @@ function ExamSimulatorContent() {
     setIsPaused(false);
     isPausedRef.current = false;
     pauseStartMsRef.current = null;
-    if (mode === "exam" && timeLimit > 0) {
-      setDeadlineAt(new Date(Date.now() + timeLimit * 1000).toISOString());
-    } else {
-      setDeadlineAt(null);
-    }
+    const deadlineVal =
+      mode === "exam" && timeLimit > 0
+        ? new Date(Date.now() + timeLimit * 1000).toISOString()
+        : null;
+    setDeadlineAt(deadlineVal);
+
+    const initialSession: ActiveExamSession = {
+      id: newSessionId,
+      title,
+      mode,
+      feedbackMode: finalFeedbackMode,
+      isBlueprint: blueprintFlag,
+      questions: preparedQuiz,
+      currentIndex: 0,
+      userAnswers: {},
+      flaggedIndices: [],
+      strikethroughMap: {},
+      secondsElapsed: 0,
+      examTimeLimit: timeLimit,
+      startedAt: nowIso,
+      deadlineAt: deadlineVal || undefined,
+      lastActiveAt: nowIso,
+      isPaused: false,
+    };
+    saveActiveExamSession(initialSession);
     setScreen("active");
   };
 
@@ -688,7 +751,8 @@ function ExamSimulatorContent() {
     if (retryPool.length === 0) return;
 
     isSubmittingRef.current = false;
-    setCurrentSessionId(`sess-${Date.now()}`);
+    const retrySessionId = `sess-${Date.now()}`;
+    setCurrentSessionId(retrySessionId);
     const prepared = prepareQuestionsForSession(
       shuffleQuestions ? shuffleArray(retryPool) : retryPool,
       shuffleOptions
@@ -697,7 +761,8 @@ function ExamSimulatorContent() {
     setFeedbackMode("after_submit");
     setIsBlueprint(false);
     setActiveQuiz(prepared);
-    setQuizTitle(`ซ้อมซ้ำข้อที่ผิดจากรอบล่าสุด (${prepared.length} ข้อ)`);
+    const retryTitle = `ซ้อมซ้ำข้อที่ผิดจากรอบล่าสุด (${prepared.length} ข้อ)`;
+    setQuizTitle(retryTitle);
     setCurrentIndex(0);
     setUserAnswers({});
     setFlaggedIndices([]);
@@ -715,6 +780,26 @@ function ExamSimulatorContent() {
     isPausedRef.current = false;
     pauseStartMsRef.current = null;
     setDeadlineAt(null);
+
+    const initialSession: ActiveExamSession = {
+      id: retrySessionId,
+      title: retryTitle,
+      mode: "retry",
+      feedbackMode: "after_submit",
+      isBlueprint: false,
+      questions: prepared,
+      currentIndex: 0,
+      userAnswers: {},
+      flaggedIndices: [],
+      strikethroughMap: {},
+      secondsElapsed: 0,
+      examTimeLimit: timeLimit,
+      startedAt: nowIso,
+      deadlineAt: undefined,
+      lastActiveAt: nowIso,
+      isPaused: false,
+    };
+    saveActiveExamSession(initialSession);
     setScreen("active");
   };
 
@@ -873,6 +958,10 @@ function ExamSimulatorContent() {
 
   const handleFinishExam = (finalSeconds: number) => {
     if (isSubmittingRef.current || activeQuiz.length === 0) return;
+    const currentInStorage = getActiveExamSession();
+    if (currentInStorage && currentInStorage.id !== currentSessionId) {
+      return;
+    }
     isSubmittingRef.current = true;
 
     let correctCount = 0;
@@ -2113,6 +2202,29 @@ function ExamSimulatorContent() {
                 className="w-full h-11 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card font-medium text-[14px] transition-colors"
               >
                 ทำข้อสอบต่อ
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Multi-Tab Alert Overlay */}
+        {multiTabAlert && (
+          <div className="fixed inset-0 z-50 bg-paper-ink/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-paper-card p-6 sm:p-8 rounded-[16px] max-w-md w-full text-center space-y-4 shadow-xl border border-[#1f1b16]/10">
+              <h2 className="font-title text-[20px] text-paper-ink font-medium">
+                ตรวจพบการใช้งานพร้อมกันหลายแท็บ
+              </h2>
+              <p className="text-[14px] text-paper-secondary leading-relaxed">
+                {multiTabAlert}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+                className="w-full h-11 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card font-medium text-[14px] transition-colors"
+              >
+                กลับหน้าหลัก
               </button>
             </div>
           </div>
