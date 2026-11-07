@@ -6,6 +6,7 @@ import {
   MistakeRecord,
   QuestionComment,
   QuestionItem,
+  normalizeMajorSubject,
 } from "@/types/exam";
 import { SEED_QUESTIONS } from "@/lib/seed-questions";
 
@@ -27,7 +28,15 @@ const KEYS = {
   CF_DB_ID: "kru_exam_cf_db_id_v1",
   LAST_CLOUD_SYNC: "kru_exam_last_cloud_sync_v1",
   CLOUD_PROVIDER: "kru_exam_cloud_provider_v1",
+  PREFERRED_MAJOR: "kru_exam_preferred_major_v1",
 };
+
+// รหัสข้อสอบตั้งต้นที่มาพร้อมระบบ (เช่น kru-1 ... kru-1410) ใช้แยกว่าแก้ไขข้อ seed หรือข้อที่เพิ่มเอง
+const SEED_QUESTION_IDS = new Set(SEED_QUESTIONS.map((q) => q.id));
+
+function isSeedQuestionId(id: string): boolean {
+  return SEED_QUESTION_IDS.has(id) || id.startsWith("seed-");
+}
 
 const DEFAULT_ADMIN_KEY = "kru-admin-9999";
 
@@ -151,16 +160,58 @@ export function getAllQuestions(): QuestionItem[] {
     (q) => editedSeeds[q.id] || q
   );
 
-  return [...custom, ...seeds];
+  return [...custom, ...seeds].map((q) =>
+    q.category === "major"
+      ? { ...q, majorSubject: normalizeMajorSubject(q.majorSubject) }
+      : q
+  );
+}
+
+export interface MajorSubjectCount {
+  name: string;
+  count: number;
+}
+
+// รายชื่อวิชาเอกพร้อมจำนวนข้อ (ชื่อซ้ำถูกยุบรวมแล้ว) เรียงสาขาที่มีข้อสอบขึ้นก่อน
+export function getMajorSubjectCounts(
+  questions: QuestionItem[] = getAllQuestions()
+): MajorSubjectCount[] {
+  const counts = new Map<string, number>();
+  MAJOR_SUBJECTS.forEach((m) => counts.set(normalizeMajorSubject(m), 0));
+  questions.forEach((q) => {
+    if (q.category !== "major") return;
+    const name = normalizeMajorSubject(q.majorSubject);
+    counts.set(name, (counts.get(name) || 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => (b.count > 0 ? 1 : 0) - (a.count > 0 ? 1 : 0));
 }
 
 export function getAvailableMajorSubjects(): string[] {
-  const all = getAllQuestions();
-  const fromQuestions = all
-    .filter((q) => q.category === "major" && q.majorSubject)
-    .map((q) => (q.majorSubject || "").trim())
-    .filter(Boolean);
-  return Array.from(new Set([...fromQuestions, ...MAJOR_SUBJECTS]));
+  return getMajorSubjectCounts().map((m) => m.name);
+}
+
+export function getPreferredMajor(): string {
+  if (!isBrowser()) return "all";
+  try {
+    return localStorage.getItem(KEYS.PREFERRED_MAJOR) || "all";
+  } catch {
+    return "all";
+  }
+}
+
+export function setPreferredMajor(major: string): void {
+  if (!isBrowser()) return;
+  try {
+    if (!major || major === "all") {
+      localStorage.removeItem(KEYS.PREFERRED_MAJOR);
+    } else {
+      localStorage.setItem(KEYS.PREFERRED_MAJOR, major);
+    }
+  } catch {
+    // ignore storage failures (private mode / quota)
+  }
 }
 
 export function getQuestionFingerprint(q: {
@@ -350,7 +401,7 @@ export function addCustomQuestions(newQuestions: QuestionItem[]): number {
 
 export function updateQuestion(updated: QuestionItem): void {
   if (!isBrowser() || !isAdminMode()) return;
-  if (updated.id.startsWith("seed-")) {
+  if (isSeedQuestionId(updated.id)) {
     const editedMap = getEditedSeedMap();
     editedMap[updated.id] = updated;
     localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(editedMap));
@@ -370,7 +421,7 @@ export function deleteQuestion(id: string): void {
     deleted.push(id);
     localStorage.setItem(KEYS.DELETED_QUESTION_IDS, JSON.stringify(deleted));
   }
-  if (!id.startsWith("seed-")) {
+  if (!isSeedQuestionId(id)) {
     const custom = getCustomQuestions().filter((q) => q.id !== id);
     localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(custom));
   }
@@ -676,6 +727,13 @@ export interface ReadinessStats {
   averageScorePercent: number;
   activeMistakesCount: number;
   masteredMistakesCount: number;
+  // ความแม่นยำแยกภาค (ก.ค.ศ. ตัดเกณฑ์ 60% แยก ภาค ก และ ภาค ข ไม่นำมาถัวเฉลี่ยกัน)
+  partStats: Array<{
+    part: "ภาค ก" | "ภาค ข";
+    attemptedCount: number;
+    correctCount: number;
+    accuracyPercent: number;
+  }>;
   categoryStats: Array<{
     id: string;
     name: string;
@@ -749,6 +807,19 @@ export function getReadinessStats(): ReadinessStats {
     };
   });
 
+  const partStats = (["ภาค ก", "ภาค ข"] as const).map((part) => {
+    const cats = categoryStats.filter((c) => c.part === part);
+    const attemptedCount = cats.reduce((s, c) => s + c.attemptedCount, 0);
+    const correctCount = cats.reduce((s, c) => s + c.correctCount, 0);
+    return {
+      part,
+      attemptedCount,
+      correctCount,
+      accuracyPercent:
+        attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 100) : 0,
+    };
+  });
+
   return {
     totalQuestionsInBank: allQuestions.length,
     customPdfQuestionCount: customQuestions.length,
@@ -757,6 +828,7 @@ export function getReadinessStats(): ReadinessStats {
     averageScorePercent,
     activeMistakesCount,
     masteredMistakesCount,
+    partStats,
     categoryStats,
   };
 }

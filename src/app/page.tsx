@@ -10,7 +10,7 @@ import {
   isAdminMode,
   ReadinessStats,
 } from "@/lib/storage";
-import { ExamAttempt, QuestionItem } from "@/types/exam";
+import { ExamAttempt, QuestionItem, getExplanationLabel } from "@/types/exam";
 
 export default function HomeDashboardPage() {
   const [stats, setStats] = useState<ReadinessStats | null>(null);
@@ -43,7 +43,6 @@ export default function HomeDashboardPage() {
     );
   }
 
-  const scoreDiffFromBenchmark = stats.averageScorePercent - 60;
   const letters = ["ก", "ข", "ค", "ง"];
 
   return (
@@ -93,8 +92,41 @@ export default function HomeDashboardPage() {
           </div>
         </div>
 
-        {/* 3 Compact Numeric Stat Cards */}
-        <div className="lg:col-span-5 grid grid-cols-3 gap-3">
+        {/* Compact Numeric Stat Cards (ภาค ก / ภาค ข ตัดเกณฑ์แยกกันตาม ก.ค.ศ.) */}
+        <div className="lg:col-span-5 grid grid-cols-2 gap-3">
+          {stats.partStats.map((p) => {
+            const hasData = p.attemptedCount > 0;
+            const diff = p.accuracyPercent - 60;
+            return (
+              <div
+                key={p.part}
+                className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]"
+              >
+                <span className="text-[12px] text-paper-muted">
+                  ความพร้อม {p.part}
+                </span>
+                <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
+                  {hasData ? `${p.accuracyPercent}%` : "—"}
+                </div>
+                <span
+                  className={`text-[12px] tabular-nums ${
+                    !hasData
+                      ? "text-paper-muted"
+                      : diff >= 0
+                      ? "text-paper-pass"
+                      : "text-paper-fail"
+                  }`}
+                >
+                  {!hasData
+                    ? "ผ่านเมื่อ ≥ 60%"
+                    : diff >= 0
+                    ? `ผ่านเกณฑ์ (+${diff}%)`
+                    : `ขาดอีก ${-diff}% ถึงเกณฑ์`}
+                </span>
+              </div>
+            );
+          })}
+
           <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]">
             <span className="text-[12px] text-paper-muted">คลังข้อสอบทั้งหมด</span>
             <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
@@ -104,28 +136,6 @@ export default function HomeDashboardPage() {
               {stats.customPdfQuestionCount > 0
                 ? `+${stats.customPdfQuestionCount} ข้อเพิ่มเติมในคลังกลาง`
                 : "ชุดข้อสอบจริงมาตรฐาน ก.ค.ศ."}
-            </span>
-          </div>
-
-          <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px]">
-            <span className="text-[12px] text-paper-muted">ความแม่นยำเฉลี่ย</span>
-            <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
-              {stats.totalAttempts > 0 ? `${stats.averageScorePercent}%` : "—"}
-            </div>
-            <span
-              className={`text-[12px] tabular-nums ${
-                stats.totalAttempts === 0
-                  ? "text-paper-muted"
-                  : scoreDiffFromBenchmark >= 0
-                  ? "text-paper-pass"
-                  : "text-paper-fail"
-              }`}
-            >
-              {stats.totalAttempts === 0
-                ? "เกณฑ์ผ่าน 60%"
-                : `${
-                    scoreDiffFromBenchmark >= 0 ? "+" : ""
-                  }${scoreDiffFromBenchmark}% เทียบเกณฑ์ 60%`}
             </span>
           </div>
 
@@ -287,7 +297,7 @@ export default function HomeDashboardPage() {
               {/* Statute Footnote Breakdown */}
               <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2 text-[13px]">
                 <div className="text-paper-ink font-medium">
-                  คำอธิบายและเหตุผลทางกฎหมาย:
+                  {getExplanationLabel(sampleQuestion.category)}:
                 </div>
                 <p className="text-paper-secondary leading-[21px]">
                   {sampleQuestion.explanation}
@@ -360,7 +370,7 @@ export default function HomeDashboardPage() {
             {recentAttempts.length === 0 ? (
               <div className="py-6 text-center space-y-3">
                 <p className="text-[13px] text-paper-muted">
-                  ยังไม่มีบันทึกการสอบในเครื่องนี้
+                  ยังไม่มีบันทึกการสอบของรหัสผู้สอบนี้ (ซิงก์ข้ามเครื่องได้ด้วยรหัสเดียวกัน)
                 </p>
                 <Link
                   href="/exam"

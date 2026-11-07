@@ -27,6 +27,7 @@ import {
   MAJOR_SUBJECTS,
   QuestionComment,
   QuestionItem,
+  getExplanationLabel,
 } from "@/types/exam";
 import {
   addQuestionComment,
@@ -61,8 +62,11 @@ export default function QuestionBankPage() {
   const [selectedMajor, setSelectedMajor] = useState<string>("all");
   const [selectedSource, setSelectedSource] = useState<string>("all");
   const [commentFilter, setCommentFilter] = useState<
-    "all" | "pending_reports" | "has_comments"
+    "all" | "pending_reports" | "has_comments" | "my_mistakes"
   >("all");
+  const [myMistakeIds, setMyMistakeIds] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const [showExplanations, setShowExplanations] = useState<boolean>(true);
   const [selfTestAnswers, setSelfTestAnswers] = useState<
@@ -89,10 +93,13 @@ export default function QuestionBankPage() {
 
     const mistakeMap = getMistakeRecordsMap();
     const bm: Record<string, boolean> = {};
+    const wrong: Record<string, boolean> = {};
     Object.values(mistakeMap).forEach((m) => {
       if (m.bookmarked) bm[m.questionId] = true;
+      if (m.wrongCount > 0 && !m.mastered) wrong[m.questionId] = true;
     });
     setBookmarkedIds(bm);
+    setMyMistakeIds(wrong);
   };
 
   useEffect(() => {
@@ -143,6 +150,8 @@ export default function QuestionBankPage() {
     } else if (commentFilter === "has_comments") {
       const list = commentsMap[q.id] || [];
       if (list.length === 0) return false;
+    } else if (commentFilter === "my_mistakes") {
+      if (!myMistakeIds[q.id]) return false;
     }
     if (searchQuery.trim()) {
       const kw = searchQuery.toLowerCase();
@@ -438,6 +447,19 @@ export default function QuestionBankPage() {
                 <MessageSquare className="w-3.5 h-3.5" />
                 <span>มีคอมเมนต์ ({commentedQuestionCount})</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setCommentFilter("my_mistakes")}
+                className={`h-8 px-3 rounded-[6px] text-[12px] font-medium transition-colors ${
+                  commentFilter === "my_mistakes"
+                    ? "bg-paper-fail text-paper-card"
+                    : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
+                }`}
+              >
+                ข้อที่ฉันเคยตอบผิด ({
+                  questions.filter((q) => myMistakeIds[q.id]).length
+                })
+              </button>
             </div>
           </div>
         </div>
@@ -655,7 +677,7 @@ export default function QuestionBankPage() {
                   <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2 text-[13px]">
                     <p className="text-paper-secondary leading-[21px]">
                       <strong className="text-paper-ink font-medium">
-                        คำอธิบาย:{" "}
+                        {getExplanationLabel(q.category)}:{" "}
                       </strong>
                       {q.explanation}
                     </p>

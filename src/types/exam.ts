@@ -71,8 +71,10 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
   },
 ];
 
+export const UNSPECIFIED_MAJOR = "วิชาเอกทั่วไป (ไม่ระบุสาขา)";
+
 export const MAJOR_SUBJECTS: string[] = [
-  "ปฐมวัย",
+  "การศึกษาปฐมวัย / อนุบาล",
   "ประถมศึกษา",
   "ภาษาไทย",
   "คณิตศาสตร์",
@@ -85,8 +87,38 @@ export const MAJOR_SUBJECTS: string[] = [
   "ศิลปะ / ดนตรี / นาฏศิลป์",
   "เกษตร / คหกรรม / อุตสาหกรรม",
   "แนะแนว / การศึกษาพิเศษ",
-  "วิชาเอกทั่วไป (ไม่ระบุสาขา)",
+  UNSPECIFIED_MAJOR,
 ];
+
+// ชื่อเรียกอื่นของวิชาเอกเดียวกัน (เช่น "ปฐมวัย" กับ "การศึกษาปฐมวัย / อนุบาล")
+// ยุบให้เหลือชื่อมาตรฐานชื่อเดียว เพื่อไม่ให้ตัวเลือกซ้ำและข้อสอบไม่ถูกแยกหมวด
+const MAJOR_ALIASES: Array<{ canonical: string; pattern: RegExp }> = [
+  { canonical: "การศึกษาปฐมวัย / อนุบาล", pattern: /ปฐมวัย|อนุบาล/ },
+];
+
+export function normalizeMajorSubject(raw?: string | null): string {
+  const cleaned = (raw || "").replace(/^วิชาเอก\s*:?\s*/, "").trim();
+  if (!cleaned) return UNSPECIFIED_MAJOR;
+  const alias = MAJOR_ALIASES.find((a) => a.pattern.test(cleaned));
+  return alias ? alias.canonical : cleaned;
+}
+
+// หัวข้อกล่องเฉลยตามลักษณะของหมวดวิชา (แทนการเขียนว่า "เหตุผลทางกฎหมาย" ตายตัวทุกข้อ)
+export function getExplanationLabel(category: ExamCategory): string {
+  switch (category) {
+    case "general":
+      return "วิธีคิดและขั้นตอนการหาคำตอบ";
+    case "english":
+      return "คำอธิบายไวยากรณ์และคำศัพท์";
+    case "law":
+    case "gov":
+      return "คำอธิบายและอ้างอิงข้อกฎหมาย";
+    case "pedagogy":
+    case "major":
+    default:
+      return "หลักวิชาการและคำอธิบายประกอบ";
+  }
+}
 
 export interface QuestionComment {
   id: string;

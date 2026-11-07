@@ -22,20 +22,40 @@ import {
   EXAM_CATEGORIES,
   ExamAttempt,
   ExamAttemptAnswer,
-  MAJOR_SUBJECTS,
   PartBreakdownItem,
   QuestionItem,
+  UNSPECIFIED_MAJOR,
+  getExplanationLabel,
 } from "@/types/exam";
 import {
+  MajorSubjectCount,
   getActiveExamSession,
   getAllQuestions,
-  getAvailableMajorSubjects,
+  getMajorSubjectCounts,
   getMistakeQuestions,
   getMistakeRecordsMap,
+  getPreferredMajor,
   saveActiveExamSession,
   saveExamAttempt,
+  setPreferredMajor,
   toggleBookmarkQuestion,
 } from "@/lib/storage";
+import ReportQuestionButton from "@/components/ReportQuestionButton";
+
+const DEFAULT_SOURCE = "คลังข้อสอบมาตรฐาน ก.ค.ศ.";
+
+function getSourceName(q: QuestionItem): string {
+  return q.sourcePdf || DEFAULT_SOURCE;
+}
+
+// ข้อสอบวิชาเอกต้องตรงกับสาขาที่เลือก ส่วนข้อสอบหมวดอื่นผ่านเสมอ
+function matchesMajor(q: QuestionItem, major: string): boolean {
+  return (
+    major === "all" ||
+    q.category !== "major" ||
+    (q.majorSubject || UNSPECIFIED_MAJOR) === major
+  );
+}
 
 function shuffleArray<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -92,8 +112,7 @@ function ExamSimulatorContent() {
   const isSubmittingRef = useRef<boolean>(false);
 
   const [allQuestions, setAllQuestions] = useState<QuestionItem[]>([]);
-  const [availableMajors, setAvailableMajors] =
-    useState<string[]>(MAJOR_SUBJECTS);
+  const [majorCounts, setMajorCounts] = useState<MajorSubjectCount[]>([]);
   const [mistakePool, setMistakePool] = useState<QuestionItem[]>([]);
   const [pdfSources, setPdfSources] = useState<string[]>([]);
   const [savedSession, setSavedSession] = useState<ActiveExamSession | null>(
@@ -140,7 +159,7 @@ function ExamSimulatorContent() {
     const existingSession = getActiveExamSession();
 
     setAllQuestions(questions);
-    setAvailableMajors(getAvailableMajorSubjects());
+    setMajorCounts(getMajorSubjectCounts(questions));
     setMistakePool(mistakes);
     setSavedSession(existingSession);
 
@@ -150,15 +169,22 @@ function ExamSimulatorContent() {
     });
     setBookmarkedIds(bm);
 
-    const sources = Array.from(
-      new Set(questions.map((q) => q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ."))
-    );
+    const sources = Array.from(new Set(questions.map(getSourceName)));
     setPdfSources(sources);
     return { questions, mistakes };
   };
 
   useEffect(() => {
     const { questions, mistakes } = refreshFromStorage();
+
+    // วิชาเอกที่ผู้สอบเลือกไว้ครั้งก่อน (ใช้เฉพาะเมื่อสาขานั้นยังมีข้อสอบในคลัง)
+    const storedMajor = getPreferredMajor();
+    const preferredMajor = getMajorSubjectCounts(questions).some(
+      (m) => m.name === storedMajor && m.count > 0
+    )
+      ? storedMajor
+      : "all";
+    setSelectedMajor(preferredMajor);
 
     const handleCloudSynced = () => {
       refreshFromStorage();
@@ -188,7 +214,8 @@ function ExamSimulatorContent() {
           paramCat || "all",
           paramSource || "all",
           paramMode === "mistake_review" ? "mistake_review" : "practice",
-          false
+          false,
+          preferredMajor
         );
       }, 80);
     }
@@ -310,7 +337,8 @@ function ExamSimulatorContent() {
     cat: string,
     source: string,
     mode: "practice" | "exam" | "mistake_review",
-    blueprintFlag: boolean
+    blueprintFlag: boolean,
+    major: string = selectedMajor
   ) => {
     isSubmittingRef.current = false;
 
@@ -328,16 +356,10 @@ function ExamSimulatorContent() {
       let sourceFiltered = [...questionsPool];
       if (source !== "all") {
         sourceFiltered = sourceFiltered.filter(
-          (q) => (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") === source
+          (q) => getSourceName(q) === source
         );
       }
-      if (selectedMajor !== "all") {
-        sourceFiltered = sourceFiltered.filter(
-          (q) =>
-            q.category !== "major" ||
-            (q.majorSubject || "วิชาเอกทั่วไป (ไม่ระบุสาขา)") === selectedMajor
-        );
-      }
+      sourceFiltered = sourceFiltered.filter((q) => matchesMajor(q, major));
 
       const partAPool = shuffleArray(
         sourceFiltered.filter((q) => partACategories.has(q.category))
@@ -373,17 +395,10 @@ function ExamSimulatorContent() {
         if (cat !== "all") {
           pool = pool.filter((q) => q.category === cat);
         }
-        if (cat === "major" && selectedMajor !== "all") {
-          pool = pool.filter(
-            (q) =>
-              (q.majorSubject || "วิชาเอกทั่วไป (ไม่ระบุสาขา)") ===
-              selectedMajor
-          );
-        }
+        // ใช้ได้ทั้งหมวด "วิชาเอกเฉพาะ" และ "รวมทุกหมวด" (ตัดวิชาเอกสาขาอื่นออก)
+        pool = pool.filter((q) => matchesMajor(q, major));
         if (source !== "all") {
-          pool = pool.filter(
-            (q) => (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") === source
-          );
+          pool = pool.filter((q) => getSourceName(q) === source);
         }
       }
 
@@ -420,6 +435,8 @@ function ExamSimulatorContent() {
         ? `ทบทวนข้อที่เคยผิด (${preparedQuiz.length} ข้อ)`
         : source !== "all"
         ? `${source} (${preparedQuiz.length} ข้อ)`
+        : cat === "major" && major !== "all"
+        ? `วิชาเอก${major} (${preparedQuiz.length} ข้อ)`
         : catMeta
         ? `${catMeta.shortName} (${preparedQuiz.length} ข้อ)`
         : `สุ่มรวมทุกหมวด (${preparedQuiz.length} ข้อ)`;
@@ -633,11 +650,10 @@ function ExamSimulatorContent() {
       }
     });
 
-    // หากเป็นโหมดโครงสร้าง ก.ค.ศ. (Blueprint) ต้องผ่านเกณฑ์ร้อยละ 60 ทั้งภาค ก และ ภาค ข
+    // เกณฑ์ ก.ค.ศ. ตัดผ่านแยกภาค: ทุกภาคที่มีในชุดนี้ต้องได้ไม่ต่ำกว่าร้อยละ 60
+    // (ภาค ก สูงแล้วนำมาถัวเฉลี่ยช่วยภาค ข ไม่ได้)
     const allPartsPassed = Object.values(partBreakdown).every((p) => p.passed);
-    const passed = isBlueprint
-      ? scorePercent >= 60 && allPartsPassed
-      : scorePercent >= 60;
+    const passed = scorePercent >= 60 && allPartsPassed;
 
     const avgSecondsPerQuestion =
       total > 0 ? Math.max(1, Math.round(finalSeconds / total)) : 0;
@@ -686,6 +702,55 @@ function ExamSimulatorContent() {
   };
 
   const letters = ["ก", "ข", "ค", "ง"];
+
+  // ==========================================
+  // ตัวกรองสัมพันธ์กัน (Cascading Filters) หมวดวิชา ↔ ชุดเอกสาร ↔ วิชาเอก
+  // ==========================================
+  const isMistakeMode = quizMode === "mistake_review";
+  const effectiveCat = isBlueprint ? "all" : selectedCat;
+  const inSelectedCat = (q: QuestionItem) =>
+    effectiveCat === "all" || q.category === effectiveCat;
+  const inSelectedSource = (q: QuestionItem) =>
+    selectedSource === "all" || getSourceName(q) === selectedSource;
+
+  const sourceCounts = new Map<string, number>();
+  allQuestions.forEach((q) => {
+    if (!inSelectedCat(q) || !matchesMajor(q, selectedMajor)) return;
+    const src = getSourceName(q);
+    sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
+  });
+  const visibleSources = pdfSources.filter(
+    (src) => (sourceCounts.get(src) || 0) > 0
+  );
+  const countForCategory = (catId: string) =>
+    allQuestions.filter(
+      (q) =>
+        (catId === "all" || q.category === catId) &&
+        matchesMajor(q, selectedMajor) &&
+        inSelectedSource(q)
+    ).length;
+  const matchingCount = countForCategory(effectiveCat);
+  const showMajorPicker =
+    !isMistakeMode && (effectiveCat === "all" || effectiveCat === "major");
+  const canStart = isMistakeMode ? mistakePool.length > 0 : matchingCount > 0;
+
+  // เมื่อเปลี่ยนหมวด/วิชาเอกแล้วชุดเอกสารเดิมไม่มีข้อสอบที่ตรงเงื่อนไข ให้ถอยกลับไป "ทุกชุด"
+  useEffect(() => {
+    if (screen !== "setup" || selectedSource === "all") return;
+    if (allQuestions.length === 0) return;
+    const stillValid = allQuestions.some(
+      (q) =>
+        getSourceName(q) === selectedSource &&
+        (effectiveCat === "all" || q.category === effectiveCat) &&
+        matchesMajor(q, selectedMajor)
+    );
+    if (!stillValid) setSelectedSource("all");
+  }, [screen, selectedSource, effectiveCat, selectedMajor, allQuestions]);
+
+  const handleSelectMajor = (major: string) => {
+    setSelectedMajor(major);
+    setPreferredMajor(major);
+  };
 
   // ==========================================
   // RENDER 1: SETUP SCREEN
@@ -875,49 +940,45 @@ function ExamSimulatorContent() {
                     <select
                       value={isBlueprint ? "all" : selectedCat}
                       disabled={isBlueprint}
-                      onChange={(e) => {
-                        setSelectedCat(e.target.value);
-                        if (e.target.value !== "major") {
-                          setSelectedMajor("all");
-                        }
-                      }}
+                      onChange={(e) => setSelectedCat(e.target.value)}
                       className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
                     >
                       <option value="all">
                         {isBlueprint
                           ? "สุ่มถ่วงน้ำหนักครบทุกหมวด (ภาค ก + ภาค ข)"
-                          : `รวมทุกหมวดวิชา (${allQuestions.length} ข้อ)`}
+                          : `รวมทุกหมวดวิชา (${countForCategory("all")} ข้อ)`}
                       </option>
 
-                      <optgroup label="ภาค ก — ความรู้ความสามารถทั่วไป (200 คะแนน)">
-                        {EXAM_CATEGORIES.filter((c) => c.part === "ภาค ก").map(
-                          (c) => {
-                            const count = allQuestions.filter(
-                              (q) => q.category === c.id
-                            ).length;
+                      {(
+                        [
+                          {
+                            part: "ภาค ก",
+                            label: "ภาค ก — ความรู้ความสามารถทั่วไป (200 คะแนน)",
+                          },
+                          {
+                            part: "ภาค ข",
+                            label:
+                              "ภาค ข — มาตรฐานวิชาชีพ & กฎหมายการศึกษา (100 คะแนน)",
+                          },
+                        ] as const
+                      ).map((group) => (
+                        <optgroup key={group.part} label={group.label}>
+                          {EXAM_CATEGORIES.filter(
+                            (c) => c.part === group.part
+                          ).map((c) => {
+                            const count = countForCategory(c.id);
                             return (
-                              <option key={c.id} value={c.id}>
+                              <option
+                                key={c.id}
+                                value={c.id}
+                                disabled={count === 0 && selectedCat !== c.id}
+                              >
                                 {c.shortName} ({count} ข้อ)
                               </option>
                             );
-                          }
-                        )}
-                      </optgroup>
-
-                      <optgroup label="ภาค ข — มาตรฐานวิชาชีพ & กฎหมายการศึกษา (100 คะแนน)">
-                        {EXAM_CATEGORIES.filter((c) => c.part === "ภาค ข").map(
-                          (c) => {
-                            const count = allQuestions.filter(
-                              (q) => q.category === c.id
-                            ).length;
-                            return (
-                              <option key={c.id} value={c.id}>
-                                {c.shortName} ({count} ข้อ)
-                              </option>
-                            );
-                          }
-                        )}
-                      </optgroup>
+                          })}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
@@ -931,89 +992,72 @@ function ExamSimulatorContent() {
                       className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
                     >
                       <option value="all">
-                        ทุกชุดข้อสอบรวมกัน ({pdfSources.length} ชุด)
+                        {effectiveCat === "all"
+                          ? "ทุกชุดข้อสอบรวมกัน"
+                          : "ทุกชุดที่มีข้อสอบหมวดนี้"}{" "}
+                        ({visibleSources.length} ชุด)
                       </option>
 
-                      {/* กลุ่มข้อสอบส่วนกลาง (ภาค ก & ภาค ข ทั่วไป) */}
-                      {(() => {
-                        const commonSources = pdfSources.filter(
-                          (src) => !src.includes("วิชาเอก")
+                      {(
+                        [
+                          {
+                            key: "common",
+                            label: "คลังข้อสอบส่วนกลาง (ภาค ก & ภาค ข ทั่วไป)",
+                            filter: (src: string) => !src.includes("วิชาเอก"),
+                          },
+                          {
+                            key: "major",
+                            label: "คลังข้อสอบเฉพาะสาขาวิชาเอก",
+                            filter: (src: string) => src.includes("วิชาเอก"),
+                          },
+                        ] as const
+                      ).map((group) => {
+                        const groupSources = visibleSources.filter(
+                          group.filter
                         );
-                        if (commonSources.length === 0) return null;
+                        if (groupSources.length === 0) return null;
                         return (
-                          <optgroup label="คลังข้อสอบส่วนกลาง (ภาค ก & ภาค ข ทั่วไป)">
-                            {commonSources.map((src) => {
-                              const count = allQuestions.filter(
-                                (q) =>
-                                  (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") ===
-                                  src
-                              ).length;
-                              return (
-                                <option key={src} value={src}>
-                                  {src} ({count} ข้อ)
-                                </option>
-                              );
-                            })}
+                          <optgroup key={group.key} label={group.label}>
+                            {groupSources.map((src) => (
+                              <option key={src} value={src}>
+                                {src} ({sourceCounts.get(src) || 0} ข้อ)
+                              </option>
+                            ))}
                           </optgroup>
                         );
-                      })()}
-
-                      {/* กลุ่มข้อสอบเฉพาะสาขาวิชาเอก */}
-                      {(() => {
-                        const majorSources = pdfSources.filter((src) =>
-                          src.includes("วิชาเอก")
-                        );
-                        if (majorSources.length === 0) return null;
-                        return (
-                          <optgroup label="คลังข้อสอบเฉพาะสาขาวิชาเอก">
-                            {majorSources.map((src) => {
-                              const count = allQuestions.filter(
-                                (q) =>
-                                  (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") ===
-                                  src
-                              ).length;
-                              return (
-                                <option key={src} value={src}>
-                                  {src} ({count} ข้อ)
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        );
-                      })()}
+                      })}
                     </select>
                   </div>
                 </div>
 
-                {(selectedCat === "major" || isBlueprint) && (
+                {showMajorPicker && (
                   <div className="p-3.5 rounded-[10px] bg-paper-bg border border-paper-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="text-[13px] font-medium text-paper-ink">
-                        เลือกสาขาวิชาเอกของคุณ (สำหรับข้อสอบวิชาเอกเฉพาะ)
+                        สาขาวิชาเอกของคุณ (ระบบจำค่าไว้ใช้ครั้งถัดไป)
                       </div>
                       <p className="text-[11.5px] text-paper-secondary">
-                        ระบบจะคัดเฉพาะข้อสอบวิชาเอกที่คุณเลือกจากคลังกลางมาออกสอบ ไม่นำวิชาเอกอื่นมาปน
+                        คัดเฉพาะข้อสอบวิชาเอกของสาขาที่เลือก ไม่นำวิชาเอกสาขาอื่นมาปน
+                        (สาขาที่ยังไม่มีข้อสอบจะเปิดให้เลือกเมื่อคลังอัปเดต)
                       </p>
                     </div>
                     <select
                       value={selectedMajor}
-                      onChange={(e) => setSelectedMajor(e.target.value)}
-                      className="h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-card text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent shrink-0"
+                      onChange={(e) => handleSelectMajor(e.target.value)}
+                      className="h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-card text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent shrink-0 max-w-full"
                     >
                       <option value="all">ทุกสาขาวิชาเอกรวมกัน</option>
-                      {availableMajors.map((maj) => {
-                        const majCount = allQuestions.filter(
-                          (q) =>
-                            q.category === "major" &&
-                            (q.majorSubject ||
-                              "วิชาเอกทั่วไป (ไม่ระบุสาขา)") === maj
-                        ).length;
-                        return (
-                          <option key={maj} value={maj}>
-                            วิชาเอก: {maj} ({majCount} ข้อ)
-                          </option>
-                        );
-                      })}
+                      {majorCounts.map((maj) => (
+                        <option
+                          key={maj.name}
+                          value={maj.name}
+                          disabled={maj.count === 0}
+                        >
+                          {maj.count > 0
+                            ? `วิชาเอก: ${maj.name} (${maj.count} ข้อ)`
+                            : `วิชาเอก: ${maj.name} (เร็ว ๆ นี้)`}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -1071,14 +1115,30 @@ function ExamSimulatorContent() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleStartQuiz}
-              className="w-full h-11 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[14px] font-medium flex items-center justify-center gap-2 transition-colors duration-150 ease-calm"
-            >
-              <Play className="w-4 h-4" strokeWidth={1.5} />
-              <span>เริ่มทำแบบทดสอบ</span>
-            </button>
+            <div className="space-y-2">
+              <div
+                className={`text-[12px] font-mono tabular-nums text-center ${
+                  canStart ? "text-paper-secondary" : "text-paper-fail"
+                }`}
+              >
+                {isMistakeMode
+                  ? mistakePool.length > 0
+                    ? `มีข้อที่ต้องทบทวน ${mistakePool.length} ข้อ`
+                    : "ยังไม่มีข้อที่ต้องทบทวน — ลองทำข้อสอบชุดอื่นก่อน"
+                  : matchingCount > 0
+                  ? `พบข้อสอบตรงเงื่อนไข ${matchingCount} ข้อ`
+                  : "ไม่พบข้อสอบที่ตรงกับตัวกรองนี้ — ลองเปลี่ยนหมวดหรือชุดเอกสาร"}
+              </div>
+              <button
+                type="button"
+                onClick={handleStartQuiz}
+                disabled={!canStart}
+                className="w-full h-11 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover disabled:opacity-40 disabled:cursor-not-allowed text-paper-card text-[14px] font-medium flex items-center justify-center gap-2 transition-colors duration-150 ease-calm"
+              >
+                <Play className="w-4 h-4" strokeWidth={1.5} />
+                <span>เริ่มทำแบบทดสอบ</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1295,7 +1355,7 @@ function ExamSimulatorContent() {
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08]">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-title font-medium text-[14px] text-paper-ink">
-                      อรรถาธิบายและวิเคราะห์ตัวเลือก
+                      {getExplanationLabel(q.category)}
                     </span>
                     <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass font-medium">
                       เฉลยข้อ {letters[q.answer]}. {q.options[q.answer]}
@@ -1334,6 +1394,10 @@ function ExamSimulatorContent() {
                     หลักจำ: {q.keyTakeaway}
                   </div>
                 )}
+
+                <div className="pt-3 border-t border-[#1f1b16]/[0.08]">
+                  <ReportQuestionButton key={q.id} questionId={q.id} />
+                </div>
               </div>
             )}
 
@@ -1408,6 +1472,23 @@ function ExamSimulatorContent() {
               <Clock className="w-4 h-4 shrink-0" strokeWidth={1.5} />
               <span>{displayTime}</span>
             </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div
+            className="h-1.5 w-full rounded-full bg-paper-raised overflow-hidden"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-valuenow={answeredTotal}
+            aria-label="ความคืบหน้าการตอบ"
+          >
+            <div
+              className="h-full rounded-full bg-paper-accent transition-[width] duration-200"
+              style={{
+                width: `${total > 0 ? (answeredTotal / total) * 100 : 0}%`,
+              }}
+            />
           </div>
 
           {/* Answer Sheet Filter Pills */}
@@ -1547,6 +1628,8 @@ function ExamSimulatorContent() {
               >
                 {lastAttempt.passed
                   ? "ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"
+                  : lastAttempt.scorePercent >= 60
+                  ? "ยังไม่ผ่าน — มีภาคที่ต่ำกว่า 60% (ก.ค.ศ. ตัดเกณฑ์แยกภาค)"
                   : "ยังไม่ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"}
               </span>
               <span className="font-mono text-[12px] text-paper-muted tabular-nums">
@@ -1792,7 +1875,7 @@ function ExamSimulatorContent() {
                 <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2.5 text-[13px]">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-paper-ink">
-                      คำอธิบายและเหตุผลประกอบ:
+                      {getExplanationLabel(ans.category)}:
                     </span>
                     {ans.lawReference && (
                       <span className="font-mono text-[12px] text-paper-secondary">
@@ -1826,6 +1909,10 @@ function ExamSimulatorContent() {
                       หลักจำ: {ans.keyTakeaway}
                     </div>
                   )}
+
+                  <div className="pt-2 border-t border-[#1f1b16]/[0.06]">
+                    <ReportQuestionButton questionId={ans.questionId} />
+                  </div>
                 </div>
               </div>
             );
