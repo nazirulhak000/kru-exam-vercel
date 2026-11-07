@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bookmark,
@@ -8,10 +8,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Eraser,
   EyeOff,
   Flag,
+  Keyboard,
   Play,
   RotateCcw,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import {
@@ -19,6 +22,7 @@ import {
   EXAM_CATEGORIES,
   ExamAttempt,
   ExamAttemptAnswer,
+  PartBreakdownItem,
   QuestionItem,
 } from "@/types/exam";
 import {
@@ -40,9 +44,50 @@ function shuffleArray<T>(arr: T[]): T[] {
   return copy;
 }
 
+function prepareQuestionsForSession(
+  sliced: QuestionItem[],
+  shouldShuffleOptions: boolean
+): QuestionItem[] {
+  const letters = ["ก", "ข", "ค", "ง"];
+  return sliced.map((q) => {
+    if (!shouldShuffleOptions) return { ...q };
+
+    const indices = shuffleArray([0, 1, 2, 3]);
+    const newOptions = indices.map((i) => q.options[i]) as [
+      string,
+      string,
+      string,
+      string
+    ];
+    const newAnswer = indices.indexOf(q.answer);
+    const newAnalysis = q.optionAnalysis
+      ? indices.map((origIdx, newIdx) => {
+          const raw = q.optionAnalysis?.[origIdx] || "";
+          const stripped = raw.replace(/^[กขคง][.)]\s*/, "");
+          return `${letters[newIdx]}. ${stripped}`;
+        })
+      : undefined;
+
+    // ปรับข้อความคำอธิบายกรณีมีการระบุตัวอักษรข้อเดิมไว้ต้นประโยคให้ตรงกับตัวเลือกใหม่
+    const updatedExplanation = (q.explanation || "").replace(
+      /^(คำตอบที่ถูกต้องคือข้อ\s*)[กขคง](\.)/,
+      `$1${letters[newAnswer]}$2`
+    );
+
+    return {
+      ...q,
+      options: newOptions,
+      answer: newAnswer,
+      explanation: updatedExplanation,
+      optionAnalysis: newAnalysis,
+    };
+  });
+}
+
 function ExamSimulatorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isSubmittingRef = useRef<boolean>(false);
 
   const [allQuestions, setAllQuestions] = useState<QuestionItem[]>([]);
   const [mistakePool, setMistakePool] = useState<QuestionItem[]>([]);
@@ -57,6 +102,8 @@ function ExamSimulatorContent() {
   const [quizMode, setQuizMode] = useState<
     "practice" | "exam" | "mistake_review"
   >("practice");
+  const [isBlueprint, setIsBlueprint] = useState<boolean>(false);
+  const [secondsPerQuestion, setSecondsPerQuestion] = useState<number>(75);
   const [shuffleQuestions, setShuffleQuestions] = useState<boolean>(true);
   const [shuffleOptions, setShuffleOptions] = useState<boolean>(true);
 
@@ -74,6 +121,9 @@ function ExamSimulatorContent() {
   );
   const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
   const [examTimeLimit, setExamTimeLimit] = useState<number>(1500);
+  const [sheetFilter, setSheetFilter] = useState<
+    "all" | "unanswered" | "flagged"
+  >("all");
 
   const [lastAttempt, setLastAttempt] = useState<ExamAttempt | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | "wrong">("all");
@@ -111,41 +161,55 @@ function ExamSimulatorContent() {
     }
 
     if (paramAutostart === "1") {
+      // ล้างพารามิเตอร์ autostart ออกจาก URL เพื่อป้องกันการรีเฟรชหน้าเว็บแล้วเริ่มสอบใหม่ทับเซสชัน
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", "/exam");
+      }
       setTimeout(() => {
         startNewQuizWithParams(
           questions,
           mistakes,
           paramCat || "all",
           paramSource || "all",
-          paramMode === "mistake_review" ? "mistake_review" : "practice"
+          paramMode === "mistake_review" ? "mistake_review" : "practice",
+          false
         );
-      }, 100);
+      }, 80);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // 1. ตัวจับเวลาเดินหน้าวินาทีละ +1 (แยกจาก Logic ส่งข้อสอบเพื่อป้องกัน Stale Closure)
   useEffect(() => {
     if (screen !== "active") return;
     const interval = setInterval(() => {
-      setSecondsElapsed((prev) => {
-        const next = prev + 1;
-        if (quizMode === "exam" && next >= examTimeLimit) {
-          clearInterval(interval);
-          handleFinishExam(next);
-        }
-        return next;
-      });
+      setSecondsElapsed((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, quizMode, examTimeLimit]);
+  }, [screen]);
 
+  // 2. ตรวจสอบเมื่อหมดเวลาในโหมดจำลองสอบจริง (ดึง userAnswers ล่าสุดเสมอ)
+  useEffect(() => {
+    if (
+      screen === "active" &&
+      quizMode === "exam" &&
+      examTimeLimit > 0 &&
+      secondsElapsed >= examTimeLimit &&
+      !isSubmittingRef.current
+    ) {
+      handleFinishExam(examTimeLimit);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsElapsed, screen, quizMode, examTimeLimit]);
+
+  // 3. Auto-save สถานะห้องสอบลง LocalStorage
   useEffect(() => {
     if (screen !== "active" || activeQuiz.length === 0) return;
     const session: ActiveExamSession = {
       id: "session-current",
       title: quizTitle,
       mode: quizMode,
+      isBlueprint,
       questions: activeQuiz,
       currentIndex,
       userAnswers,
@@ -161,6 +225,7 @@ function ExamSimulatorContent() {
     activeQuiz,
     quizTitle,
     quizMode,
+    isBlueprint,
     currentIndex,
     userAnswers,
     flaggedIndices,
@@ -169,73 +234,155 @@ function ExamSimulatorContent() {
     examTimeLimit,
   ]);
 
+  // 4. ระบบคีย์ลัด (Keyboard Shortcuts) ในห้องสอบ
+  useEffect(() => {
+    if (screen !== "active" || activeQuiz.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === "1" || key === "ก" || key === "a") {
+        e.preventDefault();
+        handleSelectOption(0);
+      } else if (key === "2" || key === "ข" || key === "b") {
+        e.preventDefault();
+        handleSelectOption(1);
+      } else if (key === "3" || key === "ค" || key === "c") {
+        e.preventDefault();
+        handleSelectOption(2);
+      } else if (key === "4" || key === "ง" || key === "d") {
+        e.preventDefault();
+        handleSelectOption(3);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setCurrentIndex((c) => Math.max(0, c - 1));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setCurrentIndex((c) => Math.min(activeQuiz.length - 1, c + 1));
+      } else if (key === "f") {
+        e.preventDefault();
+        handleToggleFlag(currentIndex);
+      } else if (key === "b") {
+        e.preventDefault();
+        const currentQ = activeQuiz[currentIndex];
+        if (currentQ) handleToggleBookmark(currentQ.id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, activeQuiz, currentIndex, quizMode, userAnswers]);
+
   const startNewQuizWithParams = (
     questionsPool: QuestionItem[],
     mistakesPool: QuestionItem[],
     cat: string,
     source: string,
-    mode: "practice" | "exam" | "mistake_review"
+    mode: "practice" | "exam" | "mistake_review",
+    blueprintFlag: boolean
   ) => {
-    let pool =
-      mode === "mistake_review" ? [...mistakesPool] : [...questionsPool];
+    isSubmittingRef.current = false;
 
-    if (mode !== "mistake_review") {
-      if (cat !== "all") {
-        pool = pool.filter((q) => q.category === cat);
-      }
+    let sliced: QuestionItem[] = [];
+
+    if (mode === "exam" && blueprintFlag) {
+      // จัดสัดส่วนข้อสอบตามโครงสร้าง ก.ค.ศ. (ภาค ก 40% : ภาค ข 60%)
+      const partACategories = new Set(
+        EXAM_CATEGORIES.filter((c) => c.part === "ภาค ก").map((c) => c.id)
+      );
+      const partBCategories = new Set(
+        EXAM_CATEGORIES.filter((c) => c.part === "ภาค ข").map((c) => c.id)
+      );
+
+      let sourceFiltered = [...questionsPool];
       if (source !== "all") {
-        pool = pool.filter(
+        sourceFiltered = sourceFiltered.filter(
           (q) => (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") === source
         );
       }
+
+      const partAPool = shuffleArray(
+        sourceFiltered.filter((q) => partACategories.has(q.category))
+      );
+      const partBPool = shuffleArray(
+        sourceFiltered.filter((q) => partBCategories.has(q.category))
+      );
+
+      const totalDesired =
+        selectedCount === "all"
+          ? sourceFiltered.length
+          : Math.min(Number(selectedCount), sourceFiltered.length);
+
+      const targetA = Math.max(1, Math.round(totalDesired * 0.4));
+      const targetB = Math.max(1, totalDesired - targetA);
+
+      const pickedA = partAPool.slice(0, targetA);
+      const pickedB = partBPool.slice(0, targetB);
+      sliced = [...pickedA, ...pickedB];
+
+      if (sliced.length < totalDesired) {
+        const pickedIds = new Set(sliced.map((q) => q.id));
+        const remainder = shuffleArray(
+          sourceFiltered.filter((q) => !pickedIds.has(q.id))
+        ).slice(0, totalDesired - sliced.length);
+        sliced = [...sliced, ...remainder];
+      }
+    } else {
+      let pool =
+        mode === "mistake_review" ? [...mistakesPool] : [...questionsPool];
+
+      if (mode !== "mistake_review") {
+        if (cat !== "all") {
+          pool = pool.filter((q) => q.category === cat);
+        }
+        if (source !== "all") {
+          pool = pool.filter(
+            (q) => (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") === source
+          );
+        }
+      }
+
+      if (pool.length === 0) {
+        alert(
+          "ไม่พบข้อสอบในหมวดที่เลือก กรุณาเปลี่ยนตัวกรองหรือนำเข้าไฟล์ PDF เพิ่มเติม"
+        );
+        return;
+      }
+
+      if (shuffleQuestions) {
+        pool = shuffleArray(pool);
+      }
+
+      const limit =
+        selectedCount === "all"
+          ? pool.length
+          : Math.min(Number(selectedCount), pool.length);
+      sliced = pool.slice(0, limit);
     }
 
-    if (pool.length === 0) {
-      alert("ไม่พบข้อสอบในหมวดที่เลือก กรุณาเปลี่ยนตัวกรองหรือนำเข้าไฟล์ PDF เพิ่มเติม");
+    if (sliced.length === 0) {
+      alert("ไม่พบข้อสอบในคลัง กรุณาตรวจสอบตัวกรองอีกครั้ง");
       return;
     }
 
-    if (shuffleQuestions) {
-      pool = shuffleArray(pool);
-    }
-
-    const limit =
-      selectedCount === "all"
-        ? pool.length
-        : Math.min(Number(selectedCount), pool.length);
-    const sliced = pool.slice(0, limit);
-
-    const letters = ["ก", "ข", "ค", "ง"];
-    const preparedQuiz: QuestionItem[] = sliced.map((q) => {
-      if (!shuffleOptions) return { ...q };
-
-      const indices = shuffleArray([0, 1, 2, 3]);
-      const newOptions = indices.map((i) => q.options[i]) as [
-        string,
-        string,
-        string,
-        string
-      ];
-      const newAnswer = indices.indexOf(q.answer);
-      const newAnalysis = q.optionAnalysis
-        ? indices.map((origIdx, newIdx) => {
-            const raw = q.optionAnalysis?.[origIdx] || "";
-            const stripped = raw.replace(/^[กขคง][.)]\s*/, "");
-            return `${letters[newIdx]}. ${stripped}`;
-          })
-        : undefined;
-
-      return {
-        ...q,
-        options: newOptions,
-        answer: newAnswer,
-        optionAnalysis: newAnalysis,
-      };
-    });
+    const preparedQuiz = prepareQuestionsForSession(sliced, shuffleOptions);
 
     const catMeta = EXAM_CATEGORIES.find((c) => c.id === cat);
     const title =
-      mode === "mistake_review"
+      mode === "exam" && blueprintFlag
+        ? `จำลองสอบจริงตามเกณฑ์ ก.ค.ศ. ภาค ก & ข (${preparedQuiz.length} ข้อ)`
+        : mode === "mistake_review"
         ? `ทบทวนข้อที่เคยผิด (${preparedQuiz.length} ข้อ)`
         : source !== "all"
         ? `${source} (${preparedQuiz.length} ข้อ)`
@@ -250,7 +397,8 @@ function ExamSimulatorContent() {
     setFlaggedIndices([]);
     setStrikethroughMap({});
     setSecondsElapsed(0);
-    setExamTimeLimit(preparedQuiz.length * 75);
+    setSheetFilter("all");
+    setExamTimeLimit(preparedQuiz.length * secondsPerQuestion);
     setScreen("active");
   };
 
@@ -260,21 +408,52 @@ function ExamSimulatorContent() {
       mistakePool,
       selectedCat,
       selectedSource,
-      quizMode
+      quizMode,
+      isBlueprint
     );
+  };
+
+  const handleRetryWrongFromAttempt = () => {
+    if (!lastAttempt) return;
+    const wrongIds = new Set(
+      lastAttempt.answers.filter((a) => !a.isCorrect).map((a) => a.questionId)
+    );
+    const retryPool = allQuestions.filter((q) => wrongIds.has(q.id));
+    if (retryPool.length === 0) return;
+
+    isSubmittingRef.current = false;
+    const prepared = prepareQuestionsForSession(
+      shuffleQuestions ? shuffleArray(retryPool) : retryPool,
+      shuffleOptions
+    );
+    setQuizMode("practice");
+    setIsBlueprint(false);
+    setActiveQuiz(prepared);
+    setQuizTitle(`ซ้อมซ้ำข้อที่ผิดจากรอบล่าสุด (${prepared.length} ข้อ)`);
+    setCurrentIndex(0);
+    setUserAnswers({});
+    setFlaggedIndices([]);
+    setStrikethroughMap({});
+    setSecondsElapsed(0);
+    setSheetFilter("all");
+    setExamTimeLimit(prepared.length * secondsPerQuestion);
+    setScreen("active");
   };
 
   const handleResumeSession = () => {
     if (!savedSession) return;
+    isSubmittingRef.current = false;
     setActiveQuiz(savedSession.questions);
     setQuizTitle(savedSession.title);
     setQuizMode(savedSession.mode);
+    setIsBlueprint(Boolean(savedSession.isBlueprint));
     setCurrentIndex(savedSession.currentIndex);
     setUserAnswers(savedSession.userAnswers);
     setFlaggedIndices(savedSession.flaggedIndices || []);
     setStrikethroughMap(savedSession.strikethroughMap || {});
     setSecondsElapsed(savedSession.secondsElapsed);
     setExamTimeLimit(savedSession.examTimeLimit);
+    setSheetFilter("all");
     setScreen("active");
   };
 
@@ -291,6 +470,15 @@ function ExamSimulatorContent() {
       return;
     }
     setUserAnswers((prev) => ({ ...prev, [currentIndex]: optIdx }));
+  };
+
+  const handleClearCurrentAnswer = () => {
+    if (quizMode !== "exam") return;
+    setUserAnswers((prev) => {
+      const next = { ...prev };
+      delete next[currentIndex];
+      return next;
+    });
   };
 
   const handleToggleFlag = (idx: number) => {
@@ -337,12 +525,22 @@ function ExamSimulatorContent() {
   };
 
   const handleFinishExam = (finalSeconds: number) => {
+    if (isSubmittingRef.current || activeQuiz.length === 0) return;
+    isSubmittingRef.current = true;
+
     let correctCount = 0;
     let unansweredCount = 0;
     const categoryBreakdown: Record<
       string,
       { total: number; correct: number; name: string }
     > = {};
+    const partTallies: Record<
+      "ภาค ก" | "ภาค ข",
+      { total: number; correct: number }
+    > = {
+      "ภาค ก": { total: 0, correct: 0 },
+      "ภาค ข": { total: 0, correct: 0 },
+    };
 
     const attemptAnswers: ExamAttemptAnswer[] = activeQuiz.map((q, idx) => {
       const selected =
@@ -360,6 +558,11 @@ function ExamSimulatorContent() {
       }
       categoryBreakdown[q.category].total += 1;
       if (isCorrect) categoryBreakdown[q.category].correct += 1;
+
+      const catMeta = EXAM_CATEGORIES.find((c) => c.id === q.category);
+      const partKey = catMeta?.part || "ภาค ข";
+      partTallies[partKey].total += 1;
+      if (isCorrect) partTallies[partKey].correct += 1;
 
       return {
         questionId: q.id,
@@ -380,7 +583,30 @@ function ExamSimulatorContent() {
     const total = activeQuiz.length;
     const wrongCount = total - correctCount - unansweredCount;
     const scorePercent = Math.round((correctCount / total) * 100);
-    const passed = scorePercent >= 60;
+
+    const partBreakdown: Record<string, PartBreakdownItem> = {};
+    (["ภาค ก", "ภาค ข"] as const).forEach((p) => {
+      const t = partTallies[p];
+      if (t.total > 0) {
+        const pct = Math.round((t.correct / t.total) * 100);
+        partBreakdown[p] = {
+          part: p,
+          total: t.total,
+          correct: t.correct,
+          scorePercent: pct,
+          passed: pct >= 60,
+        };
+      }
+    });
+
+    // หากเป็นโหมดโครงสร้าง ก.ค.ศ. (Blueprint) ต้องผ่านเกณฑ์ร้อยละ 60 ทั้งภาค ก และ ภาค ข
+    const allPartsPassed = Object.values(partBreakdown).every((p) => p.passed);
+    const passed = isBlueprint
+      ? scorePercent >= 60 && allPartsPassed
+      : scorePercent >= 60;
+
+    const avgSecondsPerQuestion =
+      total > 0 ? Math.max(1, Math.round(finalSeconds / total)) : 0;
 
     const now = new Date();
     const attempt: ExamAttempt = {
@@ -395,6 +621,7 @@ function ExamSimulatorContent() {
         minute: "2-digit",
       }),
       mode: quizMode,
+      isBlueprint,
       totalQuestions: total,
       correctCount,
       wrongCount: wrongCount + unansweredCount,
@@ -402,6 +629,8 @@ function ExamSimulatorContent() {
       scorePercent,
       passed,
       durationSeconds: finalSeconds,
+      avgSecondsPerQuestion,
+      partBreakdown,
       categoryBreakdown,
       answers: attemptAnswers,
     };
@@ -489,7 +718,10 @@ function ExamSimulatorContent() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
-                  onClick={() => setQuizMode("practice")}
+                  onClick={() => {
+                    setQuizMode("practice");
+                    setIsBlueprint(false);
+                  }}
                   className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
                     quizMode === "practice"
                       ? "border-paper-accent bg-paper-accent/[0.05]"
@@ -523,7 +755,10 @@ function ExamSimulatorContent() {
 
                 <button
                   type="button"
-                  onClick={() => setQuizMode("mistake_review")}
+                  onClick={() => {
+                    setQuizMode("mistake_review");
+                    setIsBlueprint(false);
+                  }}
                   className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
                     quizMode === "mistake_review"
                       ? "border-paper-accent bg-paper-accent/[0.05]"
@@ -540,6 +775,62 @@ function ExamSimulatorContent() {
               </div>
             </div>
 
+            {/* OTEPC Blueprint Toggle when in Exam Mode */}
+            {quizMode === "exam" && (
+              <div className="p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isBlueprint}
+                      onChange={(e) => setIsBlueprint(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 accent-paper-accent rounded"
+                    />
+                    <div>
+                      <span className="text-[13px] font-medium text-paper-ink flex items-center gap-1.5">
+                        <ShieldCheck
+                          className="w-4 h-4 text-paper-accent"
+                          strokeWidth={1.5}
+                        />
+                        <span>
+                          จัดชุดสอบตามโครงสร้างมาตรฐาน ก.ค.ศ. (สุ่มถ่วงน้ำหนักครบทั้ง ภาค ก และ ภาค ข)
+                        </span>
+                      </span>
+                      <p className="text-[12px] text-paper-secondary mt-0.5">
+                        สุ่มข้อสอบจากภาค ก (40%) และภาค ข (60%) พร้อมตัดเกณฑ์ผ่านแยกภาค (ต้องได้ไม่ต่ำกว่าร้อยละ 60 ทั้งสองภาคจึงจะถือว่าสอบผ่าน)
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[12px] text-paper-secondary">
+                    ระดับเวลาต่อข้อ:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      { sec: 60, label: "เข้มข้น (60 วิ/ข้อ)" },
+                      { sec: 75, label: "มาตรฐาน (75 วิ/ข้อ)" },
+                      { sec: 90, label: "ละเอียด (90 วิ/ข้อ)" },
+                    ].map((t) => (
+                      <button
+                        key={t.sec}
+                        type="button"
+                        onClick={() => setSecondsPerQuestion(t.sec)}
+                        className={`h-7 px-2.5 rounded-[6px] font-mono text-[11px] transition-colors duration-150 ${
+                          secondsPerQuestion === t.sec
+                            ? "bg-paper-ink text-paper-card font-medium"
+                            : "bg-paper-raised text-paper-secondary hover:text-paper-ink"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {quizMode !== "mistake_review" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -547,12 +838,15 @@ function ExamSimulatorContent() {
                     2. เลือกหมวดวิชา
                   </label>
                   <select
-                    value={selectedCat}
+                    value={isBlueprint ? "all" : selectedCat}
+                    disabled={isBlueprint}
                     onChange={(e) => setSelectedCat(e.target.value)}
-                    className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                    className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
                   >
                     <option value="all">
-                      รวมทุกหมวดวิชา ({allQuestions.length} ข้อ)
+                      {isBlueprint
+                        ? "สุ่มถ่วงน้ำหนักครบทุกหมวด (ภาค ก + ภาค ข)"
+                        : `รวมทุกหมวดวิชา (${allQuestions.length} ข้อ)`}
                     </option>
                     {EXAM_CATEGORIES.map((c) => {
                       const count = allQuestions.filter(
@@ -603,8 +897,8 @@ function ExamSimulatorContent() {
                 <label className="block text-[13px] font-medium text-paper-ink mb-2">
                   4. จำนวนข้อต่อรอบการสอบ
                 </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {([10, 20, 35, "all"] as const).map((cnt) => (
+                <div className="grid grid-cols-5 gap-2">
+                  {([10, 20, 35, 50, "all"] as const).map((cnt) => (
                     <button
                       key={String(cnt)}
                       type="button"
@@ -615,7 +909,7 @@ function ExamSimulatorContent() {
                           : "border-[#1f1b16]/[0.12] bg-paper-bg text-paper-ink hover:bg-paper-raised"
                       }`}
                     >
-                      {cnt === "all" ? "ทั้งหมด" : `${cnt} ข้อ`}
+                      {cnt === "all" ? "ทั้งหมด" : `${cnt}`}
                     </button>
                   ))}
                 </div>
@@ -674,11 +968,42 @@ function ExamSimulatorContent() {
     const isBookmarked = !!bookmarkedIds[q.id];
     const strikedOptions = strikethroughMap[currentIndex] || [];
     const answeredTotal = Object.keys(userAnswers).length;
+    const unansweredTotal = total - answeredTotal;
 
+    const remainingSeconds = Math.max(0, examTimeLimit - secondsElapsed);
     const displayTime =
       quizMode === "exam"
-        ? formatTime(Math.max(0, examTimeLimit - secondsElapsed))
+        ? formatTime(remainingSeconds)
         : formatTime(secondsElapsed);
+
+    const isTimeCritical = quizMode === "exam" && remainingSeconds <= 60;
+    const isTimeWarning =
+      quizMode === "exam" &&
+      !isTimeCritical &&
+      remainingSeconds <= Math.max(120, Math.round(examTimeLimit * 0.2));
+
+    let liveCorrectCount = 0;
+    let liveWrongCount = 0;
+    if (quizMode !== "exam") {
+      Object.entries(userAnswers).forEach(([qIdxStr, ansOpt]) => {
+        const item = activeQuiz[Number(qIdxStr)];
+        if (!item) return;
+        if (ansOpt === item.answer) liveCorrectCount++;
+        else liveWrongCount++;
+      });
+    }
+
+    const sheetIndices = activeQuiz
+      .map((_, idx) => idx)
+      .filter((idx) => {
+        if (sheetFilter === "unanswered") {
+          return userAnswers[idx] === undefined;
+        }
+        if (sheetFilter === "flagged") {
+          return flaggedIndices.includes(idx);
+        }
+        return true;
+      });
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -686,7 +1011,7 @@ function ExamSimulatorContent() {
         <div className="lg:col-span-8 space-y-4">
           {/* Paper Header Bar */}
           <div className="px-5 py-3.5 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink">
                 {q.categoryName}
               </span>
@@ -696,6 +1021,18 @@ function ExamSimulatorContent() {
             </div>
 
             <div className="flex items-center gap-2">
+              {quizMode === "exam" && isAnswered && (
+                <button
+                  type="button"
+                  onClick={handleClearCurrentAnswer}
+                  title="ล้างคำตอบข้อนี้เพื่อเว้นว่างไว้ก่อน"
+                  className="h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink text-[12px] flex items-center gap-1 transition-colors duration-150"
+                >
+                  <Eraser className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span className="hidden sm:inline">ล้างคำตอบ</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleToggleFlag(currentIndex)}
@@ -712,7 +1049,7 @@ function ExamSimulatorContent() {
               <button
                 type="button"
                 onClick={() => handleToggleBookmark(q.id)}
-                title="บันทึกไว้ในสมุดทบทวน"
+                title="บันทึกไว้ในสมุดทบทวน (กด B)"
                 className={`h-8 px-2.5 rounded-[6px] border text-[12px] flex items-center gap-1 transition-colors duration-150 ${
                   isBookmarked
                     ? "border-paper-accent bg-paper-accent/[0.08] text-paper-accent font-medium"
@@ -720,7 +1057,9 @@ function ExamSimulatorContent() {
                 }`}
               >
                 <Bookmark className="w-3.5 h-3.5" strokeWidth={1.5} />
-                <span className="hidden sm:inline">เก็บเข้าสมุด</span>
+                <span className="hidden sm:inline">
+                  {isBookmarked ? "อยู่ในสมุดแล้ว" : "เก็บเข้าสมุด"}
+                </span>
               </button>
             </div>
           </div>
@@ -763,8 +1102,7 @@ function ExamSimulatorContent() {
                   } else {
                     rowClass +=
                       "border-[#1f1b16]/[0.06] bg-paper-bg/40 text-paper-muted";
-                    bubbleClass +=
-                      "border-[#1f1b16]/15 text-paper-muted";
+                    bubbleClass += "border-[#1f1b16]/15 text-paper-muted";
                   }
                 } else if (isSelected) {
                   rowClass +=
@@ -774,8 +1112,7 @@ function ExamSimulatorContent() {
                 } else {
                   rowClass +=
                     "border-[#1f1b16]/[0.1] bg-paper-bg/40 hover:bg-paper-raised/60 text-paper-ink";
-                  bubbleClass +=
-                    "border-[#1f1b16]/25 text-paper-secondary";
+                  bubbleClass += "border-[#1f1b16]/25 text-paper-secondary";
                 }
 
                 return (
@@ -825,9 +1162,14 @@ function ExamSimulatorContent() {
             {showInstantExplanation && (
               <div className="p-5 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.12] space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#1f1b16]/[0.08]">
-                  <span className="font-title font-medium text-[14px] text-paper-ink">
-                    อรรถาธิบายและวิเคราะห์ตัวเลือก
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-title font-medium text-[14px] text-paper-ink">
+                      อรรถาธิบายและวิเคราะห์ตัวเลือก
+                    </span>
+                    <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-passBg text-paper-pass font-medium">
+                      เฉลยข้อ {letters[q.answer]}. {q.options[q.answer]}
+                    </span>
+                  </div>
                   {q.lawReference && (
                     <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary">
                       [{q.lawReference}]
@@ -865,16 +1207,21 @@ function ExamSimulatorContent() {
             )}
 
             {/* Prev / Next Controls */}
-            <div className="flex items-center justify-between pt-4 border-t border-[#1f1b16]/[0.08]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-[#1f1b16]/[0.08]">
               <button
                 type="button"
                 disabled={currentIndex === 0}
                 onClick={() => setCurrentIndex((c) => Math.max(0, c - 1))}
-                className="h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover disabled:opacity-40 text-paper-ink text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150"
+                className="h-10 px-4 rounded-[8px] bg-paper-raised hover:bg-paper-hover disabled:opacity-40 text-paper-ink text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150"
               >
                 <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
                 <span>ข้อก่อนหน้า</span>
               </button>
+
+              <div className="hidden md:flex items-center gap-1.5 text-[11px] font-mono text-paper-muted">
+                <Keyboard className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <span>คีย์ลัด: กด 1–4 เลือกคำตอบ • ลูกศรซ้าย/ขวา เปลี่ยนข้อ • F ติดธง • B เก็บเข้าสมุด</span>
+              </div>
 
               {currentIndex < total - 1 ? (
                 <button
@@ -882,7 +1229,7 @@ function ExamSimulatorContent() {
                   onClick={() =>
                     setCurrentIndex((c) => Math.min(total - 1, c + 1))
                   }
-                  className="h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-1.5 transition-colors duration-150"
+                  className="h-10 px-5 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center justify-center gap-1.5 transition-colors duration-150"
                 >
                   <span>ข้อถัดไป</span>
                   <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
@@ -891,7 +1238,7 @@ function ExamSimulatorContent() {
                 <button
                   type="button"
                   onClick={handleConfirmFinish}
-                  className="h-10 px-5 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+                  className="h-10 px-5 rounded-[8px] bg-paper-ink hover:bg-paper-ink/90 text-paper-card text-[13px] font-medium flex items-center justify-center gap-2 transition-colors duration-150"
                 >
                   <Check className="w-4 h-4" strokeWidth={1.5} />
                   <span>ส่งกระดาษคำตอบ</span>
@@ -902,58 +1249,124 @@ function ExamSimulatorContent() {
         </div>
 
         {/* Right 4 Columns: Optical Answer Sheet (กระดาษคำตอบ) */}
-        <div className="lg:col-span-4 p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-5 sticky top-20">
+        <div className="lg:col-span-4 p-5 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4 sticky top-20">
           {/* Timer & Progress Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-[#1f1b16]/[0.08]">
+          <div className="flex items-center justify-between pb-3 border-b border-[#1f1b16]/[0.08]">
             <div>
               <div className="text-[12px] text-paper-muted">กระดาษคำตอบ</div>
               <div className="font-mono text-[13px] text-paper-ink tabular-nums mt-0.5">
                 ตอบแล้ว {answeredTotal} / {total} ข้อ
               </div>
+              {quizMode !== "exam" && answeredTotal > 0 && (
+                <div className="font-mono text-[11px] text-paper-secondary tabular-nums mt-0.5">
+                  ถูก <span className="text-paper-pass">{liveCorrectCount}</span>{" "}
+                  • ผิด <span className="text-paper-fail">{liveWrongCount}</span>
+                </div>
+              )}
             </div>
 
-            <div className="px-3 py-1.5 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.1] flex items-center gap-2 font-mono text-[14px] font-medium text-paper-ink tabular-nums">
-              <Clock className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
+            <div
+              className={`px-3 py-1.5 rounded-[8px] border flex items-center gap-2 font-mono text-[14px] font-medium tabular-nums ${
+                isTimeCritical
+                  ? "bg-paper-failBg border-paper-fail/40 text-paper-fail animate-pulse"
+                  : isTimeWarning
+                  ? "bg-paper-warnBg border-paper-warn/40 text-paper-warn"
+                  : "bg-paper-bg border-[#1f1b16]/[0.1] text-paper-ink"
+              }`}
+            >
+              <Clock className="w-4 h-4 shrink-0" strokeWidth={1.5} />
               <span>{displayTime}</span>
             </div>
           </div>
 
-          {/* Optical Answer Sheet Grid */}
-          <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
-            {activeQuiz.map((item, idx) => {
-              const ansIdx = userAnswers[idx];
-              const answered = ansIdx !== undefined;
-              const flagged = flaggedIndices.includes(idx);
-              const isCurrent = idx === currentIndex;
-
-              return (
-                <button
-                  key={item.id + idx}
-                  type="button"
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`h-9 rounded-[6px] border font-mono text-[12px] tabular-nums flex items-center justify-center gap-1 transition-colors duration-150 ${
-                    isCurrent
-                      ? "border-paper-accent bg-paper-accent text-paper-card font-medium"
-                      : flagged
-                      ? "border-paper-warn bg-paper-warnBg text-paper-warn font-medium"
-                      : answered
-                      ? "border-[#1f1b16]/25 bg-paper-raised text-paper-ink font-medium"
-                      : "border-[#1f1b16]/[0.08] bg-paper-bg text-paper-muted hover:text-paper-ink"
-                  }`}
-                >
-                  <span>{idx + 1}</span>
-                  {answered && (
-                    <span className="text-[11px] opacity-80">
-                      :{letters[ansIdx]}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/* Answer Sheet Filter Pills */}
+          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono tabular-nums">
+            <button
+              type="button"
+              onClick={() => setSheetFilter("all")}
+              className={`h-7 rounded-[6px] transition-colors ${
+                sheetFilter === "all"
+                  ? "bg-paper-ink text-paper-card font-medium"
+                  : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
+              }`}
+            >
+              ทั้งหมด ({total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSheetFilter("unanswered")}
+              className={`h-7 rounded-[6px] transition-colors ${
+                sheetFilter === "unanswered"
+                  ? "bg-paper-ink text-paper-card font-medium"
+                  : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
+              }`}
+            >
+              ยังไม่ตอบ ({unansweredTotal})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSheetFilter("flagged")}
+              className={`h-7 rounded-[6px] transition-colors ${
+                sheetFilter === "flagged"
+                  ? "bg-paper-warn text-paper-card font-medium"
+                  : "bg-paper-bg text-paper-secondary hover:bg-paper-raised"
+              }`}
+            >
+              ติดธง ({flaggedIndices.length})
+            </button>
           </div>
 
+          {/* Optical Answer Sheet Grid */}
+          {sheetIndices.length === 0 ? (
+            <div className="py-6 text-center text-[12px] text-paper-muted">
+              ไม่มีรายการข้อสอบในตัวกรองนี้
+            </div>
+          ) : (
+            <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+              {sheetIndices.map((idx) => {
+                const item = activeQuiz[idx];
+                const ansIdx = userAnswers[idx];
+                const answered = ansIdx !== undefined;
+                const flagged = flaggedIndices.includes(idx);
+                const isCurrent = idx === currentIndex;
+                const isPracticeCorrect =
+                  quizMode !== "exam" && answered && ansIdx === item.answer;
+                const isPracticeWrong =
+                  quizMode !== "exam" && answered && ansIdx !== item.answer;
+
+                return (
+                  <button
+                    key={item.id + idx}
+                    type="button"
+                    onClick={() => setCurrentIndex(idx)}
+                    className={`h-9 rounded-[6px] border font-mono text-[12px] tabular-nums flex items-center justify-center gap-1 transition-colors duration-150 ${
+                      isCurrent
+                        ? "border-paper-accent bg-paper-accent text-paper-card font-medium"
+                        : flagged
+                        ? "border-paper-warn bg-paper-warnBg text-paper-warn font-medium"
+                        : isPracticeCorrect
+                        ? "border-paper-pass/35 bg-paper-passBg text-paper-pass font-medium"
+                        : isPracticeWrong
+                        ? "border-paper-fail/35 bg-paper-failBg text-paper-fail font-medium"
+                        : answered
+                        ? "border-[#1f1b16]/25 bg-paper-raised text-paper-ink font-medium"
+                        : "border-[#1f1b16]/[0.08] bg-paper-bg text-paper-muted hover:text-paper-ink"
+                    }`}
+                  >
+                    <span>{idx + 1}</span>
+                    {answered && (
+                      <span className="text-[11px] opacity-80">
+                        :{letters[ansIdx]}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Legend & Submit */}
-          <div className="pt-4 border-t border-[#1f1b16]/[0.08] space-y-3">
+          <div className="pt-3 border-t border-[#1f1b16]/[0.08] space-y-3">
             <div className="flex items-center justify-between text-[12px] text-paper-muted">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-[2px] bg-paper-raised border border-[#1f1b16]/25 inline-block" />
@@ -993,7 +1406,7 @@ function ExamSimulatorContent() {
       <div className="p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-[#1f1b16]/[0.08]">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <span
                 className={`font-mono text-[12px] px-2.5 py-0.5 rounded-[5px] font-medium ${
                   lastAttempt.passed
@@ -1003,11 +1416,16 @@ function ExamSimulatorContent() {
               >
                 {lastAttempt.passed
                   ? "ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"
-                  : "ต่ำกว่าเกณฑ์มาตรฐาน 60%"}
+                  : "ยังไม่ผ่านเกณฑ์มาตรฐาน ก.ค.ศ. (60%)"}
               </span>
               <span className="font-mono text-[12px] text-paper-muted tabular-nums">
                 เวลาที่ใช้ {formatTime(lastAttempt.durationSeconds)}
               </span>
+              {lastAttempt.avgSecondsPerQuestion && (
+                <span className="font-mono text-[12px] text-paper-muted tabular-nums">
+                  • เฉลี่ย {lastAttempt.avgSecondsPerQuestion} วินาที/ข้อ
+                </span>
+              )}
             </div>
             <h1 className="font-title font-normal text-[26px] md:text-[30px] text-paper-ink">
               รายงานผลการทดสอบ: {lastAttempt.title}
@@ -1034,26 +1452,63 @@ function ExamSimulatorContent() {
           </div>
         </div>
 
+        {/* Part Breakdown (ภาค ก vs ภาค ข) */}
+        {lastAttempt.partBreakdown &&
+          Object.keys(lastAttempt.partBreakdown).length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.values(lastAttempt.partBreakdown).map((partInfo) => (
+                <div
+                  key={partInfo.part}
+                  className="p-4 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-title font-medium text-[14px] text-paper-ink">
+                      สรุปคะแนน {partInfo.part}
+                    </div>
+                    <div className="text-[12px] text-paper-secondary">
+                      เกณฑ์ผ่านขั้นต่ำ ก.ค.ศ. ร้อยละ 60
+                    </div>
+                  </div>
+                  <div className="text-right font-mono tabular-nums">
+                    <div
+                      className={`text-[16px] font-medium ${
+                        partInfo.passed ? "text-paper-pass" : "text-paper-fail"
+                      }`}
+                    >
+                      {partInfo.correct}/{partInfo.total} ({partInfo.scorePercent}
+                      %)
+                    </div>
+                    <div className="text-[11px] text-paper-muted">
+                      {partInfo.passed ? "ผ่านเกณฑ์ภาคนี้" : "ต่ำกว่าเกณฑ์ 60%"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
         {/* Category Breakdown Table */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {Object.entries(lastAttempt.categoryBreakdown).map(([catId, info]) => {
-            const pct = Math.round((info.correct / info.total) * 100);
-            return (
-              <div
-                key={catId}
-                className="p-3.5 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between text-[13px]"
-              >
-                <span className="text-paper-ink">{info.name}</span>
-                <span
-                  className={`font-mono tabular-nums font-medium ${
-                    pct >= 60 ? "text-paper-pass" : "text-paper-fail"
-                  }`}
+          {Object.entries(lastAttempt.categoryBreakdown).map(
+            ([catId, info]) => {
+              const pct = Math.round((info.correct / info.total) * 100);
+              return (
+                <div
+                  key={catId}
+                  className="p-3.5 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between text-[13px]"
                 >
-                  {info.correct}/{info.total} ({pct}%)
-                </span>
-              </div>
-            );
-          })}
+                  <span className="text-paper-ink">{info.name}</span>
+                  <span
+                    className={`font-mono tabular-nums font-medium ${
+                      pct >= 60 ? "text-paper-pass" : "text-paper-fail"
+                    }`}
+                  >
+                    {info.correct}/{info.total} ({pct}%)
+                  </span>
+                </div>
+              );
+            }
+          )}
         </div>
 
         {/* Filter & Navigation Actions */}
@@ -1083,13 +1538,23 @@ function ExamSimulatorContent() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {lastAttempt.wrongCount > 0 && (
+              <button
+                type="button"
+                onClick={handleRetryWrongFromAttempt}
+                className="h-9 px-4 rounded-[8px] bg-paper-failBg hover:bg-paper-fail/15 border border-paper-fail/25 text-paper-fail text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
+              >
+                <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <span>ซ้อมเฉพาะข้อที่ผิดในรอบนี้ ({lastAttempt.wrongCount})</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setScreen("setup")}
               className="h-9 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150"
             >
-              <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
               <span>สุ่มชุดใหม่</span>
             </button>
             <button
@@ -1110,112 +1575,130 @@ function ExamSimulatorContent() {
             ตอบถูกครบทุกข้อในชุดแบบทดสอบนี้ ไม่มีรายการข้อที่ตอบผิด
           </div>
         ) : (
-          filteredAnswers.map((ans, idx) => (
-            <div
-              key={ans.questionId + idx}
-              className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-baseline gap-3">
-                  <span
-                    className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 ${
-                      ans.isCorrect
-                        ? "bg-paper-passBg text-paper-pass"
-                        : "bg-paper-failBg text-paper-fail"
-                    }`}
-                  >
-                    {ans.isCorrect ? "ถูก" : "ผิด"}
-                  </span>
-                  <h3 className="text-[15px] leading-[24px] font-medium text-paper-ink">
-                    {ans.questionText}
-                  </h3>
-                </div>
-                <span className="font-mono text-[12px] text-paper-muted shrink-0">
-                  {ans.categoryName}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {ans.options.map((opt, oIdx) => {
-                  const isCorrect = oIdx === ans.correctIndex;
-                  const isUserSelected = oIdx === ans.selectedIndex;
-
-                  return (
-                    <div
-                      key={oIdx}
-                      className={`p-3 rounded-[8px] border text-[13px] flex items-center justify-between gap-2.5 ${
-                        isCorrect
-                          ? "border-paper-pass/40 bg-paper-passBg text-paper-ink font-medium"
-                          : isUserSelected && !isCorrect
-                          ? "border-paper-fail/40 bg-paper-failBg text-paper-ink font-medium"
-                          : "border-[#1f1b16]/[0.08] bg-paper-bg/40 text-paper-secondary"
+          filteredAnswers.map((ans, idx) => {
+            const isBookmarked = !!bookmarkedIds[ans.questionId];
+            return (
+              <div
+                key={ans.questionId + idx}
+                className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-baseline gap-3">
+                    <span
+                      className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 ${
+                        ans.isCorrect
+                          ? "bg-paper-passBg text-paper-pass"
+                          : "bg-paper-failBg text-paper-fail"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
-                            isCorrect
-                              ? "bg-paper-pass text-paper-card border-paper-pass"
-                              : isUserSelected && !isCorrect
-                              ? "bg-paper-fail text-paper-card border-paper-fail"
-                              : "border-[#1f1b16]/20 text-paper-muted"
-                          }`}
-                        >
-                          {letters[oIdx]}
-                        </span>
-                        <span>{opt}</span>
-                      </div>
-                      {isCorrect && (
-                        <Check className="w-4 h-4 text-paper-pass shrink-0" />
-                      )}
-                      {isUserSelected && !isCorrect && (
-                        <X className="w-4 h-4 text-paper-fail shrink-0" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2.5 text-[13px]">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-paper-ink">
-                    คำอธิบายและเหตุผลประกอบ:
-                  </span>
-                  {ans.lawReference && (
-                    <span className="font-mono text-[12px] text-paper-secondary">
-                      [{ans.lawReference}]
+                      {ans.isCorrect ? "ถูก" : "ผิด"}
                     </span>
+                    <h3 className="text-[15px] leading-[24px] font-medium text-paper-ink">
+                      {ans.questionText}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono text-[12px] text-paper-muted">
+                      {ans.categoryName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleBookmark(ans.questionId)}
+                      className={`h-7 px-2 rounded-[6px] border text-[11px] flex items-center gap-1 transition-colors ${
+                        isBookmarked
+                          ? "border-paper-accent bg-paper-accent/[0.08] text-paper-accent font-medium"
+                          : "border-[#1f1b16]/[0.1] bg-paper-bg text-paper-muted hover:text-paper-ink"
+                      }`}
+                    >
+                      <Bookmark className="w-3 h-3" strokeWidth={1.5} />
+                      <span>{isBookmarked ? "ติดดาวแล้ว" : "ติดดาว"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {ans.options.map((opt, oIdx) => {
+                    const isCorrect = oIdx === ans.correctIndex;
+                    const isUserSelected = oIdx === ans.selectedIndex;
+
+                    return (
+                      <div
+                        key={oIdx}
+                        className={`p-3 rounded-[8px] border text-[13px] flex items-center justify-between gap-2.5 ${
+                          isCorrect
+                            ? "border-paper-pass/40 bg-paper-passBg text-paper-ink font-medium"
+                            : isUserSelected && !isCorrect
+                            ? "border-paper-fail/40 bg-paper-failBg text-paper-ink font-medium"
+                            : "border-[#1f1b16]/[0.08] bg-paper-bg/40 text-paper-secondary"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`w-6 h-6 rounded-full font-mono text-[11px] flex items-center justify-center shrink-0 border ${
+                              isCorrect
+                                ? "bg-paper-pass text-paper-card border-paper-pass"
+                                : isUserSelected && !isCorrect
+                                ? "bg-paper-fail text-paper-card border-paper-fail"
+                                : "border-[#1f1b16]/20 text-paper-muted"
+                            }`}
+                          >
+                            {letters[oIdx]}
+                          </span>
+                          <span>{opt}</span>
+                        </div>
+                        {isCorrect && (
+                          <Check className="w-4 h-4 text-paper-pass shrink-0" />
+                        )}
+                        {isUserSelected && !isCorrect && (
+                          <X className="w-4 h-4 text-paper-fail shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="p-4 rounded-[8px] bg-paper-bg border border-[#1f1b16]/[0.08] space-y-2.5 text-[13px]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-paper-ink">
+                      คำอธิบายและเหตุผลประกอบ:
+                    </span>
+                    {ans.lawReference && (
+                      <span className="font-mono text-[12px] text-paper-secondary">
+                        [{ans.lawReference}]
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-paper-secondary leading-[21px]">
+                    {ans.explanation}
+                  </p>
+
+                  {ans.optionAnalysis && ans.optionAnalysis.length > 0 && (
+                    <div className="p-3 rounded-[6px] bg-paper-card border border-[#1f1b16]/[0.06] space-y-1">
+                      {ans.optionAnalysis.map((line, i) => (
+                        <div
+                          key={i}
+                          className={
+                            i === ans.correctIndex
+                              ? "text-paper-pass font-medium"
+                              : "text-paper-secondary"
+                          }
+                        >
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {ans.keyTakeaway && (
+                    <div className="pt-1 font-mono text-[12px] text-paper-ink">
+                      หลักจำ: {ans.keyTakeaway}
+                    </div>
                   )}
                 </div>
-                <p className="text-paper-secondary leading-[21px]">
-                  {ans.explanation}
-                </p>
-
-                {ans.optionAnalysis && ans.optionAnalysis.length > 0 && (
-                  <div className="p-3 rounded-[6px] bg-paper-card border border-[#1f1b16]/[0.06] space-y-1">
-                    {ans.optionAnalysis.map((line, i) => (
-                      <div
-                        key={i}
-                        className={
-                          i === ans.correctIndex
-                            ? "text-paper-pass font-medium"
-                            : "text-paper-secondary"
-                        }
-                      >
-                        {line}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {ans.keyTakeaway && (
-                  <div className="pt-1 font-mono text-[12px] text-paper-ink">
-                    หลักจำ: {ans.keyTakeaway}
-                  </div>
-                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

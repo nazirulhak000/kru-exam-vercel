@@ -143,9 +143,11 @@ export default function Navbar() {
             {/* Brand Wordmark + Flat Mark */}
             <div className="flex items-center gap-6">
               <Link href="/" className="flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded-[6px] bg-paper-accent text-paper-card font-mono text-[12px] font-medium flex items-center justify-center">
-                  ก
-                </span>
+                <img
+                  src="/icon.png"
+                  alt="KruBanjoo Logo"
+                  className="w-7 h-7 rounded-[7px] object-cover shadow-xs border border-[#1f1b16]/[0.1]"
+                />
                 <span className="font-title font-medium text-[16px] leading-none text-paper-ink">
                   KruBanjoo
                 </span>

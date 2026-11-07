@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { EXAM_CATEGORIES, ExamCategory } from "@/types/exam";
 
 export const maxDuration = 60;
 
@@ -7,6 +8,8 @@ interface PageInput {
   text: string;
   imageDataUrl?: string;
 }
+
+const VALID_CATEGORIES = new Set<string>(EXAM_CATEGORIES.map((c) => c.id));
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "ไม่พบ Gemini API Key กรุณากรอก API Key ในช่องตั้งค่า หรือเลือกใช้ 'โหมดสกัดอัตโนมัติ (ฟรี ไม่ใช้ Key)'",
+            "ไม่พบ Gemini API Key กรุณากรอก API Key ในช่องตั้งค่า หรือเลือกใช้ 'โหมดแยกโครงสร้างโจทย์อัตโนมัติ (ไม่ใช้คีย์)'",
         },
         { status: 400 }
       );
@@ -44,19 +47,21 @@ export async function POST(req: NextRequest) {
 
     const systemInstruction =
       mode === "extract"
-        ? `คุณคือผู้เชี่ยวชาญการออกข้อสอบและติวเตอร์สอบบรรจุข้าราชการครู (ครูผู้ช่วย สพฐ. ภาค ก และ ภาค ข)
+        ? `คุณคือผู้เชี่ยวชาญการออกข้อสอบและติวเตอร์สอบบรรจุข้าราชการครู (ครูผู้ช่วย สพฐ. ภาค ก และ ภาค ข ตามมาตรฐาน ก.ค.ศ.)
 หน้าที่ของคุณคือ:
 1. สกัดข้อสอบปรนัย 4 ตัวเลือก (ก, ข, ค, ง) ทุกข้อที่ปรากฏในข้อความหรือรูปภาพหน้าเอกสาร PDF ที่ส่งให้
 2. หากในเอกสารมีเฉลยอยู่แล้ว ให้ยึดตามเฉลยที่ถูกต้อง แต่หากไม่มีเฉลยหรือเฉลยผิดตามหลักกฎหมายปัจจุบัน ให้คุณวิเคราะห์และเลือกคำตอบที่ถูกต้องที่สุด (index 0, 1, 2 หรือ 3)
-3. เขียนคำอธิบายเฉลยแบบละเอียดที่สุด (explanation) อ้างอิงมาตรากฎหมายหรือทฤษฎีการศึกษา (lawReference)
-4. วิเคราะห์ตัวเลือกทั้ง 4 ข้อทีละตัวเลือกใน optionAnalysis ว่าทำไมถึงถูกหรือผิด (เพื่อดักจุดหลอก)
+3. เขียนคำอธิบายเฉลยแบบละเอียดที่สุด (explanation) โดยระบุเนื้อหาของคำตอบที่ถูกให้ชัดเจน (หลีกเลี่ยงการเขียนแค่ว่า "ตอบ ก." เพราะระบบมีโหมดสลับตำแหน่งตัวเลือก) พร้อมอ้างอิงมาตรากฎหมายหรือทฤษฎีการศึกษาใน lawReference
+4. วิเคราะห์ตัวเลือกทั้ง 4 ข้อทีละตัวเลือกใน optionAnalysis ว่าทำไมตัวเลือกนั้นถึงถูกหรือผิด (เพื่อดักจุดหลอก)
 5. สรุปเทคนิคจำสั้นๆ เข้าห้องสอบใน keyTakeaway`
-        : `คุณคือคณะกรรมการออกข้อสอบบรรจุข้าราชการครู (ครูผู้ช่วย สพฐ. มาตรฐาน ก.ค.ศ.)
+        : `คุณคือคณะกรรมการออกข้อสอบแข่งขันเพื่อบรรจุและแต่งตั้งบุคคลเข้ารับราชการครู ตำแหน่ง "ครูผู้ช่วย" (มาตรฐาน ก.ค.ศ.)
 หน้าที่ของคุณคือ:
-1. อ่านเนื้อหาสรุปหรือตัวบทกฎหมายจากหน้าเอกสาร PDF ที่ส่งให้ แล้วสร้างข้อสอบปรนัย 4 ตัวเลือก (ก, ข, ค, ง) จำนวนประมาณ ${targetCount} ข้อ ที่มีความสมจริงระดับข้อสอบจริง (มีตัวลวงที่แนบเนียน วัดทั้งความจำแม่นยำและการคิดวิเคราะห์)
+1. อ่านเนื้อหาสรุปหรือตัวบทกฎหมายจากหน้าเอกสาร PDF ที่ส่งให้ แล้วสร้างข้อสอบปรนัย 4 ตัวเลือก (ก, ข, ค, ง) จำนวนประมาณ ${targetCount} ข้อ ที่มีความสมจริงระดับข้อสอบจริง:
+   - ผสมผสานทั้งข้อสอบวัดความจำแม่นยำ (ตัวเลข/อายุ/วันเวลา/องค์ประกอบคณะกรรมการ/อัตราโทษ) และข้อสอบเชิงวิเคราะห์สถานการณ์ในโรงเรียน (Scenario-based)
+   - สร้างตัวลวง (Distractors) ที่แนบเนียน ดักจุดที่ผู้เข้าสอบมักจำสับสน (เช่น สลับคำว่า "อายุย่างเข้า" กับ "อายุบริบูรณ์", สลับอำนาจ "คุรุสภา" กับ "ก.ค.ศ.")
 2. ระบุคำตอบที่ถูกต้อง (answer เป็นตัวเลข 0, 1, 2 หรือ 3)
-3. เขียนคำอธิบายเฉลยแบบละเอียด (explanation) พร้อมระบุมาตราหรือทฤษฎีที่อ้างอิง (lawReference)
-4. วิเคราะห์ตัวเลือกทั้ง 4 ข้อทีละข้อใน optionAnalysis ว่าทำไมแต่ละข้อถึงถูกหรือผิด
+3. เขียนคำอธิบายเฉลยแบบละเอียด (explanation) โดยอธิบายเนื้อหาคำตอบที่ถูกตรงๆ พร้อมระบุมาตราหรือทฤษฎีที่อ้างอิงใน lawReference
+4. วิเคราะห์ตัวเลือกทั้ง 4 ข้อทีละข้อใน optionAnalysis ว่าทำไมแต่ละข้อถึงถูกหรือเป็นตัวลวง
 5. สรุปเทคนิคจำสั้นๆ เข้าห้องสอบใน keyTakeaway`;
 
     const parts: Array<
@@ -81,7 +86,7 @@ export async function POST(req: NextRequest) {
     "category": "law",
     "categoryName": "กฎหมายการศึกษา",
     "question": "ข้อความโจทย์คำถาม...",
-    "options": ["ตัวเลือก ก", "ตัวเลือก ข", "ตัวเลือก ค", "ตัวเลือก ง"],
+    "options": ["ตัวเลือกที่ 1", "ตัวเลือกที่ 2", "ตัวเลือกที่ 3", "ตัวเลือกที่ 4"],
     "answer": 0,
     "lawReference": "พ.ร.บ. ... มาตรา ...",
     "explanation": "คำอธิบายเฉลยอย่างละเอียด...",
@@ -115,30 +120,54 @@ ${combinedText}`,
       }
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-      apiKey
-    )}`;
+    const candidateModels = [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+    ];
 
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: 0.25,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
+    let response: Response | null = null;
+    let lastErrorText = "";
 
-    if (!response.ok) {
-      const errText = await response.text();
+    for (const modelName of candidateModels) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(
+        apiKey
+      )}`;
+
+      const res = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.25,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
+
+      if (res.ok) {
+        response = res;
+        break;
+      }
+
+      lastErrorText = await res.text();
+      // If unauthorized / invalid API key (400/403), don't retry other models
+      if (res.status === 400 || res.status === 403) {
+        response = res;
+        break;
+      }
+    }
+
+    if (!response || !response.ok) {
       return NextResponse.json(
         {
-          error: `การเชื่อมต่อ Gemini API ขัดข้อง (${response.status}): กรุณาตรวจสอบ API Key ของคุณ`,
-          details: errText,
+          error: `การเชื่อมต่อ Gemini API ขัดข้อง (${
+            response?.status || 500
+          }): กรุณาตรวจสอบ API Key ของคุณ`,
+          details: lastErrorText,
         },
-        { status: response.status }
+        { status: response?.status || 500 }
       );
     }
 
@@ -162,30 +191,37 @@ ${combinedText}`,
           Array.isArray(q.options) &&
           q.options.length >= 4
       )
-      .map((q, idx) => ({
-        id: `ai-pdf-${Date.now()}-${idx + 1}`,
-        category: q.category || defaultCategory,
-        categoryName: q.categoryName || "ข้อสอบจาก PDF",
-        sourcePdf,
-        question: q.question.trim(),
-        options: [
-          String(q.options[0]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
-          String(q.options[1]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
-          String(q.options[2]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
-          String(q.options[3]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
-        ],
-        answer:
-          typeof q.answer === "number" && q.answer >= 0 && q.answer <= 3
-            ? q.answer
-            : 0,
-        lawReference: q.lawReference || `อ้างอิงจาก ${sourcePdf}`,
-        explanation: q.explanation || "",
-        optionAnalysis: Array.isArray(q.optionAnalysis)
-          ? q.optionAnalysis.slice(0, 4)
-          : undefined,
-        keyTakeaway: q.keyTakeaway || "",
-        createdAt: new Date().toISOString(),
-      }));
+      .map((q, idx) => {
+        const catId: ExamCategory = VALID_CATEGORIES.has(q.category)
+          ? (q.category as ExamCategory)
+          : (defaultCategory as ExamCategory) || "law";
+        const catMeta = EXAM_CATEGORIES.find((c) => c.id === catId);
+
+        return {
+          id: `ai-pdf-${Date.now()}-${idx + 1}`,
+          category: catId,
+          categoryName: catMeta?.shortName || q.categoryName || "ข้อสอบจาก PDF",
+          sourcePdf,
+          question: q.question.replace(/^(?:ข้อ(?:ที่)?\s*)?\d+\s*[.)]\s*/, "").trim(),
+          options: [
+            String(q.options[0]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
+            String(q.options[1]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
+            String(q.options[2]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
+            String(q.options[3]).replace(/^[กขคงABCD1-4][.)]\s*/, "").trim(),
+          ],
+          answer:
+            typeof q.answer === "number" && q.answer >= 0 && q.answer <= 3
+              ? q.answer
+              : 0,
+          lawReference: q.lawReference || `อ้างอิงจาก ${sourcePdf}`,
+          explanation: q.explanation || "",
+          optionAnalysis: Array.isArray(q.optionAnalysis)
+            ? q.optionAnalysis.slice(0, 4)
+            : undefined,
+          keyTakeaway: q.keyTakeaway || "",
+          createdAt: new Date().toISOString(),
+        };
+      });
 
     return NextResponse.json({ questions: formatted });
   } catch (error: unknown) {

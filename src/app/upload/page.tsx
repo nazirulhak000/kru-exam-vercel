@@ -68,6 +68,7 @@ export default function UploadPdfPage() {
 
   const [previewQuestions, setPreviewQuestions] = useState<QuestionItem[]>([]);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const [savedAddedCount, setSavedAddedCount] = useState<number>(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -260,7 +261,8 @@ export default function UploadPdfPage() {
 
   const handleSaveAllToBank = (startExamImmediately: boolean) => {
     if (previewQuestions.length === 0) return;
-    addCustomQuestions(previewQuestions);
+    const added = addCustomQuestions(previewQuestions);
+    setSavedAddedCount(added);
     setSavedSuccess(true);
 
     if (startExamImmediately) {
@@ -597,7 +599,13 @@ export default function UploadPdfPage() {
             <div className="p-4 rounded-[8px] bg-paper-passBg border border-paper-pass/20 text-paper-pass text-[13px] flex items-center justify-between">
               <span className="flex items-center gap-2 font-medium">
                 <Check className="w-4 h-4" strokeWidth={1.5} />
-                <span>บันทึกข้อสอบทั้ง {previewQuestions.length} ข้อ ลงในคลังข้อสอบเรียบร้อยแล้ว</span>
+                <span>
+                  {savedAddedCount === previewQuestions.length
+                    ? `บันทึกข้อสอบใหม่ทั้ง ${savedAddedCount} ข้อ ลงในคลังข้อสอบเรียบร้อยแล้ว`
+                    : `บันทึกข้อสอบใหม่ ${savedAddedCount} ข้อ ลงคลังเรียบร้อย (ข้ามโจทย์ที่ซ้ำในคลัง ${
+                        previewQuestions.length - savedAddedCount
+                      } ข้อ)`}
+                </span>
               </span>
               <button
                 type="button"
