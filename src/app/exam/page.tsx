@@ -583,11 +583,18 @@ function ExamSimulatorContent() {
   };
 
   const handleSelectOption = (optIdx: number) => {
-    // ผู้สอบสามารถเลือกหรือเปลี่ยนคำตอบได้ตลอดเวลา แม้จะเผลอกดผิด
+    // ในโหมดเฉลยทันที เมื่อตอบแล้วจะล็อกคำตอบข้อนั้นทันทีเพื่อไม่ให้เปลี่ยนคำตอบหลังเห็นเฉลย
+    if (quizMode !== "exam" && feedbackMode === "instant" && userAnswers[currentIndex] !== undefined) {
+      return;
+    }
     setUserAnswers((prev) => ({ ...prev, [currentIndex]: optIdx }));
   };
 
   const handleClearCurrentAnswer = () => {
+    // ในโหมดเฉลยทันที หากตอบไปแล้วจะไม่ให้ล้างคำตอบเพื่อเลือกใหม่
+    if (quizMode !== "exam" && feedbackMode === "instant" && userAnswers[currentIndex] !== undefined) {
+      return;
+    }
     setUserAnswers((prev) => {
       const next = { ...prev };
       delete next[currentIndex];
@@ -734,6 +741,7 @@ function ExamSimulatorContent() {
         minute: "2-digit",
       }),
       mode: quizMode,
+      feedbackMode: quizMode === "exam" ? "after_submit" : feedbackMode,
       isBlueprint,
       totalQuestions: total,
       correctCount,
@@ -1005,7 +1013,7 @@ function ExamSimulatorContent() {
                       </span>
                     </div>
                     <p className="text-[12px] leading-[18px] text-paper-secondary">
-                      กดตอบปุ๊บ รู้ผลถูก/ผิด พร้อมคำอธิบายและมาตรากฎหมายทันที (หากเผลอกดผิด สามารถกดเปลี่ยนตัวเลือกหรือล้างคำตอบได้ตลอดเวลา)
+                      กดตอบปุ๊บ รู้ผลถูก/ผิด พร้อมคำอธิบายและมาตรากฎหมายทันที (ระบบจะล็อกคำตอบทันทีที่เลือก เพื่อผลสถิติที่แท้จริงและป้องกันการเปลี่ยนคำตอบหลังเห็นเฉลย)
                     </p>
                   </button>
                 </div>
@@ -1438,8 +1446,8 @@ function ExamSimulatorContent() {
                 </button>
               )}
 
-              {/* ล้างคำตอบ: แสดงเมื่อมีการตอบข้อนี้แล้ว (ใช้ได้ทุกโหมด) */}
-              {isAnswered && (
+              {/* ล้างคำตอบ: แสดงเมื่อมีการตอบข้อนี้แล้ว (ซ่อนในโหมดเฉลยทันทีที่ล็อกคำตอบแล้ว) */}
+              {isAnswered && !isInstantMode && (
                 <button
                   type="button"
                   onClick={handleClearCurrentAnswer}
@@ -1501,8 +1509,9 @@ function ExamSimulatorContent() {
                 const isCorrectOption = q.answer === optIdx;
                 const isStriked = strikedOptions.includes(optIdx);
 
-                let rowClass =
-                  "w-full p-3 sm:p-4 rounded-[10px] border text-left transition-colors duration-150 flex items-center justify-between gap-2 sm:gap-3 cursor-pointer ";
+                let rowClass = showInstantExplanation
+                  ? "w-full p-3 sm:p-4 rounded-[10px] border text-left transition-colors duration-150 flex items-center justify-between gap-2 sm:gap-3 cursor-default "
+                  : "w-full p-3 sm:p-4 rounded-[10px] border text-left transition-colors duration-150 flex items-center justify-between gap-2 sm:gap-3 cursor-pointer ";
                 let bubbleClass =
                   "w-7 h-7 rounded-full font-mono text-[12px] flex items-center justify-center shrink-0 border transition-colors duration-150 ";
 

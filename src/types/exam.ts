@@ -190,6 +190,7 @@ export interface ExamAttempt {
   date: string;
   displayDate: string;
   mode: "practice" | "exam" | "mistake_review";
+  feedbackMode?: "instant" | "after_submit";
   isBlueprint?: boolean;
   totalQuestions: number;
   correctCount: number;
