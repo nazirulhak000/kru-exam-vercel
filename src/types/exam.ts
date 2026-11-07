@@ -189,7 +189,7 @@ export interface ExamAttempt {
   title: string;
   date: string;
   displayDate: string;
-  mode: "practice" | "exam" | "mistake_review";
+  mode: "practice" | "exam" | "mistake_review" | "retry";
   feedbackMode?: "instant" | "after_submit";
   isBlueprint?: boolean;
   totalQuestions: number;
@@ -220,7 +220,7 @@ export interface MistakeRecord {
 export interface ActiveExamSession {
   id: string;
   title: string;
-  mode: "practice" | "exam" | "mistake_review";
+  mode: "practice" | "exam" | "mistake_review" | "retry";
   feedbackMode?: "instant" | "after_submit";
   isBlueprint?: boolean;
   questions: QuestionItem[];
