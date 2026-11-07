@@ -108,6 +108,36 @@ export function isAdminMode(): boolean {
   return localStorage.getItem(KEYS.IS_ADMIN) === "1";
 }
 
+export function getStoredAdminKey(): string {
+  if (!isBrowser()) return DEFAULT_ADMIN_KEY;
+  const uid = getOrCreateUserId();
+  if (uid === DEFAULT_ADMIN_KEY) return DEFAULT_ADMIN_KEY;
+  return localStorage.getItem("kru_exam_admin_key_v1") || DEFAULT_ADMIN_KEY;
+}
+
+export function loginAsAdmin(rawKey: string): boolean {
+  if (!isBrowser()) return false;
+  const key = (rawKey || "").trim().toLowerCase();
+  if (key === DEFAULT_ADMIN_KEY) {
+    localStorage.setItem(KEYS.USER_ID, DEFAULT_ADMIN_KEY);
+    localStorage.setItem(KEYS.IS_ADMIN, "1");
+    localStorage.setItem("kru_exam_admin_key_v1", DEFAULT_ADMIN_KEY);
+    markSyncKeyConfirmed();
+    window.dispatchEvent(new CustomEvent("kru-cloud-synced"));
+    return true;
+  }
+  return false;
+}
+
+export function logoutAdmin(): void {
+  if (!isBrowser()) return;
+  localStorage.removeItem(KEYS.IS_ADMIN);
+  localStorage.removeItem("kru_exam_admin_key_v1");
+  const newKey = generateReadableSyncKey();
+  localStorage.setItem(KEYS.USER_ID, newKey);
+  window.dispatchEvent(new CustomEvent("kru-cloud-synced"));
+}
+
 function setAdminModeFlag(isAdmin: boolean): void {
   if (!isBrowser()) return;
   if (isAdmin || getOrCreateUserId() === DEFAULT_ADMIN_KEY) {
@@ -978,7 +1008,7 @@ function buildCloudHeaders(): Record<string, string> {
     "x-kru-user-id": uid,
   };
   if (isAdminMode()) {
-    headers["x-kru-admin-key"] = uid;
+    headers["x-kru-admin-key"] = getStoredAdminKey();
   }
   if (cf.accountId && cf.apiToken) {
     headers["x-cf-account-id"] = cf.accountId;

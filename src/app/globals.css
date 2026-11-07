@@ -59,3 +59,27 @@
     font-size: 16px !important;
   }
 }
+
+/* Touch devices (phones and tablets such as iPad, which use desktop-width
+   layouts) get finger-sized controls regardless of screen width. Mouse users
+   keep the compact desktop sizes. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+    /* !important: beat responsive utilities such as sm:min-h-0 / lg:h-7 */
+    min-height: 40px !important;
+  }
+
+  button,
+  [role="button"] {
+    min-width: 40px !important;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+}

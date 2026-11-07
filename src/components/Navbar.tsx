@@ -65,6 +65,13 @@ const NAV_ITEMS = [
     icon: History,
     adminOnly: false,
   },
+  {
+    href: "/admin",
+    label: "ศูนย์จัดการแอดมิน",
+    shortLabel: "แอดมิน",
+    icon: ShieldCheck,
+    adminOnly: true,
+  },
 ];
 
 export default function Navbar() {
