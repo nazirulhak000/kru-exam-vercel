@@ -38,3 +38,9 @@ __pycache__/
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Scratch & temporary downloads
+scratch/
+scripts/gdrive_downloads/
+scripts/*.txt
+
