@@ -220,6 +220,7 @@ export interface ActiveExamSession {
   id: string;
   title: string;
   mode: "practice" | "exam" | "mistake_review";
+  feedbackMode?: "instant" | "after_submit";
   isBlueprint?: boolean;
   questions: QuestionItem[];
   currentIndex: number;
