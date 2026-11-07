@@ -1437,7 +1437,26 @@ function ExamSimulatorContent() {
                     <input
                       type="checkbox"
                       checked={isBlueprint}
-                      onChange={(e) => setIsBlueprint(e.target.checked)}
+                      onChange={(e) => {
+                        const nextVal = e.target.checked;
+                        setIsBlueprint(nextVal);
+                        if (nextVal) {
+                          setSelectedSource("all");
+                          if (selectedMajor === "all") {
+                            const pref = getPreferredMajor();
+                            if (pref && pref !== "all") {
+                              setSelectedMajor(pref);
+                            } else {
+                              const available = MAJOR_SUBJECTS.find(
+                                (m) =>
+                                  m !== UNSPECIFIED_MAJOR &&
+                                  allQuestions.some((q) => matchesMajor(q, m))
+                              );
+                              if (available) setSelectedMajor(available);
+                            }
+                          }
+                        }
+                      }}
                       className="w-5 h-5 sm:w-4 sm:h-4 mt-0.5 accent-paper-accent rounded shrink-0"
                     />
                     <div className="min-w-0">
@@ -1451,7 +1470,7 @@ function ExamSimulatorContent() {
                         </span>
                       </span>
                       <p className="text-[12px] text-paper-secondary mt-0.5">
-                        สุ่มข้อสอบจากภาค ก (40%) และภาค ข (60%) พร้อมตัดเกณฑ์ผ่านแยกภาค (ต้องได้ไม่ต่ำกว่าร้อยละ 60 ทั้งสองภาคจึงจะถือว่าสอบผ่าน)
+                        สุ่มข้อสอบตามสัดส่วนมาตรฐาน ก.ค.ศ. ภาค ก (50%) และภาค ข (50%) พร้อมตัดเกณฑ์ผ่านแยกภาค (ต้องได้ไม่ต่ำกว่าร้อยละ 60 ทั้งสองภาคจึงจะถือว่าสอบผ่าน)
                       </p>
                     </div>
                   </label>
@@ -1504,20 +1523,8 @@ function ExamSimulatorContent() {
                           : `รวมทุกหมวดวิชา (${countForCategory("all")} ข้อ)`}
                       </option>
 
-                      {(
-                        [
-                          {
-                            part: "ภาค ก",
-                            label: "ภาค ก — ความรู้ความสามารถทั่วไป (200 คะแนน)",
-                          },
-                          {
-                            part: "ภาค ข",
-                            label:
-                              "ภาค ข — มาตรฐานวิชาชีพ & กฎหมายการศึกษา (100 คะแนน)",
-                          },
-                        ] as const
-                      ).map((group) => (
-                        <optgroup key={group.part} label={group.label}>
+                      {(Object.values(OFFICIAL_EXAM_STRUCTURE)).map((group) => (
+                        <optgroup key={group.part} label={`${group.part} — ${group.name} (${group.fullScore} คะแนน)`}>
                           {EXAM_CATEGORIES.filter(
                             (c) => c.part === group.part
                           ).map((c) => {
@@ -1542,18 +1549,21 @@ function ExamSimulatorContent() {
                       4. เลือกชุดเอกสารหรือไฟล์ PDF ต้นทาง
                     </label>
                     <select
-                      value={selectedSource}
+                      value={isBlueprint ? "all" : selectedSource}
+                      disabled={isBlueprint}
                       onChange={(e) => setSelectedSource(e.target.value)}
-                      className="w-full min-w-0 max-w-full h-11 sm:h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
+                      className="w-full min-w-0 max-w-full h-11 sm:h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
                     >
                       <option value="all">
-                        {effectiveCat === "all"
+                        {isBlueprint
+                          ? "ทุกชุดข้อสอบรวมกัน (โหมดมาตรฐาน ก.ค.ศ. ดึงครบทุกชุด)"
+                          : effectiveCat === "all"
                           ? "ทุกชุดข้อสอบรวมกัน"
                           : "ทุกชุดที่มีข้อสอบหมวดนี้"}{" "}
                         ({visibleSources.length} ชุด)
                       </option>
 
-                      {(
+                      {!isBlueprint && (
                         [
                           {
                             key: "common",
@@ -1601,7 +1611,11 @@ function ExamSimulatorContent() {
                       onChange={(e) => handleSelectMajor(e.target.value)}
                       className="w-full sm:w-auto min-w-0 max-w-full sm:max-w-[55%] h-11 sm:h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-card text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent sm:shrink-0"
                     >
-                      <option value="all">ทุกสาขาวิชาเอกรวมกัน</option>
+                      <option value="all" disabled={isBlueprint}>
+                        {isBlueprint
+                          ? "— กรุณาเลือกสาขาวิชาเอกของคุณ —"
+                          : "ทุกสาขาวิชาเอกรวมกัน"}
+                      </option>
                       {majorCounts.map((maj) => (
                         <option
                           key={maj.name}
