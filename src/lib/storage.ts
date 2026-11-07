@@ -25,6 +25,10 @@ const KEYS = {
   HISTORY_CLEARED_AT: "kru_exam_history_cleared_at_v1",
   MISTAKE_RECORDS: "kru_exam_mistakes_v1",
   MISTAKES_CLEARED_AT: "kru_exam_mistakes_cleared_at_v1",
+  DELETED_ATTEMPT_IDS: "kru_exam_deleted_attempt_ids_v1",
+  DELETED_COMMENT_IDS: "kru_exam_deleted_comment_ids_v1",
+  LAST_SYNC_ERROR: "kru_exam_last_sync_error_v1",
+  PENDING_PUSH: "kru_exam_pending_push_v1",
   ACTIVE_SESSION: "kru_exam_active_session_v1",
   GEMINI_API_KEY: "kru_exam_gemini_api_key_v1",
   CF_ACCOUNT_ID: "kru_exam_cf_account_id_v1",
@@ -173,6 +177,36 @@ export function getDeletedQuestionIds(): string[] {
   } catch {
     return [];
   }
+}
+
+export function getDeletedAttemptIds(): string[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = localStorage.getItem(KEYS.DELETED_ATTEMPT_IDS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getDeletedCommentIds(): string[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = localStorage.getItem(KEYS.DELETED_COMMENT_IDS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getLastSyncError(): string | null {
+  if (!isBrowser()) return null;
+  return localStorage.getItem(KEYS.LAST_SYNC_ERROR);
+}
+
+export function isPendingPush(): boolean {
+  if (!isBrowser()) return false;
+  return localStorage.getItem(KEYS.PENDING_PUSH) === "1";
 }
 
 export function getEditedSeedMap(): Record<string, QuestionItem> {
@@ -588,6 +622,13 @@ export function deleteQuestionComment(
     delete map[questionId];
   }
   localStorage.setItem(KEYS.QUESTION_COMMENTS, JSON.stringify(map));
+
+  const deleted = getDeletedCommentIds();
+  if (!deleted.includes(commentId)) {
+    deleted.push(commentId);
+    localStorage.setItem(KEYS.DELETED_COMMENT_IDS, JSON.stringify(deleted.slice(-200)));
+  }
+
   void pushLocalStateToCloud({ adminAction: "replace_shared_bank" });
 }
 
@@ -834,6 +875,12 @@ export function deleteExamAttempt(
     JSON.stringify(remainingAttempts)
   );
 
+  const deletedAttempts = getDeletedAttemptIds();
+  if (!deletedAttempts.includes(attemptId)) {
+    deletedAttempts.push(attemptId);
+    localStorage.setItem(KEYS.DELETED_ATTEMPT_IDS, JSON.stringify(deletedAttempts.slice(-200)));
+  }
+
   if (cleanAssociatedMistakes && target.answers) {
     const mistakeMap = getMistakeRecordsMap();
     // รวบรวมข้อที่ตอบผิดในการสอบรอบอื่นที่ยังเหลืออยู่
@@ -991,20 +1038,22 @@ export function getMistakeRecordsMap(): Record<string, MistakeRecord> {
 export function toggleBookmarkQuestion(questionId: string): boolean {
   if (!isBrowser()) return false;
   const map = getMistakeRecordsMap();
+  const nowIso = new Date().toISOString();
   const rec = map[questionId] || {
     questionId,
     wrongCount: 0,
     consecutiveCorrect: 0,
     mastered: false,
-    lastAttemptAt: new Date().toISOString(),
+    lastAttemptAt: nowIso,
     bookmarked: false,
   };
   rec.bookmarked = !rec.bookmarked;
+  rec.bookmarkedAt = nowIso;
+  // NOTE (5.5): DO NOT change lastAttemptAt merely on bookmark toggle!
   if (rec.bookmarked) {
     rec.mastered = false;
     rec.consecutiveCorrect = 0;
   }
-  rec.lastAttemptAt = new Date().toISOString();
   map[questionId] = rec;
   localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(map));
   void pushLocalStateToCloud();
@@ -1450,6 +1499,9 @@ export async function pushLocalStateToCloud(options?: {
       version: 1,
       updatedAt: new Date().toISOString(),
       historyClearedAt: localStorage.getItem(KEYS.HISTORY_CLEARED_AT) || "",
+      mistakesClearedAt: localStorage.getItem(KEYS.MISTAKES_CLEARED_AT) || "",
+      deletedAttemptIds: getDeletedAttemptIds(),
+      deletedCommentIds: getDeletedCommentIds(),
       customQuestions: getCustomQuestions(),
       editedSeeds: getEditedSeedMap(),
       deletedIds: getDeletedQuestionIds(),
@@ -1507,6 +1559,8 @@ export async function pushLocalStateToCloud(options?: {
       if (data.databaseId) {
         localStorage.setItem(KEYS.CF_DB_ID, data.databaseId);
       }
+      localStorage.removeItem(KEYS.PENDING_PUSH);
+      localStorage.removeItem(KEYS.LAST_SYNC_ERROR);
       window.dispatchEvent(new Event("kru-cloud-synced"));
       return {
         ok: true,
@@ -1514,11 +1568,19 @@ export async function pushLocalStateToCloud(options?: {
         databaseId: data.databaseId,
       };
     }
-    return { ok: false, error: data.error || "ซิงก์ข้อมูลไม่สำเร็จ" };
+    const errText = data.error || "ซิงก์ข้อมูลไม่สำเร็จ";
+    localStorage.setItem(KEYS.PENDING_PUSH, "1");
+    localStorage.setItem(KEYS.LAST_SYNC_ERROR, errText);
+    window.dispatchEvent(new Event("kru-cloud-synced"));
+    return { ok: false, error: errText };
   } catch (e) {
+    const errText = e instanceof Error ? e.message : "Network error";
+    localStorage.setItem(KEYS.PENDING_PUSH, "1");
+    localStorage.setItem(KEYS.LAST_SYNC_ERROR, errText);
+    window.dispatchEvent(new Event("kru-cloud-synced"));
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Network error",
+      error: errText,
     };
   }
 }

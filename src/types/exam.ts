@@ -514,6 +514,7 @@ export interface MistakeRecord {
   mastered: boolean;
   lastAttemptAt: string;
   bookmarked: boolean;
+  bookmarkedAt?: string;
 }
 
 export interface ActiveExamSession {

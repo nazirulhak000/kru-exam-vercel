@@ -26,6 +26,10 @@ export const KEYS = {
   HISTORY_CLEARED_AT: "kru_exam_history_cleared_at_v1",
   MISTAKE_RECORDS: "kru_exam_mistakes_v1",
   MISTAKES_CLEARED_AT: "kru_exam_mistakes_cleared_at_v1",
+  DELETED_ATTEMPT_IDS: "kru_exam_deleted_attempt_ids_v1",
+  DELETED_COMMENT_IDS: "kru_exam_deleted_comment_ids_v1",
+  LAST_SYNC_ERROR: "kru_exam_last_sync_error_v1",
+  PENDING_PUSH: "kru_exam_pending_push_v1",
   ACTIVE_SESSION: "kru_exam_active_session_v1",
   GEMINI_API_KEY: "kru_exam_gemini_api_key_v1",
   CF_ACCOUNT_ID: "kru_exam_cf_account_id_v1",
@@ -233,6 +237,36 @@ export function getDeletedQuestionIds(): string[] {
   } catch {
     return [];
   }
+}
+
+export function getDeletedAttemptIds(): string[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = localStorage.getItem(KEYS.DELETED_ATTEMPT_IDS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getDeletedCommentIds(): string[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = localStorage.getItem(KEYS.DELETED_COMMENT_IDS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getLastSyncError(): string | null {
+  if (!isBrowser()) return null;
+  return localStorage.getItem(KEYS.LAST_SYNC_ERROR);
+}
+
+export function isPendingPush(): boolean {
+  if (!isBrowser()) return false;
+  return localStorage.getItem(KEYS.PENDING_PUSH) === "1";
 }
 
 export function getEditedSeedMap(): Record<string, QuestionItem> {
@@ -981,12 +1015,16 @@ export async function syncWithCloudDatabase(): Promise<{
     });
     const result = await res.json();
     if (!res.ok || !result.ok) {
+      const errText = result?.error || result?.message || "Cloud Sync Failed";
+      localStorage.setItem(KEYS.LAST_SYNC_ERROR, errText);
+      window.dispatchEvent(new Event("kru-cloud-synced"));
       return {
         ok: false,
-        provider: result.provider,
-        error: result.error || result.message,
+        provider: result?.provider,
+        error: errText,
       };
     }
+    localStorage.removeItem(KEYS.LAST_SYNC_ERROR);
 
     setAdminModeFlag(Boolean(result.isAdmin));
 
@@ -1175,9 +1213,12 @@ export async function syncWithCloudDatabase(): Promise<{
       databaseId: result.databaseId,
     };
   } catch (e) {
+    const errText = e instanceof Error ? e.message : "Network error";
+    localStorage.setItem(KEYS.LAST_SYNC_ERROR, errText);
+    window.dispatchEvent(new Event("kru-cloud-synced"));
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Network error",
+      error: errText,
     };
   }
 }
@@ -1461,4 +1502,22 @@ export async function switchUserSyncKey(
       hasExistingRecord: false,
     };
   }
+}
+
+
+// Automatic retry when coming back online or switching tabs (Topic 5.6)
+if (typeof window !== "undefined" && !(window as any).__KRU_RETRY_INSTALLED__) {
+  (window as any).__KRU_RETRY_INSTALLED__ = true;
+  window.addEventListener("online", () => {
+    if (isPendingPush()) {
+      void pushLocalStateToCloud();
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      if (isPendingPush()) {
+        void pushLocalStateToCloud();
+      }
+    }
+  });
 }
