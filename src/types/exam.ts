@@ -166,6 +166,7 @@ export interface QuestionItem {
   collectionType?: "official_exam" | "recalled_exam" | "practice_and_mock";
   examSetId?: string;
   examTitle?: string;
+  noShuffle?: boolean;
 }
 
 export interface ExamAttemptAnswer {

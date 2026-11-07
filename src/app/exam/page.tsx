@@ -89,7 +89,7 @@ function prepareQuestionsForSession(
 ): QuestionItem[] {
   const letters = ["ก", "ข", "ค", "ง"];
   return sliced.map((q) => {
-    if (!shouldShuffleOptions) return { ...q };
+    if (!shouldShuffleOptions || q.noShuffle) return { ...q };
 
     const indices = shuffleArray([0, 1, 2, 3]);
     const newOptions = indices.map((i) => q.options[i]) as [
