@@ -162,11 +162,11 @@ export async function GET(req: NextRequest) {
     const platformAvgScore =
       totalExamSessions > 0
         ? Math.round((totalScoreSum / totalExamSessions) * 10) / 10
-        : 68.4; // fallback baseline ถ้ายังไม่มีการทำข้อสอบบน prod
+        : null;
     const passRate =
       totalExamSessions > 0
         ? Math.round((totalPassedSessions / totalExamSessions) * 100)
-        : 64;
+        : null;
 
     // 3. ประมวลผลข้อท้วงติง (Disputes) จาก questionComments
     const allCommentsMap: Record<string, any[]> =
@@ -302,87 +302,27 @@ export async function GET(req: NextRequest) {
       // If table empty or error, provide representative difficult questions from seed
     }
 
-    if (topFailedQuestions.length === 0) {
-      // Fallback จากข้อสอบมาตรฐานที่คนมักผิดบ่อย
-      topFailedQuestions = [
-        {
-          id: "kru-201",
-          category: "law",
-          categoryName: "กฎหมายการศึกษา",
-          questionStem:
-            "ตาม พ.ร.บ. การศึกษาแห่งชาติ พ.ศ. 2542 และที่แก้ไขเพิ่มเติม คณะกรรมการการศึกษาขั้นพื้นฐาน (กพฐ.) มีจำนวนไม่เกินกี่คน?",
-          attempts: 42,
-          failRate: 71,
-          correctCount: 12,
-        },
-        {
-          id: "kru-35",
-          category: "general",
-          categoryName: "คิดวิเคราะห์",
-          questionStem: "อนุกรม: 3, 5, 9, 17, 33, ... ตัวเลขถัดไปคือข้อใด?",
-          attempts: 38,
-          failRate: 66,
-          correctCount: 13,
-        },
-        {
-          id: "kru-305",
-          category: "gov",
-          categoryName: "ข้าราชการที่ดี",
-          questionStem:
-            "โทษทางวินัยของข้าราชการครูและบุคลากรทางการศึกษา มีกี่สถาน และสถานใดเป็นโทษร้ายแรง?",
-          attempts: 35,
-          failRate: 63,
-          correctCount: 13,
-        },
-        {
-          id: "kru-412",
-          category: "pedagogy",
-          categoryName: "วิชาชีพครู",
-          questionStem:
-            "การประเมินเพื่อพัฒนาการเรียนรู้ (Assessment for Learning: Formative) แตกต่างจากการประเมินผลสรุปอย่างไร?",
-          attempts: 31,
-          failRate: 58,
-          correctCount: 13,
-        },
-        {
-          id: "kru-105",
-          category: "english",
-          categoryName: "ภาษาอังกฤษ",
-          questionStem:
-            "If the school board ________ the budget earlier, we could have hired more assistant teachers.",
-          attempts: 29,
-          failRate: 55,
-          correctCount: 13,
-        },
-      ];
-    }
-
-    // 6. หมวดหมู่วิชาที่ผู้สอบอ่อนที่สุด (Weakest Categories)
+    // 6. หมวดหมู่วิชาที่ผู้สอบอ่อนที่สุด (Weakest Categories จาก categoryBreakdown จริง)
     const categoryInsights = EXAM_CATEGORIES.map((cat) => {
       const accum = categoryStatsAccum[cat.id];
-      const avg =
-        accum && accum.count > 0
-          ? Math.round((accum.totalScore / accum.count) * 10) / 10
-          : cat.id === "law"
-          ? 52.4
-          : cat.id === "general"
-          ? 58.2
-          : cat.id === "gov"
-          ? 61.5
-          : cat.id === "english"
-          ? 64.0
-          : cat.id === "pedagogy"
-          ? 72.3
-          : 76.5; // major
+      const hasData = Boolean(accum && accum.count > 0);
+      const avg = hasData
+        ? Math.round((accum.totalScore / accum.count) * 10) / 10
+        : null;
       return {
         id: cat.id,
         name: cat.name,
         shortName: cat.shortName,
         part: cat.part,
         avgScore: avg,
+        hasData,
+        count: accum ? accum.count : 0,
         color: cat.color,
       };
-    }).sort((a, b) => a.avgScore - b.avgScore);
+    }).sort((a, b) => {
+      if (a.hasData !== b.hasData) return a.hasData ? -1 : 1;
+      return (a.avgScore ?? 0) - (b.avgScore ?? 0);
+    });
 
     // 7. System Health Status
     const geminiKeyConfigured = Boolean(

@@ -85,7 +85,9 @@ interface CategoryInsight {
   name: string;
   shortName: string;
   part: string;
-  avgScore: number;
+  avgScore: number | null;
+  hasData?: boolean;
+  count?: number;
   color: string;
 }
 
@@ -107,8 +109,8 @@ interface OverviewData {
     pendingDisputesCount: number;
     totalActiveUsers: number;
     totalExamSessions: number;
-    platformAvgScore: number;
-    passRate: number;
+    platformAvgScore: number | null;
+    passRate: number | null;
     orphanKeysCount?: number;
   };
   users?: UserDirectoryItem[];
@@ -955,14 +957,16 @@ export default function AdminDashboardPage() {
           </div>
           <div>
             <div className="text-[26px] font-title font-normal text-paper-ink tabular-nums">
-              {overview?.kpis.platformAvgScore ?? 68.4}%
+              {overview?.kpis.platformAvgScore != null
+                ? `${overview.kpis.platformAvgScore}%`
+                : "—"}
             </div>
             <div className="text-[12px] text-paper-muted mt-1">
               ผ่านเกณฑ์ 60%:{" "}
               <span className="font-semibold text-paper-pass tabular-nums">
-                {overview?.kpis.passRate ?? 64}%
+                {overview?.kpis.passRate != null ? `${overview.kpis.passRate}%` : "—"}
               </span>{" "}
-              ของผู้สอบ
+              {overview?.kpis.passRate != null ? "ของผู้สอบ" : "(ยังไม่มีข้อมูล)"}
             </div>
           </div>
         </div>
@@ -1783,50 +1787,56 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="space-y-3">
-              {(overview?.topFailedQuestions || []).map((item, idx) => (
-                <div
-                  key={item.id}
-                  className="p-3.5 rounded-[8px] border border-[#1f1b16]/[0.06] bg-paper-raised/30 hover:bg-paper-raised/60 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-paper-ink text-paper-card flex items-center justify-center text-[10px] font-bold">
-                        {idx + 1}
-                      </span>
-                      <span className="font-mono text-[12px] font-medium text-paper-ink">
-                        {item.id}
-                      </span>
-                      <span className="px-2 py-0.2 bg-paper-raised text-paper-secondary rounded-[4px] text-[11px]">
-                        {item.categoryName}
+              {(overview?.topFailedQuestions || []).length > 0 ? (
+                overview!.topFailedQuestions.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-[8px] border border-[#1f1b16]/[0.06] bg-paper-raised/30 hover:bg-paper-raised/60 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-paper-ink text-paper-card flex items-center justify-center text-[10px] font-bold">
+                          {idx + 1}
+                        </span>
+                        <span className="font-mono text-[12px] font-medium text-paper-ink">
+                          {item.id}
+                        </span>
+                        <span className="px-2 py-0.2 bg-paper-raised text-paper-secondary rounded-[4px] text-[11px]">
+                          {item.categoryName}
+                        </span>
+                      </div>
+                      <span className="text-[12px] font-semibold text-paper-fail font-mono">
+                        ผิด {item.failRate}%
                       </span>
                     </div>
-                    <span className="text-[12px] font-semibold text-paper-fail font-mono">
-                      ผิด {item.failRate}%
-                    </span>
-                  </div>
 
-                  <p className="text-[13px] text-paper-ink line-clamp-2 leading-relaxed mb-2">
-                    {item.questionStem}
-                  </p>
+                    <p className="text-[13px] text-paper-ink line-clamp-2 leading-relaxed mb-2">
+                      {item.questionStem}
+                    </p>
 
-                  <div className="flex items-center justify-between text-[11px] text-paper-muted font-mono">
-                    <span>ทำแล้ว {item.attempts} ครั้ง</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const q = allQuestionsList.find(
-                          (x) => x.id === item.id
-                        );
-                        if (q) openEditQuestionModal(q);
-                      }}
-                      className="text-paper-accent hover:underline font-sans font-medium inline-flex items-center gap-1"
-                    >
-                      <span>ตรวจสอบโจทย์</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
+                    <div className="flex items-center justify-between text-[11px] text-paper-muted font-mono">
+                      <span>ทำแล้ว {item.attempts} ครั้ง</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const q = allQuestionsList.find(
+                            (x) => x.id === item.id
+                          );
+                          if (q) openEditQuestionModal(q);
+                        }}
+                        className="text-paper-accent hover:underline font-sans font-medium inline-flex items-center gap-1"
+                      >
+                        <span>ตรวจสอบโจทย์</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="p-6 text-center text-paper-muted text-[13px] bg-paper-raised/20 rounded-[8px] border border-dashed border-[#1f1b16]/[0.1]">
+                  ยังไม่มีข้อมูลข้อสอบที่ทำผิด (ต้องการประวัติการทำข้อสอบอย่างน้อย 2 ครั้งต่อข้อ)
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -1849,7 +1859,8 @@ export default function AdminDashboardPage() {
 
               <div className="space-y-4">
                 {(overview?.categoryInsights || []).map((cat) => {
-                  const isBelowPass = cat.avgScore < 60;
+                  const hasData = cat.hasData ?? (cat.avgScore !== null);
+                  const isBelowPass = hasData && (cat.avgScore ?? 0) < 60;
                   return (
                     <div key={cat.id}>
                       <div className="flex items-center justify-between text-[13px] mb-1">
@@ -1858,10 +1869,14 @@ export default function AdminDashboardPage() {
                         </span>
                         <span
                           className={`font-mono font-medium ${
-                            isBelowPass ? "text-paper-fail" : "text-paper-pass"
+                            !hasData
+                              ? "text-paper-muted text-[12px]"
+                              : isBelowPass
+                              ? "text-paper-fail"
+                              : "text-paper-pass"
                           }`}
                         >
-                          {cat.avgScore}%
+                          {hasData ? `${cat.avgScore}%` : "ยังไม่มีข้อมูล"}
                         </span>
                       </div>
                       <div className="w-full h-2 bg-paper-raised rounded-full overflow-hidden relative">
@@ -1872,9 +1887,17 @@ export default function AdminDashboardPage() {
                         />
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
-                            isBelowPass ? "bg-paper-fail" : "bg-paper-pass"
+                            !hasData
+                              ? "bg-transparent"
+                              : isBelowPass
+                              ? "bg-paper-fail"
+                              : "bg-paper-pass"
                           }`}
-                          style={{ width: `${Math.min(100, cat.avgScore)}%` }}
+                          style={{
+                            width: hasData
+                              ? `${Math.min(100, cat.avgScore ?? 0)}%`
+                              : "0%",
+                          }}
                         />
                       </div>
                     </div>
@@ -1883,18 +1906,31 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <div className="mt-6 p-4 rounded-[8px] bg-paper-raised/50 border border-[#1f1b16]/[0.08] text-[12.5px] text-paper-secondary">
-              <span className="font-semibold text-paper-ink block mb-0.5">
-                ข้อเสนอแนะสำหรับคลังข้อสอบ:
-              </span>
-              <p className="leading-relaxed">
-                หมวด{" "}
-                <strong className="text-paper-ink">
-                  {overview?.categoryInsights[0]?.name || "กฎหมายการศึกษา"}
-                </strong>{" "}
-                มีคะแนนเฉลี่ยต่ำที่สุด แนะนำให้นำเข้าข้อสอบเสริมพร้อมอ้างอิงมาตรากฎหมายเพื่อช่วยยกระดับความเข้าใจของผู้สอบ
-              </p>
-            </div>
+            {(() => {
+              const weakestWithData = (overview?.categoryInsights || []).find(
+                (c) => c.hasData ?? (c.avgScore !== null)
+              );
+              return (
+                <div className="mt-6 p-4 rounded-[8px] bg-paper-raised/50 border border-[#1f1b16]/[0.08] text-[12.5px] text-paper-secondary">
+                  <span className="font-semibold text-paper-ink block mb-0.5">
+                    ข้อเสนอแนะสำหรับคลังข้อสอบ:
+                  </span>
+                  {weakestWithData ? (
+                    <p className="leading-relaxed">
+                      หมวด{" "}
+                      <strong className="text-paper-ink">
+                        {weakestWithData.name}
+                      </strong>{" "}
+                      มีคะแนนเฉลี่ยต่ำที่สุด ({weakestWithData.avgScore}%) แนะนำให้นำเข้าข้อสอบเสริมพร้อมอ้างอิงมาตรากฎหมายเพื่อช่วยยกระดับความเข้าใจของผู้สอบ
+                    </p>
+                  ) : (
+                    <p className="leading-relaxed text-paper-muted">
+                      ยังไม่มีข้อมูลประวัติการสอบเพียงพอสำหรับวิเคราะห์จุดอ่อนรายหมวดวิชา
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
