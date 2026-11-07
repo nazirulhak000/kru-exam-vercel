@@ -379,7 +379,7 @@ export default function HomeDashboardPage() {
             <Link
               href={
                 stats.activeMistakesCount > 0
-                  ? "/exam?mode=mistake_review&autostart=1"
+                  ? "/exam?mode=mistake_review&count=all&autostart=1"
                   : "/history"
               }
               className="w-full min-h-[44px] sm:min-h-[40px] py-2 px-4 gap-3 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[13px] font-medium flex items-center justify-between transition-colors duration-150 ease-calm"

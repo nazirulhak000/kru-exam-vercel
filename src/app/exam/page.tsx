@@ -295,6 +295,20 @@ function ExamSimulatorContent() {
       setFeedbackMode(paramFeedback);
     }
 
+    const paramCount = searchParams.get("count");
+    let countToUse: number | "all" = selectedCount;
+    if (paramCount === "all") {
+      countToUse = "all";
+      setSelectedCount("all");
+    } else if (paramCount && !isNaN(Number(paramCount))) {
+      countToUse = Number(paramCount);
+      setSelectedCount(countToUse);
+    } else if (paramMode === "mistake_review") {
+      // โหมดทบทวนข้อผิดเมื่อเริ่มผ่านปุ่มทางลัด ให้ดึงข้อผิดทั้งหมดตามที่ปุ่มระบุ (Topic 3.11)
+      countToUse = "all";
+      setSelectedCount("all");
+    }
+
     if (paramAutostart === "1") {
       // ตรวจสอบว่ามีชุดที่ทำค้างอยู่หรือไม่ หากมีให้ถามยืนยันก่อนเริ่มใหม่
       const existingSession = getActiveExamSession();
@@ -330,7 +344,8 @@ function ExamSimulatorContent() {
             : "practice",
           false,
           preferredMajor,
-          initialFeedback
+          initialFeedback,
+          countToUse
         );
       }, 80);
     }
@@ -582,13 +597,15 @@ function ExamSimulatorContent() {
     mode: "practice" | "exam" | "mistake_review" | "retry",
     blueprintFlag: boolean,
     major: string = selectedMajor,
-    targetFeedbackMode: "instant" | "after_submit" = feedbackMode
+    targetFeedbackMode: "instant" | "after_submit" = feedbackMode,
+    overrideCount?: number | "all"
   ) => {
     isSubmittingRef.current = false;
     const newSessionId = `sess-${Date.now()}`;
     setCurrentSessionId(newSessionId);
     const finalFeedbackMode = mode === "exam" ? "after_submit" : targetFeedbackMode;
     setFeedbackMode(finalFeedbackMode);
+    const activeCount = overrideCount !== undefined ? overrideCount : selectedCount;
 
     let sliced: QuestionItem[] = [];
 
@@ -627,9 +644,9 @@ function ExamSimulatorContent() {
       const sourceFiltered = questionsPool.filter((q) => matchesMajor(q, major));
 
       const totalDesired =
-        selectedCount === "all"
+        activeCount === "all"
           ? sourceFiltered.length
-          : Math.min(Number(selectedCount), sourceFiltered.length);
+          : Math.min(Number(activeCount), sourceFiltered.length);
 
       if (totalDesired <= 0) {
         alert("ไม่พบข้อสอบที่ตรงกับเงื่อนไขที่เลือก");
@@ -720,9 +737,9 @@ function ExamSimulatorContent() {
       }
 
       const limit =
-        selectedCount === "all"
+        activeCount === "all"
           ? pool.length
-          : Math.min(Number(selectedCount), pool.length);
+          : Math.min(Number(activeCount), pool.length);
       sliced = pool.slice(0, limit);
     }
 

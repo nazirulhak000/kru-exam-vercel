@@ -156,7 +156,7 @@ export default function HistoryAndMistakesPage() {
         </div>
 
         <Link
-          href="/exam?mode=mistake_review&autostart=1"
+          href="/exam?mode=mistake_review&count=all&autostart=1"
           className="min-h-[44px] md:min-h-[40px] py-2 px-4 rounded-[8px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[13px] font-medium flex items-center gap-2 transition-colors duration-150 shrink-0"
         >
           <RotateCcw className="w-4 h-4 shrink-0" strokeWidth={1.5} />
