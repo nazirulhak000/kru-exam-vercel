@@ -11,6 +11,7 @@ import {
   normalizeMajorSubject,
 } from "@/types/exam";
 import { SEED_QUESTIONS } from "@/lib/seed-questions";
+import { ROONPII_QUESTIONS } from "@/lib/roonpii-questions";
 
 const KEYS = {
   USER_ID: "kru_exam_user_id_v1",
@@ -197,12 +198,35 @@ export function getAllQuestions(): QuestionItem[] {
     q.category === "major"
       ? {
           ...q,
+          collection: q.collection || "standard",
           majorSubject: normalizeMajorSubject(
             q.majorSubject || inferMajorFromSource(q.sourcePdf)
           ),
         }
-      : q
+      : { ...q, collection: q.collection || "standard" }
   );
+}
+
+export function getRoonpiiQuestions(): QuestionItem[] {
+  const deletedIds = new Set(getDeletedQuestionIds());
+  const editedSeeds = getEditedSeedMap();
+
+  return ROONPII_QUESTIONS.filter((q) => !deletedIds.has(q.id)).map((q) => {
+    const item = editedSeeds[q.id] || q;
+    return item.category === "major"
+      ? {
+          ...item,
+          collection: "roonpii_real" as const,
+          majorSubject: normalizeMajorSubject(
+            item.majorSubject || inferMajorFromSource(item.sourcePdf)
+          ),
+        }
+      : { ...item, collection: "roonpii_real" as const };
+  });
+}
+
+export function getAllQuestionsCombined(): QuestionItem[] {
+  return [...getAllQuestions(), ...getRoonpiiQuestions()];
 }
 
 export interface MajorSubjectCount {
@@ -881,6 +905,7 @@ export function getActiveExamSession(): ActiveExamSession | null {
           if (!bankQ) return item;
           return {
             ...bankQ,
+            category: item.category || bankQ.category,
             options: item.options || bankQ.options,
             answer: item.answer !== undefined ? item.answer : bankQ.answer,
           };
@@ -912,6 +937,7 @@ export function saveActiveExamSession(
     // โดยเฉพาะกรณีเลือกทำ "ทั้งหมด" (หลายพันข้อ)
     const leanQuestions = session.questions.map((q) => ({
       id: q.id,
+      category: q.category,
       answer: q.answer,
       options: q.options,
     }));
@@ -928,6 +954,7 @@ export function saveActiveExamSession(
     try {
       const ultraLeanQuestions = session.questions.map((q) => ({
         id: q.id,
+        category: q.category,
         answer: q.answer,
       }));
       const ultraLean = {

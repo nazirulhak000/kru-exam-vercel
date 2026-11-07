@@ -159,6 +159,13 @@ export interface QuestionItem {
   verified?: boolean;
   confidenceScore?: number;
   createdAt?: string;
+  collection?: "standard" | "roonpii_real" | "roonpii_recalled" | "roonpii_mock";
+  examYear?: string;
+  examAgency?: string;
+  isRoonpiiCollection?: boolean;
+  collectionType?: "official_exam" | "recalled_exam" | "practice_and_mock";
+  examSetId?: string;
+  examTitle?: string;
 }
 
 export interface ExamAttemptAnswer {
@@ -211,12 +218,21 @@ export interface ExamAttempt {
   isEvaluated?: boolean;
 }
 
+export interface ExamCategoryQuota {
+  category: ExamCategory;
+  name: string;
+  fullScore: number;
+  partWeight: number; // สัดส่วนในภาค (รวม = 1.0)
+  overallWeight: number; // สัดส่วนในข้อสอบทั้งฉบับ (รวม = 0.5 ต่อภาค)
+}
+
 export interface ExamPartStructure {
   part: "ภาค ก" | "ภาค ข";
   name: string;
   fullScore: number;
   description: string;
   categories: ExamCategory[];
+  quotas: ExamCategoryQuota[];
 }
 
 export const OFFICIAL_EXAM_STRUCTURE: Record<
@@ -229,6 +245,29 @@ export const OFFICIAL_EXAM_STRUCTURE: Record<
     fullScore: 200,
     description: "คิดวิเคราะห์ (คณิต & ไทย), ภาษาอังกฤษ, ข้าราชการที่ดีและวินัย",
     categories: ["general", "english", "gov"],
+    quotas: [
+      {
+        category: "general",
+        name: "ความสามารถในการคิดวิเคราะห์ (คณิต & ภาษาไทย)",
+        fullScore: 100,
+        partWeight: 0.5,
+        overallWeight: 0.25,
+      },
+      {
+        category: "english",
+        name: "ทักษะภาษาอังกฤษเพื่อการสื่อสาร",
+        fullScore: 50,
+        partWeight: 0.25,
+        overallWeight: 0.125,
+      },
+      {
+        category: "gov",
+        name: "ความรู้และลักษณะการเป็นข้าราชการที่ดี",
+        fullScore: 50,
+        partWeight: 0.25,
+        overallWeight: 0.125,
+      },
+    ],
   },
   "ภาค ข": {
     part: "ภาค ข",
@@ -236,8 +275,57 @@ export const OFFICIAL_EXAM_STRUCTURE: Record<
     fullScore: 200,
     description: "วิชาชีพครูและการจัดการเรียนรู้, กฎหมายการศึกษา, วิชาเอกเฉพาะตำแหน่ง",
     categories: ["pedagogy", "law", "major"],
+    quotas: [
+      {
+        category: "pedagogy",
+        name: "มาตรฐานความรู้และประสบการณ์วิชาชีพครู",
+        fullScore: 75,
+        partWeight: 0.375,
+        overallWeight: 0.1875,
+      },
+      {
+        category: "law",
+        name: "กฎหมายการศึกษา & พ.ร.บ. สำคัญ",
+        fullScore: 25,
+        partWeight: 0.125,
+        overallWeight: 0.0625,
+      },
+      {
+        category: "major",
+        name: "วิชาเอกเฉพาะตำแหน่ง",
+        fullScore: 100,
+        partWeight: 0.5,
+        overallWeight: 0.25,
+      },
+    ],
   },
 };
+
+export function getBlueprintCategoryQuotas(
+  totalQuestions: number
+): Record<ExamCategory, number> {
+  const targetA = Math.round(totalQuestions * 0.5);
+  const targetB = totalQuestions - targetA;
+
+  // ภาค ก: 200 คะแนน (general: 100, english: 50, gov: 50)
+  const qGeneral = Math.round(targetA * 0.5);
+  const qEnglish = Math.round(targetA * 0.25);
+  const qGov = Math.max(0, targetA - qGeneral - qEnglish);
+
+  // ภาค ข: 200 คะแนน (major: 100, pedagogy: 75, law: 25)
+  const qMajor = Math.round(targetB * 0.5);
+  const qPedagogy = Math.round(targetB * 0.375);
+  const qLaw = Math.max(0, targetB - qMajor - qPedagogy);
+
+  return {
+    general: qGeneral,
+    english: qEnglish,
+    gov: qGov,
+    major: qMajor,
+    pedagogy: qPedagogy,
+    law: qLaw,
+  };
+}
 
 export interface EvaluatePassResult {
   passed: boolean;

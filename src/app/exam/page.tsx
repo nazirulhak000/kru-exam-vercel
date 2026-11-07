@@ -25,12 +25,16 @@ import {
   EXAM_CATEGORIES,
   ExamAttempt,
   ExamAttemptAnswer,
+  ExamCategory,
+  MAJOR_SUBJECTS,
   OFFICIAL_EXAM_STRUCTURE,
   PartBreakdownItem,
   QuestionItem,
   UNSPECIFIED_MAJOR,
   evaluatePass,
+  getBlueprintCategoryQuotas,
   getExplanationLabel,
+  inferMajorFromSource,
 } from "@/types/exam";
 import {
   MajorSubjectCount,
@@ -589,7 +593,30 @@ function ExamSimulatorContent() {
     let sliced: QuestionItem[] = [];
 
     if (mode === "exam" && blueprintFlag) {
-      // จัดสัดส่วนข้อสอบตามโครงสร้าง ก.ค.ศ. (ภาค ก 40% : ภาค ข 60%)
+      // โหมดมาตรฐาน ก.ค.ศ. (Blueprint): สัดส่วน ภาค ก 50% : ภาค ข 50% พร้อมโควตารายหมวดวิชา
+      // ล็อกชุดเอกสารเป็น "all" เสมอ เพื่อป้องกันข้อสอบเอียงไปที่ไฟล์ PDF ใดไฟล์หนึ่ง
+      if (source !== "all") {
+        const inferred = inferMajorFromSource(source);
+        if (inferred) {
+          major = inferred;
+        }
+      }
+      source = "all";
+
+      if (major === "all") {
+        const pref = getPreferredMajor();
+        if (pref && pref !== "all") {
+          major = pref;
+        } else {
+          const available = MAJOR_SUBJECTS.find(
+            (m) =>
+              m !== UNSPECIFIED_MAJOR &&
+              questionsPool.some((q) => matchesMajor(q, m))
+          );
+          if (available) major = available;
+        }
+      }
+
       const partACategories = new Set(
         EXAM_CATEGORIES.filter((c) => c.part === "ภาค ก").map((c) => c.id)
       );
@@ -597,40 +624,75 @@ function ExamSimulatorContent() {
         EXAM_CATEGORIES.filter((c) => c.part === "ภาค ข").map((c) => c.id)
       );
 
-      let sourceFiltered = [...questionsPool];
-      if (source !== "all") {
-        sourceFiltered = sourceFiltered.filter(
-          (q) => getSourceName(q) === source
-        );
-      }
-      sourceFiltered = sourceFiltered.filter((q) => matchesMajor(q, major));
-
-      const partAPool = shuffleArray(
-        sourceFiltered.filter((q) => partACategories.has(q.category))
-      );
-      const partBPool = shuffleArray(
-        sourceFiltered.filter((q) => partBCategories.has(q.category))
-      );
+      const sourceFiltered = questionsPool.filter((q) => matchesMajor(q, major));
 
       const totalDesired =
         selectedCount === "all"
           ? sourceFiltered.length
           : Math.min(Number(selectedCount), sourceFiltered.length);
 
-      const targetA = Math.max(1, Math.round(totalDesired * 0.4));
-      const targetB = Math.max(1, totalDesired - targetA);
-
-      const pickedA = partAPool.slice(0, targetA);
-      const pickedB = partBPool.slice(0, targetB);
-      sliced = [...pickedA, ...pickedB];
-
-      if (sliced.length < totalDesired) {
-        const pickedIds = new Set(sliced.map((q) => q.id));
-        const remainder = shuffleArray(
-          sourceFiltered.filter((q) => !pickedIds.has(q.id))
-        ).slice(0, totalDesired - sliced.length);
-        sliced = [...sliced, ...remainder];
+      if (totalDesired <= 0) {
+        alert("ไม่พบข้อสอบที่ตรงกับเงื่อนไขที่เลือก");
+        return;
       }
+
+      const targetA = Math.round(totalDesired * 0.5);
+      const targetB = totalDesired - targetA;
+
+      const partAPool = sourceFiltered.filter((q) =>
+        partACategories.has(q.category)
+      );
+      const partBPool = sourceFiltered.filter((q) =>
+        partBCategories.has(q.category)
+      );
+
+      if (partAPool.length < targetA || partBPool.length < targetB) {
+        alert(
+          `ไม่สามารถจัดชุดข้อสอบมาตรฐาน ก.ค.ศ. ได้ เนื่องจากจำนวนข้อสอบไม่เพียงพอ (ภาค ก ต้องการ ${targetA} ข้อ มี ${partAPool.length} ข้อ / ภาค ข ต้องการ ${targetB} ข้อ มี ${partBPool.length} ข้อ)`
+        );
+        return;
+      }
+
+      const quotas = getBlueprintCategoryQuotas(totalDesired);
+
+      const pickCategory = (
+        category: ExamCategory,
+        targetCount: number,
+        pool: QuestionItem[]
+      ): QuestionItem[] => {
+        const catPool = shuffleArray(
+          pool.filter((q) => q.category === category)
+        );
+        return catPool.slice(0, targetCount);
+      };
+
+      let pickedA: QuestionItem[] = [
+        ...pickCategory("general", quotas.general, partAPool),
+        ...pickCategory("english", quotas.english, partAPool),
+        ...pickCategory("gov", quotas.gov, partAPool),
+      ];
+      if (pickedA.length < targetA) {
+        const pickedIds = new Set(pickedA.map((q) => q.id));
+        const remA = shuffleArray(
+          partAPool.filter((q) => !pickedIds.has(q.id))
+        ).slice(0, targetA - pickedA.length);
+        pickedA = [...pickedA, ...remA];
+      }
+
+      let pickedB: QuestionItem[] = [
+        ...pickCategory("major", quotas.major, partBPool),
+        ...pickCategory("pedagogy", quotas.pedagogy, partBPool),
+        ...pickCategory("law", quotas.law, partBPool),
+      ];
+      if (pickedB.length < targetB) {
+        const pickedIds = new Set(pickedB.map((q) => q.id));
+        const remB = shuffleArray(
+          partBPool.filter((q) => !pickedIds.has(q.id))
+        ).slice(0, targetB - pickedB.length);
+        pickedB = [...pickedB, ...remB];
+      }
+
+      sliced = [...pickedA, ...pickedB];
     } else {
       let pool =
         mode === "mistake_review" ? [...mistakesPool] : [...questionsPool];
@@ -740,11 +802,17 @@ function ExamSimulatorContent() {
     ) {
       return;
     }
+    if (quizMode === "exam" && isBlueprint && selectedMajor === "all") {
+      alert(
+        "กรุณาระบุสาขาวิชาเอกของคุณสำหรับการจัดสอบมาตรฐาน ก.ค.ศ. (Blueprint) เพื่อให้ชุดข้อสอบภาค ข ตรงตามวิชาเอกที่สอบจริง"
+      );
+      return;
+    }
     startNewQuizWithParams(
       allQuestions,
       mistakePool,
       selectedCat,
-      selectedSource,
+      isBlueprint ? "all" : selectedSource,
       quizMode,
       isBlueprint,
       selectedMajor,

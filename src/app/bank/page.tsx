@@ -35,6 +35,7 @@ import {
   deleteQuestionComment,
   exportAllDataAsJson,
   getAllQuestions,
+  getRoonpiiQuestions,
   getAvailableMajorSubjects,
   getMistakeRecordsMap,
   getQuestionCommentsMap,
@@ -57,6 +58,12 @@ const PAGE_SIZE = 30;
 
 export default function QuestionBankPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [roonpiiQuestions, setRoonpiiQuestions] = useState<QuestionItem[]>([]);
+  const [activeCollectionTab, setActiveCollectionTab] = useState<
+    "standard" | "roonpii"
+  >("standard");
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
   const [availableMajors, setAvailableMajors] =
     useState<string[]>(MAJOR_SUBJECTS);
   const [commentsMap, setCommentsMap] = useState<
@@ -99,20 +106,42 @@ export default function QuestionBankPage() {
   // แสดงผลทีละชุด (incremental rendering) เพื่อไม่ให้เรนเดอร์การ์ดข้อสอบนับพันข้อพร้อมกัน
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
 
+  const activePool = useMemo(() => {
+    return activeCollectionTab === "standard" ? questions : roonpiiQuestions;
+  }, [activeCollectionTab, questions, roonpiiQuestions]);
+
   const categoryCounts = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const q of questions) {
+    for (const q of activePool) {
       map[q.category] = (map[q.category] || 0) + 1;
     }
     return map;
-  }, [questions]);
+  }, [activePool]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    roonpiiQuestions.forEach((q) => {
+      if (q.examYear) years.add(q.examYear);
+    });
+    return Array.from(years).sort().reverse();
+  }, [roonpiiQuestions]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [searchQuery, selectedCat, selectedMajor, selectedSource, commentFilter]);
+  }, [
+    searchQuery,
+    selectedCat,
+    selectedMajor,
+    selectedSource,
+    commentFilter,
+    activeCollectionTab,
+    selectedYear,
+    selectedType,
+  ]);
 
   const loadData = () => {
     setQuestions(getAllQuestions());
+    setRoonpiiQuestions(getRoonpiiQuestions());
     setAvailableMajors(getAvailableMajorSubjects());
     setCommentsMap(getQuestionCommentsMap());
     setIsAdmin(isAdminMode());
@@ -156,7 +185,7 @@ export default function QuestionBankPage() {
   // คำนวณชุดข้อสอบที่มีอยู่ในหมวดที่เลือก (Cascading Filter: ช่องสองอิงจากช่องแรก)
   const sourceCounts = useMemo(() => {
     const map = new Map<string, number>();
-    questions.forEach((q) => {
+    activePool.forEach((q) => {
       if (selectedCat !== "all" && q.category !== selectedCat) return;
       if (
         selectedCat === "major" &&
@@ -165,11 +194,12 @@ export default function QuestionBankPage() {
       ) {
         return;
       }
-      const src = q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.";
+      const defaultSrc = activeCollectionTab === "standard" ? "คลังข้อสอบมาตรฐาน ก.ค.ศ." : "คลังข้อสอบ Roonpii";
+      const src = q.sourcePdf || defaultSrc;
       map.set(src, (map.get(src) || 0) + 1);
     });
     return map;
-  }, [questions, selectedCat, selectedMajor]);
+  }, [activePool, selectedCat, selectedMajor, activeCollectionTab]);
 
   const visibleSources = useMemo(() => {
     return Array.from(sourceCounts.keys()).sort((a, b) => {
@@ -190,19 +220,19 @@ export default function QuestionBankPage() {
   }, [selectedCat, selectedMajor, sourceCounts, selectedSource]);
 
   // นับจำนวนข้อที่มีการท้วงติงรอตรวจสอบ และข้อที่มีคอมเมนต์ทั้งหมด
-  const pendingReportQuestionCount = questions.filter((q) => {
+  const pendingReportQuestionCount = activePool.filter((q) => {
     const list = commentsMap[q.id] || [];
     return list.some(
       (c) => c.type === "report_wrong" && c.status !== "resolved"
     );
   }).length;
 
-  const commentedQuestionCount = questions.filter((q) => {
+  const commentedQuestionCount = activePool.filter((q) => {
     const list = commentsMap[q.id] || [];
     return list.length > 0;
   }).length;
 
-  const filteredQuestions = questions.filter((q) => {
+  const filteredQuestions = activePool.filter((q) => {
     if (selectedCat !== "all" && q.category !== selectedCat) return false;
     if (
       selectedCat === "major" &&
@@ -211,11 +241,16 @@ export default function QuestionBankPage() {
     ) {
       return false;
     }
+    const defaultSrc = activeCollectionTab === "standard" ? "คลังข้อสอบมาตรฐาน ก.ค.ศ." : "คลังข้อสอบ Roonpii";
     if (
       selectedSource !== "all" &&
-      (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") !== selectedSource
+      (q.sourcePdf || defaultSrc) !== selectedSource
     ) {
       return false;
+    }
+    if (activeCollectionTab === "roonpii") {
+      if (selectedYear !== "all" && q.examYear !== selectedYear) return false;
+      if (selectedType !== "all" && q.collectionType !== selectedType) return false;
     }
     if (commentFilter === "pending_reports") {
       const list = commentsMap[q.id] || [];
@@ -337,7 +372,10 @@ export default function QuestionBankPage() {
             </span>
           </div>
           <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink break-words">
-            คลังข้อสอบและอรรถาธิบาย ({filteredQuestions.length} / {questions.length} ข้อ)
+            {activeCollectionTab === "standard"
+              ? "คลังข้อสอบมาตรฐานแกนกลาง"
+              : "คลังข้อสอบจริง & จำมา Roonpii (2558–2568)"}{" "}
+            ({filteredQuestions.length.toLocaleString()} / {activePool.length.toLocaleString()} ข้อ)
           </h1>
         </div>
 
@@ -410,6 +448,59 @@ export default function QuestionBankPage() {
         </div>
       </div>
 
+      {/* Collection Switcher Tabs (แยกข้อสอบเป็นแท็บใหม่ต่างจากข้อสอบเดิม) */}
+      <div className="flex border-b border-[#1f1b16]/10 gap-2 sm:gap-6 -mb-4 overflow-x-auto pb-1">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveCollectionTab("standard");
+            setSelectedCat("all");
+            setSelectedMajor("all");
+            setSelectedSource("all");
+            setSelectedYear("all");
+            setSelectedType("all");
+          }}
+          className={`pb-3 pt-1 text-[15px] font-medium transition-all relative flex items-center gap-2 whitespace-nowrap ${
+            activeCollectionTab === "standard"
+              ? "text-paper-ink font-semibold"
+              : "text-paper-muted hover:text-paper-ink"
+          }`}
+        >
+          <span>📚 ข้อสอบมาตรฐานแกนกลาง (7,200 ข้อ)</span>
+          <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-accent/10 text-paper-accent font-mono font-medium">
+            {questions.length.toLocaleString()}
+          </span>
+          {activeCollectionTab === "standard" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-paper-accent" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveCollectionTab("roonpii");
+            setSelectedCat("all");
+            setSelectedMajor("all");
+            setSelectedSource("all");
+            setSelectedYear("all");
+            setSelectedType("all");
+          }}
+          className={`pb-3 pt-1 text-[15px] font-medium transition-all relative flex items-center gap-2 whitespace-nowrap ${
+            activeCollectionTab === "roonpii"
+              ? "text-amber-800 font-semibold"
+              : "text-paper-muted hover:text-paper-ink"
+          }`}
+        >
+          <span>🏛️ คลังข้อสอบจริง & จำมา Roonpii (2558–2568)</span>
+          <span className="text-[12px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 font-mono font-medium">
+            {roonpiiQuestions.length.toLocaleString()}
+          </span>
+          {activeCollectionTab === "roonpii" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-600" />
+          )}
+        </button>
+      </div>
+
       {importStatus && (
         <div className="p-4 rounded-[8px] bg-paper-passBg border border-paper-pass/20 text-paper-pass text-[13px]">
           {importStatus}
@@ -444,7 +535,7 @@ export default function QuestionBankPage() {
               }}
               className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
             >
-              <option value="all">ทุกหมวดวิชา ({questions.length})</option>
+              <option value="all">ทุกหมวดวิชา ({activePool.length})</option>
               {EXAM_CATEGORIES.map((c) => (
                 <option key={c.id} value={c.id}>
                   [{c.part}] {c.shortName} ({categoryCounts[c.id] || 0})
@@ -469,6 +560,43 @@ export default function QuestionBankPage() {
               ))}
             </select>
           </div>
+
+          {activeCollectionTab === "roonpii" && (
+            <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
+                  ปีที่สอบ:
+                </span>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="h-9 px-3 rounded-[8px] border border-amber-600/30 bg-amber-500/5 text-[12.5px] font-medium text-amber-900 focus:outline-none focus:border-amber-600"
+                >
+                  <option value="all">ทุกปี ({availableYears.join(", ")})</option>
+                  {availableYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      ปี พ.ศ. {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
+                  ประเภทชุดข้อสอบ:
+                </span>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="h-9 px-3 rounded-[8px] border border-amber-600/30 bg-amber-500/5 text-[12.5px] font-medium text-amber-900 focus:outline-none focus:border-amber-600"
+                >
+                  <option value="all">ทั้งหมด (จริง, จำมา, ชุดฝึก)</option>
+                  <option value="official_exam">🏛️ ข้อสอบจริง & จำมา (Official & Recalled)</option>
+                  <option value="practice_and_mock">📝 แบบฝึกหัด & ชีทติว (Practice & Mock)</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {selectedCat === "major" && (
             <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center gap-2">
@@ -626,6 +754,23 @@ export default function QuestionBankPage() {
                     {q.lawReference && (
                       <span className="font-mono text-[12px] text-paper-muted min-w-0 max-w-full [overflow-wrap:anywhere]">
                         [{q.lawReference}]
+                      </span>
+                    )}
+                    {q.isRoonpiiCollection && (
+                      <span
+                        className={`text-[12px] lg:text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] flex items-center gap-1 max-w-full ${
+                          q.collectionType === "official_exam"
+                            ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
+                            : q.collectionType === "recalled_exam"
+                            ? "bg-amber-500/15 text-amber-800 border border-amber-500/25"
+                            : "bg-blue-500/10 text-blue-700 border border-blue-500/20"
+                        }`}
+                      >
+                        {q.collectionType === "official_exam"
+                          ? `🏛️ ข้อสอบจริง ${q.examYear || ""}`
+                          : q.collectionType === "recalled_exam"
+                          ? `🧠 ข้อสอบจำมา ${q.examYear || ""}`
+                          : `📝 ชุดฝึก Roonpii`}
                       </span>
                     )}
                     {hasPendingReport && (
