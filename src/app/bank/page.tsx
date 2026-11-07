@@ -65,6 +65,8 @@ export default function QuestionBankPage() {
 
   useEffect(() => {
     loadData();
+    window.addEventListener("kru-cloud-synced", loadData);
+    return () => window.removeEventListener("kru-cloud-synced", loadData);
   }, []);
 
   const sources = Array.from(

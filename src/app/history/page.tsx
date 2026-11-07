@@ -39,6 +39,8 @@ export default function HistoryAndMistakesPage() {
 
   useEffect(() => {
     loadHistory();
+    window.addEventListener("kru-cloud-synced", loadHistory);
+    return () => window.removeEventListener("kru-cloud-synced", loadHistory);
   }, []);
 
   const handleClearHistory = () => {

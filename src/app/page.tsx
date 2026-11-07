@@ -19,12 +19,17 @@ export default function HomeDashboardPage() {
   );
 
   useEffect(() => {
-    setStats(getReadinessStats());
-    setRecentAttempts(getExamAttempts().slice(0, 5));
-    const all = getAllQuestions();
-    if (all.length > 0) {
-      setSampleQuestion(all[0]);
-    }
+    const loadDashboard = () => {
+      setStats(getReadinessStats());
+      setRecentAttempts(getExamAttempts().slice(0, 5));
+      const all = getAllQuestions();
+      if (all.length > 0) {
+        setSampleQuestion(all[0]);
+      }
+    };
+    loadDashboard();
+    window.addEventListener("kru-cloud-synced", loadDashboard);
+    return () => window.removeEventListener("kru-cloud-synced", loadDashboard);
   }, []);
 
   if (!stats) {
