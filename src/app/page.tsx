@@ -152,7 +152,7 @@ export default function HomeDashboardPage() {
                 className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words"
               >
                 <span className="text-[12px] text-paper-muted">
-                  ความพร้อม {p.part}
+                  ความแม่นยำสะสม {p.part}
                 </span>
                 <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
                   {hasData ? `${p.accuracyPercent}%` : "—"}
@@ -167,10 +167,10 @@ export default function HomeDashboardPage() {
                   }`}
                 >
                   {!hasData
-                    ? "ผ่านเมื่อ ≥ 60%"
+                    ? "เกณฑ์ผ่าน ≥ 60%"
                     : diff >= 0
-                    ? `ผ่านเกณฑ์ (+${diff}%)`
-                    : `ขาดอีก ${-diff}% ถึงเกณฑ์`}
+                    ? `สูงกว่าเกณฑ์ 60% (+${diff}%)`
+                    : `ขาดอีก ${-diff}% ถึงเกณฑ์ 60%`}
                 </span>
               </div>
             );
@@ -212,7 +212,7 @@ export default function HomeDashboardPage() {
                   ระดับความแม่นยำรายหมวดวิชาเทียบเกณฑ์ผ่าน ก.ค.ศ.
                 </h2>
                 <p className="text-[13px] text-paper-secondary mt-0.5">
-                  เส้นประแนวตั้งแสดงเกณฑ์ขั้นต่ำร้อยละ 60 ที่ต้องทำได้ในแต่ละภาค
+                  คำนวณจากรอบซ้อมและสอบจริงช่วง 30 วัน (ไม่รวมรอบเฉลยทันที/ซ้อมซ้ำ) เส้นประแนวตั้งแสดงเกณฑ์ขั้นต่ำร้อยละ 60
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-mono text-paper-muted shrink-0">

@@ -1011,12 +1011,24 @@ export function getReadinessStats(): ReadinessStats {
   const mistakeMap = getMistakeRecordsMap();
   const validQuestionIds = new Set(allQuestions.map((q) => q.id));
 
-  const totalAttempts = attempts.length;
-  const passedAttempts = attempts.filter((a) => a.passed).length;
+  // คำนวณความแม่นยำสะสมเฉพาะรอบ practice และ exam ที่ตรวจเฉลยหลังส่ง (ไม่ใช่ instant)
+  // และไม่ใช่รอบซ้อมซ้ำ (retry) โดยจำกัดเฉพาะช่วง 30 วันล่าสุด
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const qualifiedAttempts = attempts.filter((att) => {
+    if (att.mode !== "practice" && att.mode !== "exam") return false;
+    if (att.feedbackMode === "instant") return false;
+    const attTime = new Date(att.date).getTime();
+    if (isNaN(attTime) || attTime < thirtyDaysAgo) return false;
+    return true;
+  });
+
+  const totalAttempts = qualifiedAttempts.length;
+  const passedAttempts = qualifiedAttempts.filter((a) => a.passed).length;
   const averageScorePercent =
     totalAttempts > 0
       ? Math.round(
-          attempts.reduce((sum, a) => sum + a.scorePercent, 0) / totalAttempts
+          qualifiedAttempts.reduce((sum, a) => sum + a.scorePercent, 0) /
+            totalAttempts
         )
       : 0;
 
@@ -1034,9 +1046,7 @@ export function getReadinessStats(): ReadinessStats {
   });
 
   const catTotals: Record<string, { attempted: number; correct: number }> = {};
-  attempts.forEach((att) => {
-    // ข้ามรอบซ้อมซ้ำ (retry) ไม่นับเข้า readiness ของแดชบอร์ด
-    if (att.mode === "retry") return;
+  qualifiedAttempts.forEach((att) => {
     Object.entries(att.categoryBreakdown || {}).forEach(([catId, data]) => {
       if (!catTotals[catId]) {
         catTotals[catId] = { attempted: 0, correct: 0 };
