@@ -10,12 +10,14 @@ import {
   Clock,
   Eraser,
   EyeOff,
+  FileText,
   Flag,
   Keyboard,
   Play,
   RotateCcw,
   ShieldCheck,
   X,
+  Zap,
 } from "lucide-react";
 import {
   ActiveExamSession,
@@ -959,8 +961,9 @@ function ExamSimulatorContent() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-title font-medium text-[14px] text-paper-ink">
-                      📝 ทำจนเสร็จแล้วค่อยเฉลยทั้งหมด
+                    <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-paper-ink shrink-0" strokeWidth={1.5} />
+                      <span>ทำจนเสร็จแล้วค่อยเฉลยทั้งหมด</span>
                     </span>
                     <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-passBg text-paper-pass font-medium shrink-0">
                       แนะนำ
@@ -981,8 +984,9 @@ function ExamSimulatorContent() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-title font-medium text-[14px] text-paper-ink">
-                      ⚡ เฉลยทันทีหลังตอบแต่ละข้อ
+                    <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-paper-accent shrink-0" strokeWidth={1.5} />
+                      <span>เฉลยทันทีหลังตอบแต่ละข้อ</span>
                     </span>
                     <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-raised text-paper-secondary shrink-0">
                       อ่านติวทีละข้อ

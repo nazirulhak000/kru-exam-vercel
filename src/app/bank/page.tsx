@@ -846,18 +846,22 @@ export default function QuestionBankPage() {
                                   {cmt.authorKey}
                                 </span>
                                 {cmt.type === "report_wrong" ? (
-                                  <span className="text-[12px] lg:text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-paper-warn/15 text-paper-warn max-w-full">
-                                    ⚠️ แจ้งเฉลยอาจไม่ถูกต้อง
-                                    {typeof cmt.suggestedAnswer === "number" &&
-                                    letters[cmt.suggestedAnswer]
-                                      ? ` (คิดว่าข้อ ${
-                                          letters[cmt.suggestedAnswer]
-                                        } ถูก)`
-                                      : ""}
+                                  <span className="inline-flex items-center gap-1 text-[12px] lg:text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-paper-warn/15 text-paper-warn max-w-full">
+                                    <AlertTriangle className="w-3 h-3 shrink-0" strokeWidth={1.5} />
+                                    <span>
+                                      แจ้งเฉลยอาจไม่ถูกต้อง
+                                      {typeof cmt.suggestedAnswer === "number" &&
+                                      letters[cmt.suggestedAnswer]
+                                        ? ` (คิดว่าข้อ ${
+                                            letters[cmt.suggestedAnswer]
+                                          } ถูก)`
+                                        : ""}
+                                    </span>
                                   </span>
                                 ) : (
-                                  <span className="text-[12px] lg:text-[11px] text-paper-muted">
-                                    💡 ความคิดเห็นเพิ่มเติม
+                                  <span className="inline-flex items-center gap-1 text-[12px] lg:text-[11px] text-paper-muted">
+                                    <MessageSquare className="w-3 h-3 shrink-0" strokeWidth={1.5} />
+                                    <span>ความคิดเห็นเพิ่มเติม</span>
                                   </span>
                                 )}
                                 <span className="text-[12px] lg:text-[11px] text-paper-muted tabular-nums">
@@ -918,24 +922,26 @@ export default function QuestionBankPage() {
                         <button
                           type="button"
                           onClick={() => setCommentType("report_wrong")}
-                          className={`min-h-10 lg:min-h-7 py-1 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
+                          className={`min-h-10 lg:min-h-7 py-1 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium text-left transition-colors flex items-center gap-1.5 ${
                             commentType === "report_wrong"
                               ? "bg-paper-warn text-paper-card"
                               : "bg-paper-card text-paper-secondary border border-[#1f1b16]/[0.1]"
                           }`}
                         >
-                          ⚠️ แจ้งข้อสอบ/เฉลยอาจไม่ถูกต้อง
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                          <span>แจ้งข้อสอบ/เฉลยอาจไม่ถูกต้อง</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setCommentType("comment")}
-                          className={`min-h-10 lg:min-h-7 py-1 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium text-left transition-colors ${
+                          className={`min-h-10 lg:min-h-7 py-1 px-3 lg:px-2.5 rounded-[6px] text-[12px] font-medium text-left transition-colors flex items-center gap-1.5 ${
                             commentType === "comment"
                               ? "bg-paper-accent text-paper-card"
                               : "bg-paper-card text-paper-secondary border border-[#1f1b16]/[0.1]"
                           }`}
                         >
-                          💡 แสดงความคิดเห็น / แชร์หลักจำ
+                          <MessageSquare className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                          <span>แสดงความคิดเห็น / แชร์หลักจำ</span>
                         </button>
 
                         {commentType === "report_wrong" && (

@@ -607,12 +607,12 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        setGeminiResult("✅ เชื่อมต่อ Gemini 1.5 Flash พร้อมใช้งาน");
+        setGeminiResult("เชื่อมต่อ Gemini 1.5 Flash พร้อมใช้งานเรียบร้อย");
       } else {
-        setGeminiResult(`❌ ${data.error || "ทดสอบไม่สำเร็จ"}`);
+        setGeminiResult(`ไม่สามารถเชื่อมต่อได้: ${data.error || "ทดสอบไม่สำเร็จ"}`);
       }
     } catch (err: any) {
-      setGeminiResult(`❌ ${err.message}`);
+      setGeminiResult(`เกิดข้อผิดพลาด: ${err.message}`);
     } finally {
       setTestingGemini(false);
     }
@@ -1535,7 +1535,7 @@ export default function AdminDashboardPage() {
                       2. แล้วรหัสที่ถูกทิ้งไว้จะเป็นขยะไหม มีวิธีจัดการอย่างไร?
                     </span>
                     <p className="text-paper-secondary leading-relaxed text-[12.5px]">
-                      รหัสที่สุ่มขึ้นมาใหม่แต่ผู้ใช้ <strong>ไม่เคยเริ่มทำข้อสอบเลย (0 รอบ)</strong> จะถูกจัดเป็น <em>"รหัสว่างเปล่า (Orphan Key)"</em> แอดมินสามารถกดปุ่ม <strong>[🧹 ล้างรหัสขยะที่ไม่มีการใช้งาน]</strong> ด้านล่างเพื่อลบออกจากฐานข้อมูลในคลิกเดียว หรือกด <strong>[🔄 รวมรหัส]</strong> เพื่อโอนประวัติเข้าหารหัสใหม่ได้
+                      รหัสที่สุ่มขึ้นมาใหม่แต่ผู้ใช้ <strong>ไม่เคยเริ่มทำข้อสอบเลย (0 รอบ)</strong> จะถูกจัดเป็น <em>"รหัสว่างเปล่า (Orphan Key)"</em> แอดมินสามารถกดปุ่ม <strong>[ล้างรหัสขยะที่ไม่มีการใช้งาน]</strong> ด้านล่างเพื่อลบออกจากฐานข้อมูลในคลิกเดียว หรือกด <strong>[รวมรหัส]</strong> เพื่อโอนประวัติเข้าหารหัสใหม่ได้
                     </p>
                   </div>
                 </div>
