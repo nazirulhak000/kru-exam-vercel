@@ -88,6 +88,19 @@ export const MAJOR_SUBJECTS: string[] = [
   "วิชาเอกทั่วไป (ไม่ระบุสาขา)",
 ];
 
+export interface QuestionComment {
+  id: string;
+  questionId: string;
+  authorKey: string;
+  isAdminAuthor?: boolean;
+  type: "report_wrong" | "comment";
+  suggestedAnswer?: number | null; // 0 = ก, 1 = ข, 2 = ค, 3 = ง
+  message: string;
+  status?: "pending" | "resolved";
+  resolvedNote?: string;
+  createdAt: string;
+  displayDate: string;
+}
 
 export interface QuestionItem {
   id: string;

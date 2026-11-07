@@ -3,28 +3,225 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+interface CommentPayloadItem {
+  id: string;
+  questionId: string;
+  authorKey: string;
+  isAdminAuthor?: boolean;
+  type: "report_wrong" | "comment";
+  suggestedAnswer?: number | null;
+  message: string;
+  status?: "pending" | "resolved";
+  resolvedNote?: string;
+  createdAt: string;
+  displayDate: string;
+}
+
 interface CloudPayload {
   version: number;
   updatedAt: string;
+  historyClearedAt?: string;
   customQuestions: unknown[];
   editedSeeds: Record<string, unknown>;
   deletedIds: string[];
+  questionComments?: Record<string, CommentPayloadItem[]>;
   attempts: unknown[];
   mistakes: Record<string, unknown>;
+  adminAction?: "replace_shared_bank";
 }
 
 const EMPTY_PAYLOAD: CloudPayload = {
   version: 1,
   updatedAt: new Date(0).toISOString(),
+  historyClearedAt: "",
   customQuestions: [],
   editedSeeds: {},
   deletedIds: [],
+  questionComments: {},
   attempts: [],
   mistakes: {},
 };
 
+const SHARED_BANK_RECORD_ID = "shared-question-bank";
+
+function sanitizeUserId(raw: string | null): string {
+  if (!raw) return "default-user";
+  const cleaned = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 64);
+  return cleaned || "default-user";
+}
+
+function getAdminSecretKey(): string {
+  return (process.env.ADMIN_SECRET_KEY || "kru-admin-9999")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "");
+}
+
+function isRequestFromAdmin(req: NextRequest, userId: string): boolean {
+  const adminSecret = getAdminSecretKey();
+  const headerAdminKey = sanitizeUserId(req.headers.get("x-kru-admin-key"));
+  return userId === adminSecret || (!!headerAdminKey && headerAdminKey === adminSecret);
+}
+
+function getQuestionFingerprintServer(item: unknown): string {
+  if (!item || typeof item !== "object") return "";
+  const q = item as { question?: unknown };
+  if (typeof q.question !== "string") return "";
+  return q.question
+    .replace(/^(?:ข้อ(?:ที่)?\s*)?\d+\s*[.)]\s*/, "")
+    .replace(/\s+/g, "")
+    .replace(/[.,;!?'"()[\]{}\-_/\\]+/g, "")
+    .toLowerCase();
+}
+
+function isAuthenticValidQuestion(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const q = item as {
+    question?: unknown;
+    options?: unknown;
+    confidenceScore?: unknown;
+  };
+  if (typeof q.question !== "string") return false;
+
+  const cleanStem = q.question
+    .replace(/^(?:ข้อ(?:ที่)?\s*)?\d+\s*[.)]\s*/, "")
+    .trim();
+  if (cleanStem.length < 12) return false;
+  if (/(.)\1{5,}/.test(cleanStem)) return false;
+
+  const spamPattern =
+    /(?:ติดต่อโฆษณา|สั่งซื้อแนวข้อสอบ|line\s*id|คลิกที่นี่|เว็บพนัน|คาสิโน)/i;
+  if (spamPattern.test(cleanStem)) return false;
+
+  if (!Array.isArray(q.options) || q.options.length < 4) return false;
+  const normOpts = q.options.slice(0, 4).map((o) =>
+    String(o || "")
+      .replace(/^[กขคงABCD1-4][.)]\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase()
+  );
+  if (normOpts.some((o) => o.length === 0)) return false;
+  if (new Set(normOpts).size < 3) return false;
+
+  if (
+    typeof q.confidenceScore === "number" &&
+    q.confidenceScore > 0 &&
+    q.confidenceScore < 65
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function mergeSharedQuestions(
+  existingList: unknown[],
+  incomingList: unknown[],
+  deletedIdsSet: Set<string>
+): unknown[] {
+  const map = new Map<string, Record<string, unknown>>();
+
+  const upsert = (rawItem: unknown) => {
+    if (!isAuthenticValidQuestion(rawItem)) return;
+    const item = rawItem as Record<string, unknown>;
+    const idStr = String(item.id || "");
+    if (idStr && deletedIdsSet.has(idStr)) return;
+
+    const fp = getQuestionFingerprintServer(item);
+    if (!fp) return;
+
+    const prev = map.get(fp);
+    if (!prev) {
+      map.set(fp, item);
+      return;
+    }
+
+    const prevExp = typeof prev.explanation === "string" ? prev.explanation : "";
+    const nextExp = typeof item.explanation === "string" ? item.explanation : "";
+
+    map.set(fp, {
+      ...prev,
+      ...item,
+      id: prev.id || item.id,
+      majorSubject: item.majorSubject || prev.majorSubject,
+      explanation: nextExp.length >= prevExp.length ? nextExp : prevExp,
+      lawReference: item.lawReference || prev.lawReference,
+      keyTakeaway: item.keyTakeaway || prev.keyTakeaway,
+    });
+  };
+
+  for (const q of existingList || []) upsert(q);
+  for (const q of incomingList || []) upsert(q);
+
+  return Array.from(map.values());
+}
+
+function mergeQuestionComments(
+  existingMap: Record<string, CommentPayloadItem[]> = {},
+  incomingMap: Record<string, CommentPayloadItem[]> = {},
+  isAdmin: boolean,
+  replaceAllComments: boolean
+): Record<string, CommentPayloadItem[]> {
+  if (isAdmin && replaceAllComments) {
+    return incomingMap || {};
+  }
+
+  const result: Record<string, CommentPayloadItem[]> = {};
+  const allQuestionIds = new Set([
+    ...Object.keys(existingMap || {}),
+    ...Object.keys(incomingMap || {}),
+  ]);
+
+  for (const qId of Array.from(allQuestionIds)) {
+    const existingArr = Array.isArray(existingMap[qId]) ? existingMap[qId] : [];
+    const incomingArr = Array.isArray(incomingMap[qId]) ? incomingMap[qId] : [];
+    const byId = new Map<string, CommentPayloadItem>();
+
+    for (const c of existingArr) {
+      if (c && c.id && typeof c.message === "string" && c.message.trim()) {
+        byId.set(c.id, c);
+      }
+    }
+
+    for (const c of incomingArr) {
+      if (!c || !c.id || typeof c.message !== "string" || !c.message.trim()) {
+        continue;
+      }
+      const prev = byId.get(c.id);
+      if (!prev) {
+        // อนุญาตให้ผู้ใช้ทุกคนเพิ่มคอมเมนต์ใหม่ได้
+        byId.set(c.id, {
+          ...c,
+          message: c.message.trim().slice(0, 1000),
+          status: c.type === "report_wrong" ? c.status || "pending" : undefined,
+        });
+      } else if (isAdmin) {
+        // เฉพาะแอดมินที่อัปเดตสถานะคอมเมนต์เดิมได้ (เช่น กดยืนยันตรวจสอบแล้ว)
+        byId.set(c.id, {
+          ...prev,
+          ...c,
+        });
+      }
+    }
+
+    const mergedList = Array.from(byId.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    if (mergedList.length > 0) {
+      result[qId] = mergedList;
+    }
+  }
+
+  return result;
+}
+
 // ============================================================================
-// 1. Cloudflare D1 REST API Driver (Auto-creates "kru-exam-db" + SQLite Table)
+// Cloudflare D1 REST API Driver
 // ============================================================================
 
 async function resolveCloudflareD1DatabaseId(
@@ -41,7 +238,6 @@ async function resolveCloudflareD1DatabaseId(
     "Content-Type": "application/json",
   };
 
-  // 1. ค้นหาฐานข้อมูล D1 ชื่อ kru-exam-db
   const listRes = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database?name=kru-exam-db`,
     { headers, cache: "no-store" }
@@ -61,7 +257,6 @@ async function resolveCloudflareD1DatabaseId(
     return existing.uuid;
   }
 
-  // 2. ถ้ายังไม่มี ให้สร้างฐานข้อมูล D1 ชื่อ kru-exam-db อัตโนมัติ
   const createRes = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database`,
     {
@@ -121,56 +316,38 @@ async function ensureD1Table(accountId: string, apiToken: string, dbId: string) 
   );
 }
 
-async function readFromCloudflareD1(
+async function readRecordFromD1(
   accountId: string,
   apiToken: string,
-  explicitDbId?: string
-): Promise<{ payload: CloudPayload; databaseId: string }> {
-  const databaseId = await resolveCloudflareD1DatabaseId(
-    accountId,
-    apiToken,
-    explicitDbId
-  );
-  await ensureD1Table(accountId, apiToken, databaseId);
-
+  databaseId: string,
+  recordId: string
+): Promise<CloudPayload | null> {
   const rows = await queryCloudflareD1(
     accountId,
     apiToken,
     databaseId,
     `SELECT payload FROM kru_exam_cloud_state WHERE id = ? LIMIT 1;`,
-    ["main"]
+    [recordId]
   );
-
   if (!rows || rows.length === 0 || !rows[0]?.payload) {
-    return { payload: EMPTY_PAYLOAD, databaseId };
+    return null;
   }
-
   try {
-    return {
-      payload: JSON.parse(rows[0].payload as string) as CloudPayload,
-      databaseId,
-    };
+    return JSON.parse(rows[0].payload as string) as CloudPayload;
   } catch {
-    return { payload: EMPTY_PAYLOAD, databaseId };
+    return null;
   }
 }
 
-async function writeToCloudflareD1(
+async function writeRecordToD1(
   accountId: string,
   apiToken: string,
-  payload: CloudPayload,
-  explicitDbId?: string
-): Promise<{ databaseId: string }> {
-  const databaseId = await resolveCloudflareD1DatabaseId(
-    accountId,
-    apiToken,
-    explicitDbId
-  );
-  await ensureD1Table(accountId, apiToken, databaseId);
-
+  databaseId: string,
+  recordId: string,
+  payload: CloudPayload
+): Promise<void> {
   const nowIso = new Date().toISOString();
   const serialized = JSON.stringify({ ...payload, updatedAt: nowIso });
-
   await queryCloudflareD1(
     accountId,
     apiToken,
@@ -178,195 +355,255 @@ async function writeToCloudflareD1(
     `INSERT INTO kru_exam_cloud_state (id, payload, updated_at)
      VALUES (?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at;`,
-    ["main", serialized, nowIso]
+    [recordId, serialized, nowIso]
   );
-
-  return { databaseId };
 }
 
-// ============================================================================
-// 2. GitHub Cloud Ref Driver (Zero-Config Cloud Sync via Git Data API)
-//    เก็บข้อมูลไว้ใน custom Git Ref "refs/kru-cloud/state" โดยไม่ทริกเกอร์การ Build ใหม่
-// ============================================================================
+async function readHybridStateFromD1(
+  accountId: string,
+  apiToken: string,
+  userId: string,
+  explicitDbId?: string
+): Promise<{
+  payload: CloudPayload;
+  databaseId: string;
+  hasExistingRecord: boolean;
+}> {
+  const databaseId = await resolveCloudflareD1DatabaseId(
+    accountId,
+    apiToken,
+    explicitDbId
+  );
+  await ensureD1Table(accountId, apiToken, databaseId);
 
-const GH_REF_NAME = "kru-cloud/state";
+  let sharedRecord = await readRecordFromD1(
+    accountId,
+    apiToken,
+    databaseId,
+    SHARED_BANK_RECORD_ID
+  );
 
-async function readFromGitHubCloud(
-  ghToken: string,
-  ghRepo: string
-): Promise<CloudPayload> {
-  const headers = {
-    Authorization: `Bearer ${ghToken}`,
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
+  if (!sharedRecord) {
+    const legacyMain = await readRecordFromD1(
+      accountId,
+      apiToken,
+      databaseId,
+      "main"
+    );
+    if (legacyMain && Array.isArray(legacyMain.customQuestions)) {
+      const cleanedShared = mergeSharedQuestions(
+        [],
+        legacyMain.customQuestions,
+        new Set(legacyMain.deletedIds || [])
+      );
+      sharedRecord = {
+        ...EMPTY_PAYLOAD,
+        updatedAt: new Date().toISOString(),
+        customQuestions: cleanedShared,
+        editedSeeds: legacyMain.editedSeeds || {},
+        deletedIds: legacyMain.deletedIds || [],
+        questionComments: legacyMain.questionComments || {},
+      };
+      await writeRecordToD1(
+        accountId,
+        apiToken,
+        databaseId,
+        SHARED_BANK_RECORD_ID,
+        sharedRecord
+      );
+    } else {
+      sharedRecord = EMPTY_PAYLOAD;
+    }
+  }
+
+  const userRecord = await readRecordFromD1(
+    accountId,
+    apiToken,
+    databaseId,
+    userId
+  );
+
+  const deletedSet = new Set(sharedRecord.deletedIds || []);
+  const activeSharedCustom = (sharedRecord.customQuestions || []).filter((q) => {
+    if (!q || typeof q !== "object") return false;
+    const id = String((q as { id?: unknown }).id || "");
+    return !deletedSet.has(id);
+  });
+
+  const combinedPayload: CloudPayload = {
+    version: 1,
+    updatedAt: userRecord?.updatedAt || sharedRecord.updatedAt,
+    historyClearedAt: userRecord?.historyClearedAt || "",
+    customQuestions: activeSharedCustom,
+    editedSeeds: sharedRecord.editedSeeds || {},
+    deletedIds: sharedRecord.deletedIds || [],
+    questionComments: sharedRecord.questionComments || {},
+    attempts: userRecord?.attempts || [],
+    mistakes: userRecord?.mistakes || {},
   };
 
-  const refRes = await fetch(
-    `https://api.github.com/repos/${ghRepo}/git/ref/${GH_REF_NAME}`,
-    { headers, cache: "no-store" }
-  );
-
-  if (refRes.status === 404) {
-    return EMPTY_PAYLOAD;
-  }
-
-  if (!refRes.ok) {
-    throw new Error(`GitHub Cloud Ref Read Error (${refRes.status})`);
-  }
-
-  const refData = await refRes.json();
-  const blobSha = refData?.object?.sha;
-  if (!blobSha) return EMPTY_PAYLOAD;
-
-  const blobRes = await fetch(
-    `https://api.github.com/repos/${ghRepo}/git/blobs/${blobSha}`,
-    { headers, cache: "no-store" }
-  );
-  if (!blobRes.ok) return EMPTY_PAYLOAD;
-
-  const blobData = await blobRes.json();
-  if (!blobData?.content) return EMPTY_PAYLOAD;
-
-  const jsonStr = Buffer.from(blobData.content, "base64").toString("utf-8");
-  return JSON.parse(jsonStr) as CloudPayload;
+  return {
+    payload: combinedPayload,
+    databaseId,
+    hasExistingRecord: userRecord !== null,
+  };
 }
 
-async function writeToGitHubCloud(
-  ghToken: string,
-  ghRepo: string,
-  payload: CloudPayload
-): Promise<void> {
-  const headers = {
-    Authorization: `Bearer ${ghToken}`,
-    Accept: "application/vnd.github+json",
-    "Content-Type": "application/json",
-    "X-GitHub-Api-Version": "2022-11-28",
+async function writeHybridStateToD1(
+  accountId: string,
+  apiToken: string,
+  userId: string,
+  isAdmin: boolean,
+  incoming: CloudPayload,
+  explicitDbId?: string
+): Promise<{
+  databaseId: string;
+  sharedQuestionCount: number;
+  sharedPayload: CloudPayload;
+}> {
+  const databaseId = await resolveCloudflareD1DatabaseId(
+    accountId,
+    apiToken,
+    explicitDbId
+  );
+  await ensureD1Table(accountId, apiToken, databaseId);
+
+  const existingShared =
+    (await readRecordFromD1(
+      accountId,
+      apiToken,
+      databaseId,
+      SHARED_BANK_RECORD_ID
+    )) || EMPTY_PAYLOAD;
+
+  // 1. สิทธิ์การจัดการคลังข้อสอบกลาง (เฉพาะ Admin เท่านั้นที่เพิ่ม/แก้ไข/ลบข้อสอบได้)
+  let nextDeletedIds = existingShared.deletedIds || [];
+  let nextEditedSeeds = existingShared.editedSeeds || {};
+  let nextCustomQuestions = existingShared.customQuestions || [];
+
+  if (isAdmin) {
+    const mergedDeletedSet = new Set<string>([
+      ...(existingShared.deletedIds || []),
+      ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds : []),
+    ]);
+    nextDeletedIds = Array.from(mergedDeletedSet);
+
+    nextEditedSeeds = {
+      ...(existingShared.editedSeeds || {}),
+      ...(incoming.editedSeeds && typeof incoming.editedSeeds === "object"
+        ? incoming.editedSeeds
+        : {}),
+    };
+
+    if (incoming.adminAction === "replace_shared_bank") {
+      // กรณีแอดมินกดแก้ไขหรือลบข้อสอบโดยตรง ให้ยึดตามรายการล่าสุดของแอดมิน
+      nextCustomQuestions = mergeSharedQuestions(
+        [],
+        Array.isArray(incoming.customQuestions) ? incoming.customQuestions : [],
+        mergedDeletedSet
+      );
+    } else {
+      nextCustomQuestions = mergeSharedQuestions(
+        existingShared.customQuestions || [],
+        Array.isArray(incoming.customQuestions) ? incoming.customQuestions : [],
+        mergedDeletedSet
+      );
+    }
+  }
+
+  // 2. สิทธิ์การคอมเมนต์ข้อสอบ (ผู้ใช้ทุกคนเพิ่มคอมเมนต์ได้, แอดมินลบหรือกดตรวจสอบได้)
+  const nextComments = mergeQuestionComments(
+    existingShared.questionComments || {},
+    incoming.questionComments || {},
+    isAdmin,
+    incoming.adminAction === "replace_shared_bank"
+  );
+
+  const updatedSharedPayload: CloudPayload = {
+    ...EMPTY_PAYLOAD,
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    customQuestions: nextCustomQuestions,
+    editedSeeds: nextEditedSeeds,
+    deletedIds: nextDeletedIds,
+    questionComments: nextComments,
   };
 
-  const serialized = JSON.stringify(
-    { ...payload, updatedAt: new Date().toISOString() },
-    null,
-    2
+  await writeRecordToD1(
+    accountId,
+    apiToken,
+    databaseId,
+    SHARED_BANK_RECORD_ID,
+    updatedSharedPayload
   );
 
-  // 1. สร้าง Git Blob สำหรับ JSON สถานะล่าสุด
-  const blobRes = await fetch(
-    `https://api.github.com/repos/${ghRepo}/git/blobs`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        content: Buffer.from(serialized, "utf-8").toString("base64"),
-        encoding: "base64",
-      }),
-      cache: "no-store",
-    }
+  // 3. บันทึกเฉพาะประวัติการสอบและจุดผิดของ User แต่ละคนแยกตามรหัสผู้สอบ
+  const userPersonalPayload: CloudPayload = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    historyClearedAt: incoming.historyClearedAt || "",
+    customQuestions: [],
+    editedSeeds: {},
+    deletedIds: [],
+    attempts: Array.isArray(incoming.attempts) ? incoming.attempts : [],
+    mistakes:
+      incoming.mistakes && typeof incoming.mistakes === "object"
+        ? incoming.mistakes
+        : {},
+  };
+
+  await writeRecordToD1(
+    accountId,
+    apiToken,
+    databaseId,
+    userId,
+    userPersonalPayload
   );
 
-  if (!blobRes.ok) {
-    throw new Error(`GitHub Blob Create Failed (${blobRes.status})`);
-  }
-
-  const blobData = await blobRes.json();
-  const newSha = blobData.sha;
-
-  // 2. อัปเดตหรือสร้าง Ref "refs/kru-cloud/state"
-  const checkRes = await fetch(
-    `https://api.github.com/repos/${ghRepo}/git/ref/${GH_REF_NAME}`,
-    { headers, cache: "no-store" }
-  );
-
-  if (checkRes.status === 404) {
-    const createRefRes = await fetch(
-      `https://api.github.com/repos/${ghRepo}/git/refs`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          ref: `refs/${GH_REF_NAME}`,
-          sha: newSha,
-        }),
-        cache: "no-store",
-      }
-    );
-    if (!createRefRes.ok) {
-      throw new Error(`GitHub Ref Create Failed (${createRefRes.status})`);
-    }
-  } else {
-    const updateRefRes = await fetch(
-      `https://api.github.com/repos/${ghRepo}/git/refs/${GH_REF_NAME}`,
-      {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
-          sha: newSha,
-          force: true,
-        }),
-        cache: "no-store",
-      }
-    );
-    if (!updateRefRes.ok) {
-      throw new Error(`GitHub Ref Update Failed (${updateRefRes.status})`);
-    }
-  }
+  return {
+    databaseId,
+    sharedQuestionCount: nextCustomQuestions.length,
+    sharedPayload: updatedSharedPayload,
+  };
 }
-
-// ============================================================================
-// Route Handlers (GET = ดึงข้อมูลจาก Cloud, POST = บันทึก/ซิงก์ข้อมูลขึ้น Cloud)
-// ============================================================================
-
-const DEFAULT_CF_ACCOUNT_ID = "647457137f0ee7a3772ae4a39a79bdb7";
-const DEFAULT_CF_DB_ID = "6e40b141-89a0-42b1-89f3-96f93c458c03";
-const DEFAULT_CF_TOKEN_B64 =
-  "Y2Z1dF9xdUx0NVlHT28yd2U1bXhJRlg5aURmam9qSjNlUmJvN1ZqRkRzUXMyOGI3NjY0YWU=";
 
 function getCredentials(req: NextRequest) {
   const cfAccountId =
     req.headers.get("x-cf-account-id") ||
     process.env.CLOUDFLARE_ACCOUNT_ID ||
-    DEFAULT_CF_ACCOUNT_ID;
+    "";
   const cfApiToken =
     req.headers.get("x-cf-api-token") ||
     process.env.CLOUDFLARE_API_TOKEN ||
-    Buffer.from(DEFAULT_CF_TOKEN_B64, "base64").toString("utf-8");
+    "";
   const cfDbId =
     req.headers.get("x-cf-db-id") ||
     process.env.CLOUDFLARE_D1_DATABASE_ID ||
-    DEFAULT_CF_DB_ID;
+    "";
 
-  const ghToken = process.env.CLOUD_SYNC_GH_TOKEN || "";
-  const ghRepo =
-    process.env.CLOUD_SYNC_GH_REPO || "nazirulhak000/kru-exam-vercel";
+  const userId = sanitizeUserId(
+    req.headers.get("x-kru-user-id") || req.nextUrl.searchParams.get("userId")
+  );
+  const isAdmin = isRequestFromAdmin(req, userId);
 
-  return { cfAccountId, cfApiToken, cfDbId, ghToken, ghRepo };
+  return { cfAccountId, cfApiToken, cfDbId, userId, isAdmin };
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const { cfAccountId, cfApiToken, cfDbId, ghToken, ghRepo } =
+    const { cfAccountId, cfApiToken, cfDbId, userId, isAdmin } =
       getCredentials(req);
 
-    // ลำดับที่ 1: ใช้ Cloudflare D1 หากตั้งค่าไว้
     if (cfAccountId && cfApiToken) {
-      const { payload, databaseId } = await readFromCloudflareD1(
-        cfAccountId,
-        cfApiToken,
-        cfDbId
-      );
+      const { payload, databaseId, hasExistingRecord } =
+        await readHybridStateFromD1(cfAccountId, cfApiToken, userId, cfDbId);
       return NextResponse.json({
         ok: true,
         provider: "cloudflare-d1",
         databaseId,
-        data: payload,
-      });
-    }
-
-    // ลำดับที่ 2: ใช้ GitHub Cloud Database อัตโนมัติ
-    if (ghToken && ghRepo) {
-      const payload = await readFromGitHubCloud(ghToken, ghRepo);
-      return NextResponse.json({
-        ok: true,
-        provider: "github-cloud",
+        userId,
+        isAdmin,
+        hasExistingRecord,
         data: payload,
       });
     }
@@ -374,6 +611,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: false,
       provider: "local-only",
+      userId,
+      isAdmin,
+      hasExistingRecord: false,
       message: "ยังไม่ได้เชื่อมต่อ Cloud Database",
       data: EMPTY_PAYLOAD,
     });
@@ -391,32 +631,28 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { cfAccountId, cfApiToken, cfDbId, ghToken, ghRepo } =
+    const { cfAccountId, cfApiToken, cfDbId, userId, isAdmin } =
       getCredentials(req);
     const body = (await req.json()) as CloudPayload;
 
-    // ลำดับที่ 1: บันทึกลง Cloudflare D1 หากตั้งค่าไว้
     if (cfAccountId && cfApiToken) {
-      const { databaseId } = await writeToCloudflareD1(
-        cfAccountId,
-        cfApiToken,
-        body,
-        cfDbId
-      );
+      const { databaseId, sharedQuestionCount, sharedPayload } =
+        await writeHybridStateToD1(
+          cfAccountId,
+          cfApiToken,
+          userId,
+          isAdmin,
+          body,
+          cfDbId
+        );
       return NextResponse.json({
         ok: true,
         provider: "cloudflare-d1",
         databaseId,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    // ลำดับที่ 2: บันทึกลง GitHub Cloud Database อัตโนมัติ
-    if (ghToken && ghRepo) {
-      await writeToGitHubCloud(ghToken, ghRepo, body);
-      return NextResponse.json({
-        ok: true,
-        provider: "github-cloud",
+        userId,
+        isAdmin,
+        sharedQuestionCount,
+        sharedData: sharedPayload,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -425,7 +661,7 @@ export async function POST(req: NextRequest) {
       {
         ok: false,
         provider: "local-only",
-        error: "ยังไม่ได้ตั้งค่า Cloudflare D1 หรือ Cloud Token",
+        error: "ยังไม่ได้ตั้งค่า Cloudflare D1 บนเซิร์ฟเวอร์",
       },
       { status: 400 }
     );
