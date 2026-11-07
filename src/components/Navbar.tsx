@@ -344,7 +344,7 @@ export default function Navbar() {
                 >
                   {/* Icons are dropped on narrow phones so all tabs fit without a hidden, half-cut last tab */}
                   <Icon
-                    className="w-4 h-4 text-paper-muted shrink-0 max-[420px]:hidden"
+                    className="w-4 h-4 text-paper-muted shrink-0 max-[460px]:hidden"
                     strokeWidth={1.5}
                   />
                   <span>{item.shortLabel}</span>
