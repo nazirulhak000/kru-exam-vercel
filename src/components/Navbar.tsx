@@ -24,6 +24,7 @@ import {
   getCloudflareConfig,
   getDisplaySyncKey,
   getExamAttempts,
+  getLastSyncError,
   hasConfirmedSyncKey,
   isAdminMode,
   markSyncKeyConfirmed,
@@ -78,6 +79,7 @@ export default function Navbar() {
 
   const [currentSyncKey, setCurrentSyncKey] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [targetSyncKeyInput, setTargetSyncKeyInput] = useState<string>("");
   const [copiedKey, setCopiedKey] = useState(false);
 
@@ -93,6 +95,7 @@ export default function Navbar() {
     setIsAdmin(isAdminMode());
     setProvider(cfg.provider || "");
     setLastSyncedAt(cfg.lastSyncedAt || "");
+    setSyncError(getLastSyncError());
   };
 
   useEffect(() => {
@@ -327,7 +330,11 @@ export default function Navbar() {
                 ) : (
                   <span
                     className={`w-2 h-2 shrink-0 rounded-full ${
-                      provider ? "bg-paper-pass" : "bg-paper-warn"
+                      syncError
+                        ? "bg-paper-warn"
+                        : provider
+                        ? "bg-paper-pass"
+                        : "bg-paper-warn"
                     }`}
                   />
                 )}
@@ -436,9 +443,17 @@ export default function Navbar() {
                 <span className="text-[12px] font-medium text-paper-secondary">
                   รหัสประจำตัวปัจจุบันของเครื่องนี้:
                 </span>
-                <span className="text-[12px] font-medium text-paper-pass flex items-center gap-1.5">
+                <span
+                  className={`text-[12px] font-medium flex items-center gap-1.5 ${
+                    syncError
+                      ? "text-paper-warn"
+                      : "text-paper-pass"
+                  }`}
+                >
                   <Cloud className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
-                  {provider === "cloudflare-d1"
+                  {syncError
+                    ? `การเชื่อมต่อขัดข้อง (${syncError})`
+                    : provider === "cloudflare-d1"
                     ? "เชื่อมต่อฐานข้อมูลออนไลน์แล้ว"
                     : "ซิงก์อัตโนมัติพร้อมใช้งาน"}
                 </span>
