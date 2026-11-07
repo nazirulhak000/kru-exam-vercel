@@ -40,6 +40,7 @@ import {
   MajorSubjectCount,
   getActiveExamSession,
   getAllQuestions,
+  getRoonpiiQuestions,
   getMajorSubjectCounts,
   getMistakeQuestions,
   getMistakeRecordsMap,
@@ -148,9 +149,23 @@ function ExamSimulatorContent() {
     "after_submit"
   );
   const [isBlueprint, setIsBlueprint] = useState<boolean>(false);
+  const [selectedCollection, setSelectedCollection] = useState<
+    "standard" | "roonpii"
+  >("standard");
   const [secondsPerQuestion, setSecondsPerQuestion] = useState<number>(75);
   const [shuffleQuestions, setShuffleQuestions] = useState<boolean>(true);
   const [shuffleOptions, setShuffleOptions] = useState<boolean>(true);
+
+  const handleSwitchCollection = (coll: "standard" | "roonpii") => {
+    setSelectedCollection(coll);
+    const pool = coll === "roonpii" ? getRoonpiiQuestions() : getAllQuestions();
+    setAllQuestions(pool);
+    setMajorCounts(getMajorSubjectCounts(pool));
+    const sources = Array.from(new Set(pool.map(getSourceName)));
+    setPdfSources(sources);
+    setSelectedCat("all");
+    setSelectedSource("all");
+  };
 
   const [screen, setScreen] = useState<"setup" | "active" | "result">("setup");
   const [activeQuiz, setActiveQuiz] = useState<QuestionItem[]>([]);
@@ -271,6 +286,15 @@ function ExamSimulatorContent() {
       refreshFromStorage();
     };
     window.addEventListener("kru-cloud-synced", handleCloudSynced);
+
+    const paramCollection = searchParams.get("collection");
+    if (paramCollection === "roonpii") {
+      setSelectedCollection("roonpii");
+      const roonpiiPool = getRoonpiiQuestions();
+      setAllQuestions(roonpiiPool);
+      setMajorCounts(getMajorSubjectCounts(roonpiiPool));
+      setPdfSources(Array.from(new Set(roonpiiPool.map(getSourceName))));
+    }
 
     const paramCat = searchParams.get("category");
     const paramMode = searchParams.get("mode");
@@ -1312,6 +1336,68 @@ function ExamSimulatorContent() {
         <div className="p-4 sm:p-6 md:p-8 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
           {/* Left 7 Columns */}
           <div className="lg:col-span-7 space-y-6 min-w-0">
+            {/* 0. เลือกคลังข้อสอบ (Question Collection) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-[13px] font-medium text-paper-ink">
+                  0. เลือกคลังข้อสอบ (Question Collection)
+                </label>
+                <span className="text-[12px] font-mono text-paper-muted">
+                  {selectedCollection === "roonpii"
+                    ? "คลัง Roonpii 1,013 ข้อพร้อมสอบ"
+                    : "คลังมาตรฐาน 7,200 ข้อพร้อมสอบ"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchCollection("standard")}
+                  className={`p-3.5 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
+                    selectedCollection === "standard"
+                      ? "border-paper-accent bg-paper-accent/[0.05] ring-1 ring-paper-accent/30"
+                      : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-title font-medium text-[14px] text-paper-ink">
+                      📚 ข้อสอบมาตรฐานแกนกลาง
+                    </span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-accent/10 text-paper-accent font-medium">
+                      7,200 ข้อ
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-[18px] text-paper-secondary">
+                    คลังมาตรฐานครบ 6 หมวดวิชาหลัก 13 สาขาวิชาเอก รองรับการจัดสอบ Blueprint ก.ค.ศ.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSwitchCollection("roonpii");
+                    setIsBlueprint(false);
+                  }}
+                  className={`p-3.5 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
+                    selectedCollection === "roonpii"
+                      ? "border-amber-600 bg-amber-500/[0.08] ring-1 ring-amber-600/40"
+                      : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-title font-medium text-[14px] text-amber-900">
+                      🏛️ คลังข้อสอบจริง & จำมา Roonpii
+                    </span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 font-medium">
+                      1,013 ข้อ
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-[18px] text-paper-secondary">
+                    ข้อสอบสนามสอบจริงและจำมา สพฐ. 2568, 2567, กรณีพิเศษ และ TruePlookpanya (2558–2568)
+                  </p>
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2.5">
               <label className="block text-[13px] font-medium text-paper-ink">
                 1. เลือกรูปแบบการทดสอบ

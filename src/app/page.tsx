@@ -8,6 +8,7 @@ import {
   getAllQuestions,
   getExamAttempts,
   getReadinessStats,
+  getRoonpiiQuestions,
   isAdminMode,
   ReadinessStats,
   saveActiveExamSession,
@@ -29,6 +30,7 @@ export default function HomeDashboardPage() {
     null
   );
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [roonpiiCount, setRoonpiiCount] = useState<number>(0);
 
   useEffect(() => {
     const loadDashboard = () => {
@@ -40,6 +42,8 @@ export default function HomeDashboardPage() {
       if (all.length > 0) {
         setSampleQuestion(all[0]);
       }
+      const roonpii = getRoonpiiQuestions();
+      setRoonpiiCount(roonpii.length);
     };
     loadDashboard();
     window.addEventListener("kru-cloud-synced", loadDashboard);
@@ -119,14 +123,22 @@ export default function HomeDashboardPage() {
             </Link>
 
             <Link
-              href="/bank"
+              href="/bank?tab=standard"
               className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-paper-raised hover:bg-paper-hover border border-[#1f1b16]/[0.08] text-paper-ink text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
             >
               <BookOpen
                 className="w-4 h-4 text-paper-secondary shrink-0"
                 strokeWidth={1.5}
               />
-              <span className="min-w-0">เปิดดูคลังข้อสอบและคำอธิบาย</span>
+              <span className="min-w-0">คลังมาตรฐาน (7,200 ข้อ)</span>
+            </Link>
+
+            <Link
+              href="/bank?tab=roonpii"
+              className="min-h-[44px] max-w-full py-2 px-5 rounded-[8px] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-600/30 text-amber-900 text-[14px] font-medium flex items-center gap-2 transition-colors duration-150 ease-calm"
+            >
+              <span className="text-base">🏛️</span>
+              <span className="min-w-0 font-medium">ข้อสอบจริง Roonpii (1,013 ข้อ)</span>
             </Link>
 
             {isAdmin && (
@@ -177,26 +189,128 @@ export default function HomeDashboardPage() {
           })}
 
           <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words">
-            <span className="text-[12px] text-paper-muted">คลังข้อสอบทั้งหมด</span>
+            <span className="text-[12px] text-paper-muted">คลังมาตรฐานแกนกลาง</span>
             <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
-              {stats.totalQuestionsInBank}
+              {stats.totalQuestionsInBank.toLocaleString()}
             </div>
-            <span className="text-[12px] text-paper-secondary tabular-nums">
-              {stats.customPdfQuestionCount > 0
-                ? `+${stats.customPdfQuestionCount} ข้อเพิ่มเติมในคลังกลาง`
-                : "ชุดข้อสอบจริงมาตรฐาน ก.ค.ศ."}
-            </span>
+            <Link
+              href="/bank?tab=standard"
+              className="text-[12px] text-paper-secondary hover:text-paper-ink underline underline-offset-2 flex items-center gap-1"
+            >
+              <span>ข้อสอบมาตรฐาน ก.ค.ศ.</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
 
-          <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col justify-between min-h-[104px] min-w-0 break-words">
-            <span className="text-[12px] text-paper-muted">ข้อที่ต้องทบทวนซ้ำ</span>
-            <div className="font-mono font-medium text-[28px] leading-none text-paper-ink tabular-nums my-2">
-              {stats.activeMistakesCount}
+          <div className="p-3.5 sm:p-4 rounded-[12px] bg-amber-500/[0.08] border border-amber-600/30 flex flex-col justify-between min-h-[104px] min-w-0 break-words">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-medium text-amber-800">คลังข้อสอบจริง Roonpii</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 font-mono font-semibold">2558–2568</span>
             </div>
-            <span className="text-[12px] text-paper-secondary tabular-nums">
-              แม่นยำแล้ว {stats.masteredMistakesCount} ข้อ
-            </span>
+            <div className="font-mono font-medium text-[28px] leading-none text-amber-900 tabular-nums my-2">
+              {roonpiiCount.toLocaleString()}
+            </div>
+            <Link
+              href="/bank?tab=roonpii"
+              className="text-[12px] text-amber-800 hover:text-amber-950 font-medium underline underline-offset-2 flex items-center gap-1"
+            >
+              <span>เปิดดูข้อสอบสนามจริง</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Prominent Roonpii Authentic Exam Showcase */}
+      <section className="p-5 sm:p-6 rounded-[14px] bg-gradient-to-r from-amber-500/[0.10] via-amber-500/[0.04] to-transparent border border-amber-600/30 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[11px] font-medium tracking-wide">
+                คลังข้อสอบชุดใหม่ (แยกต่างหาก)
+              </span>
+              <h2 className="font-title font-medium text-[18px] text-paper-ink">
+                🏛️ คลังข้อสอบจริงสนามสอบ & จำมา Roonpii (1,013 ข้อ)
+              </h2>
+            </div>
+            <p className="text-[13px] text-paper-secondary">
+              แยกแท็บต่างหากจาก 7,200 ข้อมาตรฐานแกนกลาง รวบรวมข้อสอบจำมาจริง สพฐ. 2568, 2567, กรณีพิเศษ และชุดฝึก TruePlookpanya (2558–2568) พร้อมเฉลยละเอียด
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/bank?tab=roonpii"
+              className="h-9 px-4 rounded-[8px] bg-amber-700 hover:bg-amber-800 text-white text-[13px] font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <span>เปิดดูในคลังข้อสอบ</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              href="/exam?collection=roonpii"
+              className="h-9 px-3.5 rounded-[8px] border border-amber-700/40 bg-paper-card hover:bg-amber-500/10 text-amber-900 text-[13px] font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>เริ่มสอบชุดนี้</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Highlights Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
+          <Link
+            href="/bank?tab=roonpii&year=2568"
+            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+          >
+            <div className="text-[11px] font-mono text-amber-700 font-semibold">สพฐ. 2568 (ล่าสุด)</div>
+            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
+              คณิตสะกิดต่อม & คิดวิเคราะห์
+            </div>
+            <div className="text-[11px] text-paper-muted mt-1">ข้อสอบจำมาสดๆ ภาค ก / ข</div>
+          </Link>
+
+          <Link
+            href="/bank?tab=roonpii&year=2567"
+            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+          >
+            <div className="text-[11px] font-mono text-amber-700 font-semibold">สพฐ. 2567</div>
+            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
+              เอกคอมพิวเตอร์ (25 หน้า)
+            </div>
+            <div className="text-[11px] text-paper-muted mt-1">ข้อสอบสนามสอบจริง 8-9 มิ.ย.</div>
+          </Link>
+
+          <Link
+            href="/bank?tab=roonpii&type=special"
+            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+          >
+            <div className="text-[11px] font-mono text-amber-700 font-semibold">กรณีพิเศษ 2567–68</div>
+            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
+              กฎหมายการศึกษา KRU BAR
+            </div>
+            <div className="text-[11px] text-paper-muted mt-1">พ.ร.บ.การศึกษา & วินัย</div>
+          </Link>
+
+          <Link
+            href="/bank?tab=roonpii&year=2560"
+            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm"
+          >
+            <div className="text-[11px] font-mono text-amber-700 font-semibold">กรณีพิเศษ 2560</div>
+            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
+              MR.KRON ความรอบรู้
+            </div>
+            <div className="text-[11px] text-paper-muted mt-1">ข้อสอบจริง 50 ข้อ</div>
+          </Link>
+
+          <Link
+            href="/bank?tab=roonpii&type=trueplookpanya"
+            className="p-3 rounded-[10px] bg-paper-card/90 hover:bg-paper-card border border-amber-600/20 text-left transition-all group hover:shadow-sm col-span-2 sm:col-span-1"
+          >
+            <div className="text-[11px] font-mono text-amber-700 font-semibold">TruePlookpanya</div>
+            <div className="text-[13px] font-medium text-paper-ink group-hover:text-amber-800 mt-0.5 truncate">
+              คลังข้อสอบ 48 ชุด
+            </div>
+            <div className="text-[11px] text-paper-muted mt-1">รวม 929 ข้อพร้อมเฉลยละเอียด</div>
+          </Link>
         </div>
       </section>
 

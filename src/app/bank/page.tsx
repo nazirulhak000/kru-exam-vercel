@@ -178,6 +178,19 @@ export default function QuestionBankPage() {
 
   useEffect(() => {
     loadData();
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      const tab = p.get("tab");
+      if (tab === "roonpii") {
+        setActiveCollectionTab("roonpii");
+      } else if (tab === "standard") {
+        setActiveCollectionTab("standard");
+      }
+      const year = p.get("year");
+      if (year) setSelectedYear(year);
+      const type = p.get("type");
+      if (type) setSelectedType(type);
+    }
     window.addEventListener("kru-cloud-synced", loadData);
     return () => window.removeEventListener("kru-cloud-synced", loadData);
   }, []);
@@ -467,6 +480,9 @@ export default function QuestionBankPage() {
             setSelectedSource("all");
             setSelectedYear("all");
             setSelectedType("all");
+            if (typeof window !== "undefined") {
+              window.history.replaceState(null, "", window.location.pathname + "?tab=standard");
+            }
           }}
           className={`pb-3 pt-1 text-[15px] font-medium transition-all relative flex items-center gap-2 whitespace-nowrap ${
             activeCollectionTab === "standard"
@@ -492,6 +508,9 @@ export default function QuestionBankPage() {
             setSelectedSource("all");
             setSelectedYear("all");
             setSelectedType("all");
+            if (typeof window !== "undefined") {
+              window.history.replaceState(null, "", window.location.pathname + "?tab=roonpii");
+            }
           }}
           className={`pb-3 pt-1 text-[15px] font-medium transition-all relative flex items-center gap-2 whitespace-nowrap ${
             activeCollectionTab === "roonpii"

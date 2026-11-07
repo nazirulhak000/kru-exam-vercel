@@ -16,6 +16,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Shuffle,
+  Sparkles,
   X,
 } from "lucide-react";
 import {
@@ -47,9 +48,16 @@ const NAV_ITEMS = [
   },
   {
     href: "/bank",
-    label: "คลังข้อสอบ",
-    shortLabel: "คลังข้อสอบ",
+    label: "คลังข้อสอบแกนกลาง (7,200)",
+    shortLabel: "คลัง 7,200 ข้อ",
     icon: BookOpen,
+    adminOnly: false,
+  },
+  {
+    href: "/bank?tab=roonpii",
+    label: "ข้อสอบจริง Roonpii (1,013)",
+    shortLabel: "ข้อสอบจริง Roonpii",
+    icon: Sparkles,
     adminOnly: false,
   },
   {
@@ -241,9 +249,16 @@ export default function Navbar() {
               <nav className="hidden lg:flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar">
                 {visibleNavItems.map((item) => {
                   const Icon = item.icon;
+                  const isRoonpiiActive =
+                    typeof window !== "undefined" &&
+                    window.location.search.includes("tab=roonpii");
                   const isActive =
                     item.href === "/"
                       ? pathname === "/"
+                      : item.href === "/bank?tab=roonpii"
+                      ? pathname === "/bank" && isRoonpiiActive
+                      : item.href === "/bank"
+                      ? pathname === "/bank" && !isRoonpiiActive
                       : pathname.startsWith(item.href);
 
                   return (
@@ -348,9 +363,16 @@ export default function Navbar() {
           <nav className="flex lg:hidden items-center gap-1 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 custom-scrollbar">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
+              const isRoonpiiActive =
+                typeof window !== "undefined" &&
+                window.location.search.includes("tab=roonpii");
               const isActive =
                 item.href === "/"
                   ? pathname === "/"
+                  : item.href === "/bank?tab=roonpii"
+                  ? pathname === "/bank" && isRoonpiiActive
+                  : item.href === "/bank"
+                  ? pathname === "/bank" && !isRoonpiiActive
                   : pathname.startsWith(item.href);
 
               return (
