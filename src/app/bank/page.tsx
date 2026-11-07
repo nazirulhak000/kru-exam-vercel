@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   FileUp,
+  Globe,
   MessageSquare,
   Pencil,
   Save,
@@ -30,6 +31,7 @@ import {
   QuestionComment,
   QuestionItem,
   getExplanationLabel,
+  getQuestionProvenance,
 } from "@/types/exam";
 import {
   addQuestionComment,
@@ -214,9 +216,10 @@ export default function QuestionBankPage() {
         return;
       }
       if (activeCollectionTab === "roonpii") {
-        if (selectedRefSource === "roonpii" && !q.id.startsWith("kru-rp-")) return;
-        if (selectedRefSource === "gdrive_edu" && !q.id.startsWith("kru-gd-edu2567-")) return;
-        if (selectedRefSource === "gdrive_law" && !q.id.startsWith("kru-gd-law400-")) return;
+        if (selectedRefSource === "gdrive" && !q.id.startsWith("kru-gd-")) return;
+        if (selectedRefSource === "trueplookpanya" && !(q.examAgency?.includes("TruePlookpanya") || q.sourcePdf?.includes("TruePlookpanya") || q.sourcePdf?.includes("ทรู"))) return;
+        if (selectedRefSource === "official_paper" && (q.id.startsWith("kru-gd-") || q.collectionType !== "official_exam" || q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา"))) return;
+        if (selectedRefSource === "roonpii" && !(q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา") || q.collectionType === "recalled_exam")) return;
       }
       const defaultSrc = activeCollectionTab === "standard" ? "คลังข้อสอบมาตรฐาน ก.ค.ศ." : "คลังข้อสอบ Roonpii";
       const src = q.sourcePdf || defaultSrc;
@@ -275,9 +278,10 @@ export default function QuestionBankPage() {
     if (activeCollectionTab === "roonpii") {
       if (selectedYear !== "all" && q.examYear !== selectedYear) return false;
       if (selectedType !== "all" && q.collectionType !== selectedType) return false;
-      if (selectedRefSource === "roonpii" && !q.id.startsWith("kru-rp-")) return false;
-      if (selectedRefSource === "gdrive_edu" && !q.id.startsWith("kru-gd-edu2567-")) return false;
-      if (selectedRefSource === "gdrive_law" && !q.id.startsWith("kru-gd-law400-")) return false;
+      if (selectedRefSource === "gdrive" && !q.id.startsWith("kru-gd-")) return false;
+      if (selectedRefSource === "trueplookpanya" && !(q.examAgency?.includes("TruePlookpanya") || q.sourcePdf?.includes("TruePlookpanya") || q.sourcePdf?.includes("ทรู"))) return false;
+      if (selectedRefSource === "official_paper" && (q.id.startsWith("kru-gd-") || q.collectionType !== "official_exam" || q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา"))) return false;
+      if (selectedRefSource === "roonpii" && !(q.sourcePdf?.includes("สะกิดต่อม") || q.sourcePdf?.includes("จำมา") || q.collectionType === "recalled_exam")) return false;
     }
     if (commentFilter === "pending_reports") {
       const list = commentsMap[q.id] || [];
@@ -506,7 +510,7 @@ export default function QuestionBankPage() {
           }`}
         >
           <BookOpen className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
-          <span>คลังข้อสอบมาตรฐานแกนกลาง</span>
+          <span>คลังข้อสอบมาตรฐานแกนกลาง (จัดทำตามผัง ก.ค.ศ.)</span>
           <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-accent/10 text-paper-accent font-mono font-medium">
             {questions.length.toLocaleString()}
           </span>
@@ -535,8 +539,8 @@ export default function QuestionBankPage() {
               : "text-paper-muted hover:text-paper-ink"
           }`}
         >
-          <Archive className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
-          <span>คลังข้อสอบจริง & เอกสารอ้างอิง</span>
+          <Globe className="w-4 h-4 shrink-0 text-paper-secondary" strokeWidth={1.5} />
+          <span>คลังข้อสอบจริง & แหล่งข้อสอบจากอินเทอร์เน็ต</span>
           <span className="text-[12px] px-2 py-0.5 rounded-full bg-paper-raised text-paper-secondary font-mono font-medium">
             {roonpiiQuestions.length.toLocaleString()}
           </span>
@@ -545,6 +549,60 @@ export default function QuestionBankPage() {
           )}
         </button>
       </div>
+
+      {/* ป้ายแถลงความโปร่งใสและแหล่งที่มา (Provenance Disclosure Banner) */}
+      {activeCollectionTab === "roonpii" ? (
+        <div className="p-4 sm:p-5 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-raised text-paper-secondary uppercase tracking-wider">
+                Internet Archive
+              </span>
+              <h2 className="font-title font-medium text-[16px] text-paper-ink">
+                คลังข้อสอบจริงและเอกสารที่รวบรวมจากอินเทอร์เน็ต
+              </h2>
+            </div>
+            <span className="text-[12px] font-mono text-paper-muted">
+              รวม {roonpiiQuestions.length.toLocaleString()} ข้อ • 70 ชุดเอกสารต้นทาง
+            </span>
+          </div>
+          <p className="text-[12.5px] text-paper-secondary leading-relaxed">
+            ข้อสอบในหมวดนี้รวบรวมจากแหล่งภายนอกบนอินเทอร์เน็ตและสนามสอบจริง โดยระบุแหล่งที่มา (Source Attribution) กำกับรายข้ออย่างโปร่งใส 100% ไม่ปะปนกับคลังมาตรฐานแกนกลาง 7,200 ข้อที่จัดทำขึ้นเอง
+          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-[12px] text-paper-secondary">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-600/70" />
+              Google Drive PDF 2567: <strong>939 ข้อ</strong>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-600/70" />
+              TruePlookpanya สพฐ.: <strong>862 ข้อ</strong>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-600/70" />
+              กระดาษคำถามสนามสอบจริง: <strong>132 ข้อ</strong>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-600/70" />
+              ข้อสอบจำมา Roonpii: <strong>19 ข้อ</strong>
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="p-3.5 sm:p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-accent/10 text-paper-accent font-medium">
+              Core Bank
+            </span>
+            <span className="text-[13px] text-paper-secondary">
+              <strong className="text-paper-ink">คลังข้อสอบมาตรฐานแกนกลาง (จัดทำขึ้นเอง):</strong> รวบรวม 7,200 ข้อ ออกแบบและประมวลผลครอบคลุม 6 หมวดวิชาตามผัง Blueprint ก.ค.ศ.
+            </span>
+          </div>
+          <span className="text-[12px] font-mono text-paper-muted shrink-0">
+            {questions.length.toLocaleString()} ข้อมาตรฐาน
+          </span>
+        </div>
+      )}
 
       {importStatus && (
         <div className="p-4 rounded-[8px] bg-paper-passBg border border-paper-pass/20 text-paper-pass text-[13px]">
@@ -610,7 +668,7 @@ export default function QuestionBankPage() {
             <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
-                  แหล่งอ้างอิง:
+                  แหล่งที่มาบนอินเทอร์เน็ต:
                 </span>
                 <select
                   value={selectedRefSource}
@@ -620,10 +678,11 @@ export default function QuestionBankPage() {
                   }}
                   className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12.5px] font-sans text-paper-ink focus:outline-none focus:border-paper-accent"
                 >
-                  <option value="all">ทุกแหล่งอ้างอิง ({roonpiiQuestions.length.toLocaleString()})</option>
-                  <option value="roonpii">คลัง Roonpii สพฐ./กทม. (1,013 ข้อ)</option>
-                  <option value="gdrive_edu">Google Drive: วิชาการศึกษา 2567 (546 ข้อ)</option>
-                  <option value="gdrive_law">Google Drive: กฎหมายการศึกษา 400 ข้อ (393 ข้อ)</option>
+                  <option value="all">ทุกแหล่งที่มา ({roonpiiQuestions.length.toLocaleString()} ข้อ)</option>
+                  <option value="gdrive">Google Drive PDF คลังวิชาเอก (939 ข้อ)</option>
+                  <option value="trueplookpanya">TruePlookpanya.com คลังแบบทดสอบ สพฐ. (862 ข้อ)</option>
+                  <option value="official_paper">กระดาษคำถามสนามสอบจริง สพฐ./กทม. (132 ข้อ)</option>
+                  <option value="roonpii">Roonpii.com ข้อสอบจำมาจริง (19 ข้อ)</option>
                 </select>
               </div>
 
@@ -647,17 +706,18 @@ export default function QuestionBankPage() {
 
               <div className="flex items-center gap-2">
                 <span className="text-[12.5px] font-medium text-paper-ink whitespace-nowrap">
-                  ประเภทชุดข้อสอบ:
+                  ความน่าเชื่อถือ:
                 </span>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
                   className="h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[12.5px] font-sans text-paper-ink focus:outline-none focus:border-paper-accent"
                 >
-                  <option value="all">ทั้งหมด (ข้อสอบจริง, จำมา, ชุดฝึก)</option>
-                  <option value="official_exam">ข้อสอบจริงและข้อสอบจำมาสนามสอบ</option>
+                  <option value="all">ทั้งหมด (ข้อสอบจริง, จำมา, ชุดเก็ง & ฝึกฝน)</option>
+                  <option value="official_exam">ข้อสอบจริงจากกระดาษคำถามสนามสอบ</option>
+                  <option value="recalled_exam">ข้อสอบจำมาของผู้เข้าสอบ</option>
                   <option value="mock_exam">แนวข้อสอบและชุดเก็ง Google Drive</option>
-                  <option value="practice_and_mock">แบบฝึกหัดและชุดทดสอบ</option>
+                  <option value="practice_and_mock">แบบทดสอบออนไลน์เพื่อการศึกษา</option>
                 </select>
               </div>
             </div>
@@ -821,25 +881,7 @@ export default function QuestionBankPage() {
                         [{q.lawReference}]
                       </span>
                     )}
-                    {q.isRoonpiiCollection && (
-                      <span className="text-[12px] lg:text-[11.5px] font-mono px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-secondary border border-[#1f1b16]/[0.08] flex items-center gap-1 max-w-full">
-                        {q.collectionType === "official_exam"
-                          ? `ข้อสอบจริง ${q.examYear || ""}`
-                          : q.collectionType === "recalled_exam"
-                          ? `ข้อสอบจำมาสนามสอบ ${q.examYear || ""}`
-                          : q.sourcePdf?.startsWith("Google Drive")
-                          ? "แนวข้อสอบ Google Drive"
-                          : "ชุดฝึก Roonpii"}
-                      </span>
-                    )}
-                    {q.sourcePdf && (
-                      <span
-                        className="text-[11px] font-mono px-2 py-0.5 rounded-[5px] bg-paper-bg text-paper-muted border border-[#1f1b16]/[0.08] max-w-full truncate"
-                        title={q.sourcePdf}
-                      >
-                        {q.sourcePdf}
-                      </span>
-                    )}
+
                     {hasPendingReport && (
                       <span className="text-[12px] lg:text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-warnBg text-paper-warn flex items-center gap-1 max-w-full">
                         <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -934,6 +976,56 @@ export default function QuestionBankPage() {
                     )}
                   </div>
                 </div>
+
+                {/* แถบระบุแหล่งที่มาและที่มาของข้อสอบอย่างชัดเจน (Provenance Attribution Bar) */}
+                {(() => {
+                  const prov = getQuestionProvenance(q);
+                  return (
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] py-1.5 px-3 rounded-[8px] bg-paper-bg/90 border border-[#1f1b16]/[0.08]">
+                      <span
+                        className={`px-2 py-0.5 rounded-[4px] font-mono font-medium text-[11px] border whitespace-nowrap shrink-0 ${
+                          prov.originChannel === "ai_curated"
+                            ? "bg-paper-raised text-paper-secondary border-[#1f1b16]/10"
+                            : prov.originChannel === "google_drive"
+                            ? "bg-amber-500/10 text-amber-900 border-amber-600/20"
+                            : prov.originChannel === "trueplookpanya"
+                            ? "bg-blue-500/10 text-blue-900 border-blue-600/20"
+                            : prov.originChannel === "roonpii"
+                            ? "bg-emerald-500/10 text-emerald-900 border-emerald-600/20"
+                            : "bg-purple-500/10 text-purple-900 border-purple-600/20"
+                        }`}
+                      >
+                        {prov.channelBadge}
+                      </span>
+
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className="text-paper-muted text-[11.5px] whitespace-nowrap">
+                          {prov.sourceCategory === "เจนขึ้นเองตามเกณฑ์ ก.ค.ศ."
+                            ? "การจัดทำ:"
+                            : "ที่มาต้นทาง:"}
+                        </span>
+                        <span
+                          className="font-medium text-paper-ink text-[12px] truncate"
+                          title={prov.documentName}
+                        >
+                          {prov.documentName}
+                        </span>
+                      </div>
+
+                      <span className="text-paper-muted text-[11.5px] hidden md:inline">
+                        • {prov.authenticityTier}
+                      </span>
+
+                      {prov.examYear && (
+                        <span className="text-[11px] font-mono px-2 py-0.5 rounded-[4px] bg-paper-card border border-[#1f1b16]/[0.08] text-paper-secondary whitespace-nowrap">
+                          {prov.examYear === "เกณฑ์ปัจจุบัน"
+                            ? prov.examYear
+                            : `ปี พ.ศ. ${prov.examYear}`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <h3 className="text-[15px] leading-[24px] font-medium text-paper-ink break-words">
                   {q.question}

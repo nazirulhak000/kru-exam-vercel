@@ -129,6 +129,89 @@ export function getExplanationLabel(category: ExamCategory): string {
   }
 }
 
+export interface QuestionProvenance {
+  originChannel: "ai_curated" | "google_drive" | "roonpii" | "trueplookpanya" | "official_paper";
+  originLabel: string;
+  sourceCategory: "เจนขึ้นเองตามเกณฑ์ ก.ค.ศ." | "รวบรวมจากอินเทอร์เน็ต & สนามสอบจริง";
+  documentName: string;
+  authenticityTier: string;
+  examYear?: string;
+  agency?: string;
+  channelBadge: string;
+}
+
+export function getQuestionProvenance(q: QuestionItem): QuestionProvenance {
+  const isCore = !q.isRoonpiiCollection && q.id.startsWith("kru-q-");
+
+  if (isCore) {
+    return {
+      originChannel: "ai_curated",
+      originLabel: "คลังมาตรฐานแกนกลาง (จัดทำตามโครงสร้างผัง ก.ค.ศ.)",
+      sourceCategory: "เจนขึ้นเองตามเกณฑ์ ก.ค.ศ.",
+      documentName: q.sourcePdf || "ชุดข้อสอบมาตรฐานแกนกลาง ก.ค.ศ.",
+      authenticityTier: "จัดทำและประมวลผลตามมาตรฐานวิชาชีพครูและหลักสูตรแกนกลาง",
+      examYear: "เกณฑ์ปัจจุบัน",
+      agency: "ก.ค.ศ. (OTEPC)",
+      channelBadge: "คลังมาตรฐาน (เจนเอง)",
+    };
+  }
+
+  const qid = q.id || "";
+  const src = q.sourcePdf || "";
+  const agency = q.examAgency || "";
+  const ctype = q.collectionType || "";
+
+  if (qid.startsWith("kru-gd-") || src.startsWith("Google Drive")) {
+    return {
+      originChannel: "google_drive",
+      originLabel: "Google Drive (คลังข้อสอบรวมวิชาเอกไฟล์ PDF)",
+      sourceCategory: "รวบรวมจากอินเทอร์เน็ต & สนามสอบจริง",
+      documentName: src,
+      authenticityTier: "เอกสาร PDF คลังไดรฟ์สาธารณะครูผู้ช่วย (ตรวจสอบเฉลยแล้ว)",
+      examYear: q.examYear || (src.includes("2567") ? "2567" : "2566"),
+      agency: agency || "คลังเอกสาร PDF เครือข่ายครู",
+      channelBadge: "Google Drive PDF",
+    };
+  }
+
+  if (agency.includes("TruePlookpanya") || src.includes("TruePlookpanya") || src.includes("ทรู")) {
+    return {
+      originChannel: "trueplookpanya",
+      originLabel: "TruePlookpanya.com (ทรูปลูกปัญญา)",
+      sourceCategory: "รวบรวมจากอินเทอร์เน็ต & สนามสอบจริง",
+      documentName: src || "คลังแบบทดสอบออนไลน์ สพฐ.",
+      authenticityTier: "แบบทดสอบออนไลน์เพื่อการศึกษา",
+      examYear: q.examYear || "2558–2565",
+      agency: "TruePlookpanya & สพฐ.",
+      channelBadge: "TruePlookpanya",
+    };
+  }
+
+  if (ctype === "recalled_exam" || src.includes("สะกิดต่อม") || src.includes("จำมา")) {
+    return {
+      originChannel: "roonpii",
+      originLabel: "Roonpii.com (ข้อสอบจำมาของผู้เข้าสอบจริง)",
+      sourceCategory: "รวบรวมจากอินเทอร์เน็ต & สนามสอบจริง",
+      documentName: src || "ข้อสอบจำมาสนามสอบ สพฐ.",
+      authenticityTier: "ข้อสอบจำมาจากผู้เข้าสอบในสนามจริง",
+      examYear: q.examYear || "2568",
+      agency: agency || "สพฐ.",
+      channelBadge: "Roonpii (จำมาจริง)",
+    };
+  }
+
+  return {
+    originChannel: "official_paper",
+    originLabel: "กระดาษคำถามสนามสอบจริง (สพฐ. / กทม. เผยแพร่ออนไลน์)",
+    sourceCategory: "รวบรวมจากอินเทอร์เน็ต & สนามสอบจริง",
+    documentName: src || "ข้อสอบสนามสอบจริง",
+    authenticityTier: "ข้อสอบจริงจากกระดาษคำถามสนามสอบ",
+    examYear: q.examYear || "2567",
+    agency: agency || "สพฐ.",
+    channelBadge: "ข้อสอบจริงสนามสอบ",
+  };
+}
+
 export interface QuestionComment {
   id: string;
   questionId: string;
@@ -160,11 +243,11 @@ export interface QuestionItem {
   verified?: boolean;
   confidenceScore?: number;
   createdAt?: string;
-  collection?: "standard" | "roonpii_real" | "roonpii_recalled" | "roonpii_mock";
+  collection?: "standard" | "roonpii_real" | "roonpii_recalled" | "roonpii_mock" | string;
   examYear?: string;
   examAgency?: string;
   isRoonpiiCollection?: boolean;
-  collectionType?: "official_exam" | "recalled_exam" | "practice_and_mock";
+  collectionType?: "official_exam" | "recalled_exam" | "practice_and_mock" | "mock_exam" | string;
   examSetId?: string;
   examTitle?: string;
   noShuffle?: boolean;
