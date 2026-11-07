@@ -22,12 +22,14 @@ import {
   EXAM_CATEGORIES,
   ExamAttempt,
   ExamAttemptAnswer,
+  MAJOR_SUBJECTS,
   PartBreakdownItem,
   QuestionItem,
 } from "@/types/exam";
 import {
   getActiveExamSession,
   getAllQuestions,
+  getAvailableMajorSubjects,
   getMistakeQuestions,
   getMistakeRecordsMap,
   saveActiveExamSession,
@@ -90,6 +92,8 @@ function ExamSimulatorContent() {
   const isSubmittingRef = useRef<boolean>(false);
 
   const [allQuestions, setAllQuestions] = useState<QuestionItem[]>([]);
+  const [availableMajors, setAvailableMajors] =
+    useState<string[]>(MAJOR_SUBJECTS);
   const [mistakePool, setMistakePool] = useState<QuestionItem[]>([]);
   const [pdfSources, setPdfSources] = useState<string[]>([]);
   const [savedSession, setSavedSession] = useState<ActiveExamSession | null>(
@@ -97,6 +101,7 @@ function ExamSimulatorContent() {
   );
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
+  const [selectedMajor, setSelectedMajor] = useState<string>("all");
   const [selectedSource, setSelectedSource] = useState<string>("all");
   const [selectedCount, setSelectedCount] = useState<number | "all">(20);
   const [quizMode, setQuizMode] = useState<
@@ -128,13 +133,14 @@ function ExamSimulatorContent() {
   const [lastAttempt, setLastAttempt] = useState<ExamAttempt | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | "wrong">("all");
 
-  useEffect(() => {
+  const refreshFromStorage = () => {
     const questions = getAllQuestions();
     const mistakes = getMistakeQuestions(false);
     const mistakeMap = getMistakeRecordsMap();
     const existingSession = getActiveExamSession();
 
     setAllQuestions(questions);
+    setAvailableMajors(getAvailableMajorSubjects());
     setMistakePool(mistakes);
     setSavedSession(existingSession);
 
@@ -148,6 +154,16 @@ function ExamSimulatorContent() {
       new Set(questions.map((q) => q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ."))
     );
     setPdfSources(sources);
+    return { questions, mistakes };
+  };
+
+  useEffect(() => {
+    const { questions, mistakes } = refreshFromStorage();
+
+    const handleCloudSynced = () => {
+      refreshFromStorage();
+    };
+    window.addEventListener("kru-cloud-synced", handleCloudSynced);
 
     const paramCat = searchParams.get("category");
     const paramMode = searchParams.get("mode");
@@ -176,6 +192,10 @@ function ExamSimulatorContent() {
         );
       }, 80);
     }
+
+    return () => {
+      window.removeEventListener("kru-cloud-synced", handleCloudSynced);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -311,6 +331,13 @@ function ExamSimulatorContent() {
           (q) => (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") === source
         );
       }
+      if (selectedMajor !== "all") {
+        sourceFiltered = sourceFiltered.filter(
+          (q) =>
+            q.category !== "major" ||
+            (q.majorSubject || "วิชาเอกทั่วไป (ไม่ระบุสาขา)") === selectedMajor
+        );
+      }
 
       const partAPool = shuffleArray(
         sourceFiltered.filter((q) => partACategories.has(q.category))
@@ -345,6 +372,13 @@ function ExamSimulatorContent() {
       if (mode !== "mistake_review") {
         if (cat !== "all") {
           pool = pool.filter((q) => q.category === cat);
+        }
+        if (cat === "major" && selectedMajor !== "all") {
+          pool = pool.filter(
+            (q) =>
+              (q.majorSubject || "วิชาเอกทั่วไป (ไม่ระบุสาขา)") ===
+              selectedMajor
+          );
         }
         if (source !== "all") {
           pool = pool.filter(
@@ -832,60 +866,157 @@ function ExamSimulatorContent() {
             )}
 
             {quizMode !== "mistake_review" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
-                    2. เลือกหมวดวิชา
-                  </label>
-                  <select
-                    value={isBlueprint ? "all" : selectedCat}
-                    disabled={isBlueprint}
-                    onChange={(e) => setSelectedCat(e.target.value)}
-                    className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
-                  >
-                    <option value="all">
-                      {isBlueprint
-                        ? "สุ่มถ่วงน้ำหนักครบทุกหมวด (ภาค ก + ภาค ข)"
-                        : `รวมทุกหมวดวิชา (${allQuestions.length} ข้อ)`}
-                    </option>
-                    {EXAM_CATEGORIES.map((c) => {
-                      const count = allQuestions.filter(
-                        (q) => q.category === c.id
-                      ).length;
-                      return (
-                        <option key={c.id} value={c.id}>
-                          [{c.part}] {c.shortName} ({count} ข้อ)
-                        </option>
-                      );
-                    })}
-                  </select>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
+                      2. เลือกหมวดวิชา
+                    </label>
+                    <select
+                      value={isBlueprint ? "all" : selectedCat}
+                      disabled={isBlueprint}
+                      onChange={(e) => {
+                        setSelectedCat(e.target.value);
+                        if (e.target.value !== "major") {
+                          setSelectedMajor("all");
+                        }
+                      }}
+                      className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg disabled:opacity-60 text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
+                    >
+                      <option value="all">
+                        {isBlueprint
+                          ? "สุ่มถ่วงน้ำหนักครบทุกหมวด (ภาค ก + ภาค ข)"
+                          : `รวมทุกหมวดวิชา (${allQuestions.length} ข้อ)`}
+                      </option>
+
+                      <optgroup label="ภาค ก — ความรู้ความสามารถทั่วไป (200 คะแนน)">
+                        {EXAM_CATEGORIES.filter((c) => c.part === "ภาค ก").map(
+                          (c) => {
+                            const count = allQuestions.filter(
+                              (q) => q.category === c.id
+                            ).length;
+                            return (
+                              <option key={c.id} value={c.id}>
+                                {c.shortName} ({count} ข้อ)
+                              </option>
+                            );
+                          }
+                        )}
+                      </optgroup>
+
+                      <optgroup label="ภาค ข — มาตรฐานวิชาชีพ & กฎหมายการศึกษา (100 คะแนน)">
+                        {EXAM_CATEGORIES.filter((c) => c.part === "ภาค ข").map(
+                          (c) => {
+                            const count = allQuestions.filter(
+                              (q) => q.category === c.id
+                            ).length;
+                            return (
+                              <option key={c.id} value={c.id}>
+                                {c.shortName} ({count} ข้อ)
+                              </option>
+                            );
+                          }
+                        )}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
+                      3. เลือกชุดเอกสารหรือไฟล์ PDF ต้นทาง
+                    </label>
+                    <select
+                      value={selectedSource}
+                      onChange={(e) => setSelectedSource(e.target.value)}
+                      className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent font-sans"
+                    >
+                      <option value="all">
+                        ทุกชุดข้อสอบรวมกัน ({pdfSources.length} ชุด)
+                      </option>
+
+                      {/* กลุ่มข้อสอบส่วนกลาง (ภาค ก & ภาค ข ทั่วไป) */}
+                      {(() => {
+                        const commonSources = pdfSources.filter(
+                          (src) => !src.includes("วิชาเอก")
+                        );
+                        if (commonSources.length === 0) return null;
+                        return (
+                          <optgroup label="คลังข้อสอบส่วนกลาง (ภาค ก & ภาค ข ทั่วไป)">
+                            {commonSources.map((src) => {
+                              const count = allQuestions.filter(
+                                (q) =>
+                                  (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") ===
+                                  src
+                              ).length;
+                              return (
+                                <option key={src} value={src}>
+                                  {src} ({count} ข้อ)
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        );
+                      })()}
+
+                      {/* กลุ่มข้อสอบเฉพาะสาขาวิชาเอก */}
+                      {(() => {
+                        const majorSources = pdfSources.filter((src) =>
+                          src.includes("วิชาเอก")
+                        );
+                        if (majorSources.length === 0) return null;
+                        return (
+                          <optgroup label="คลังข้อสอบเฉพาะสาขาวิชาเอก">
+                            {majorSources.map((src) => {
+                              const count = allQuestions.filter(
+                                (q) =>
+                                  (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") ===
+                                  src
+                              ).length;
+                              return (
+                                <option key={src} value={src}>
+                                  {src} ({count} ข้อ)
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        );
+                      })()}
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[13px] font-medium text-paper-ink mb-1.5">
-                    3. เลือกชุดเอกสารหรือไฟล์ PDF ต้นทาง
-                  </label>
-                  <select
-                    value={selectedSource}
-                    onChange={(e) => setSelectedSource(e.target.value)}
-                    className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[14px] text-paper-ink focus:outline-none focus:border-paper-accent"
-                  >
-                    <option value="all">
-                      ทุกชุดข้อสอบรวมกัน ({pdfSources.length} ชุด)
-                    </option>
-                    {pdfSources.map((src) => {
-                      const count = allQuestions.filter(
-                        (q) =>
-                          (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") === src
-                      ).length;
-                      return (
-                        <option key={src} value={src}>
-                          {src} ({count} ข้อ)
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
+                {(selectedCat === "major" || isBlueprint) && (
+                  <div className="p-3.5 rounded-[10px] bg-paper-bg border border-paper-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[13px] font-medium text-paper-ink">
+                        เลือกสาขาวิชาเอกของคุณ (สำหรับข้อสอบวิชาเอกเฉพาะ)
+                      </div>
+                      <p className="text-[11.5px] text-paper-secondary">
+                        ระบบจะคัดเฉพาะข้อสอบวิชาเอกที่คุณเลือกจากคลังกลางมาออกสอบ ไม่นำวิชาเอกอื่นมาปน
+                      </p>
+                    </div>
+                    <select
+                      value={selectedMajor}
+                      onChange={(e) => setSelectedMajor(e.target.value)}
+                      className="h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-card text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent shrink-0"
+                    >
+                      <option value="all">ทุกสาขาวิชาเอกรวมกัน</option>
+                      {availableMajors.map((maj) => {
+                        const majCount = allQuestions.filter(
+                          (q) =>
+                            q.category === "major" &&
+                            (q.majorSubject ||
+                              "วิชาเอกทั่วไป (ไม่ระบุสาขา)") === maj
+                        ).length;
+                        return (
+                          <option key={maj} value={maj}>
+                            วิชาเอก: {maj} ({majCount} ข้อ)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
           </div>

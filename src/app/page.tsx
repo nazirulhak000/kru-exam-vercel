@@ -87,7 +87,7 @@ export default function HomeDashboardPage() {
             <span className="text-[12px] text-paper-secondary tabular-nums">
               {stats.customPdfQuestionCount > 0
                 ? `+${stats.customPdfQuestionCount} ข้อจากไฟล์ PDF`
-                : "ชุดมาตรฐาน 50 ข้อ"}
+                : "ชุดข้อสอบจริง 14 ชุด (1,400 ข้อ)"}
             </span>
           </div>
 

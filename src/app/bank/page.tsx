@@ -13,15 +13,22 @@ import {
   Pencil,
   Save,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { EXAM_CATEGORIES, ExamCategory, QuestionItem } from "@/types/exam";
+import {
+  EXAM_CATEGORIES,
+  ExamCategory,
+  MAJOR_SUBJECTS,
+  QuestionItem,
+} from "@/types/exam";
 import {
   deleteQuestion,
   exportAllDataAsJson,
   getAllQuestions,
+  getAvailableMajorSubjects,
   getMistakeRecordsMap,
   importAllDataFromJson,
   toggleBookmarkQuestion,
@@ -61,11 +68,14 @@ const PDF_DOWNLOAD_SOURCES = [
 
 export default function QuestionBankPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [availableMajors, setAvailableMajors] =
+    useState<string[]>(MAJOR_SUBJECTS);
   const [bookmarkedIds, setBookmarkedIds] = useState<Record<string, boolean>>(
     {}
   );
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCat, setSelectedCat] = useState<string>("all");
+  const [selectedMajor, setSelectedMajor] = useState<string>("all");
   const [selectedSource, setSelectedSource] = useState<string>("all");
   const [showExplanations, setShowExplanations] = useState<boolean>(true);
   const [selfTestAnswers, setSelfTestAnswers] = useState<
@@ -78,6 +88,7 @@ export default function QuestionBankPage() {
 
   const loadData = () => {
     setQuestions(getAllQuestions());
+    setAvailableMajors(getAvailableMajorSubjects());
     const mistakeMap = getMistakeRecordsMap();
     const bm: Record<string, boolean> = {};
     Object.values(mistakeMap).forEach((m) => {
@@ -99,6 +110,13 @@ export default function QuestionBankPage() {
   const filteredQuestions = questions.filter((q) => {
     if (selectedCat !== "all" && q.category !== selectedCat) return false;
     if (
+      selectedCat === "major" &&
+      selectedMajor !== "all" &&
+      (q.majorSubject || "วิชาเอกทั่วไป (ไม่ระบุสาขา)") !== selectedMajor
+    ) {
+      return false;
+    }
+    if (
       selectedSource !== "all" &&
       (q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.") !== selectedSource
     ) {
@@ -108,14 +126,19 @@ export default function QuestionBankPage() {
       const kw = searchQuery.toLowerCase();
       const hay = `${q.question} ${q.options.join(" ")} ${
         q.explanation
-      } ${q.lawReference || ""}`.toLowerCase();
+      } ${q.lawReference || ""} ${q.majorSubject || ""}`.toLowerCase();
       return hay.includes(kw);
     }
     return true;
   });
 
   const handleDelete = (id: string) => {
-    if (!confirm("ต้องการลบข้อสอบข้อนี้จากคลังหรือไม่")) return;
+    if (
+      !confirm(
+        "ต้องการซ่อน/ลบข้อสอบข้อนี้จากรายการคลังข้อสอบของคุณหรือไม่? (จะไม่กระทบคลังกลางของผู้ใช้อื่น)"
+      )
+    )
+      return;
     deleteQuestion(id);
     loadData();
   };
@@ -159,11 +182,12 @@ export default function QuestionBankPage() {
       {/* Page Header & Backup Actions */}
       <div className="pb-6 border-b border-[#1f1b16]/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
-          <div className="text-[12px] font-mono text-paper-muted">
-            สารบบข้อสอบและแหล่งเอกสารอ้างอิง
+          <div className="text-[12px] font-mono text-paper-muted flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-paper-pass" />
+            <span>คลังข้อสอบกลางที่ใช้ร่วมกัน • คัดกรองเฉพาะข้อสอบจริง • แยกสาขาวิชาเอก</span>
           </div>
           <h1 className="font-title font-normal text-[28px] md:text-[32px] leading-[1.15] text-paper-ink">
-            คลังข้อสอบและอรรถาธิบาย ({questions.length} ข้อ)
+            คลังข้อสอบและอรรถาธิบาย ({filteredQuestions.length} / {questions.length} ข้อ)
           </h1>
         </div>
 
@@ -182,7 +206,10 @@ export default function QuestionBankPage() {
           >
             {showExplanations ? (
               <>
-                <EyeOff className="w-4 h-4 text-paper-muted" strokeWidth={1.5} />
+                <EyeOff
+                  className="w-4 h-4 text-paper-muted"
+                  strokeWidth={1.5}
+                />
                 <span>ปิดเฉลยเพื่อฝึกตอบเอง</span>
               </>
             ) : (
@@ -225,46 +252,73 @@ export default function QuestionBankPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-8 space-y-4">
           {/* Search & Filter Row */}
-          <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="relative">
-              <Search
-                className="w-4 h-4 text-paper-muted absolute left-3 top-3"
-                strokeWidth={1.5}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาโจทย์หรือมาตรา"
-                className="w-full h-10 pl-9 pr-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-              />
+          <div className="p-4 rounded-[12px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="relative">
+                <Search
+                  className="w-4 h-4 text-paper-muted absolute left-3 top-3"
+                  strokeWidth={1.5}
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหาโจทย์ มาตรา หรือวิชาเอก"
+                  className="w-full h-10 pl-9 pr-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+                />
+              </div>
+
+              <select
+                value={selectedCat}
+                onChange={(e) => {
+                  setSelectedCat(e.target.value);
+                  if (e.target.value !== "major") {
+                    setSelectedMajor("all");
+                  }
+                }}
+                className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              >
+                <option value="all">ทุกหมวดวิชา ({questions.length})</option>
+                {EXAM_CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    [{c.part}] {c.shortName}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedSource}
+                onChange={(e) => setSelectedSource(e.target.value)}
+                className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
+              >
+                <option value="all">ทุกชุดเอกสารต้นทาง</option>
+                {sources.map((src) => (
+                  <option key={src} value={src}>
+                    {src}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <select
-              value={selectedCat}
-              onChange={(e) => setSelectedCat(e.target.value)}
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            >
-              <option value="all">ทุกหมวดวิชา ({questions.length})</option>
-              {EXAM_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  [{c.part}] {c.shortName}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedSource}
-              onChange={(e) => setSelectedSource(e.target.value)}
-              className="w-full h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
-            >
-              <option value="all">ทุกชุดเอกสารต้นทาง</option>
-              {sources.map((src) => (
-                <option key={src} value={src}>
-                  {src}
-                </option>
-              ))}
-            </select>
+            {selectedCat === "major" && (
+              <div className="pt-2 border-t border-[#1f1b16]/[0.06] flex flex-wrap items-center gap-2">
+                <span className="text-[12.5px] font-medium text-paper-ink">
+                  กรองเฉพาะสาขาวิชาเอก:
+                </span>
+                <select
+                  value={selectedMajor}
+                  onChange={(e) => setSelectedMajor(e.target.value)}
+                  className="h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-bg text-[13px] font-medium text-paper-ink focus:outline-none focus:border-paper-accent"
+                >
+                  <option value="all">ทุกสาขาวิชาเอก</option>
+                  {availableMajors.map((maj) => (
+                    <option key={maj} value={maj}>
+                      วิชาเอก: {maj}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {!showExplanations && (
@@ -297,13 +351,18 @@ export default function QuestionBankPage() {
                   className="p-6 rounded-[14px] bg-paper-card border border-[#1f1b16]/[0.08] space-y-4"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-[12px] px-2 py-0.5 rounded-[5px] bg-paper-raised text-paper-ink tabular-nums">
                         ข้อ {idx + 1}
                       </span>
                       <span className="text-[12px] text-paper-secondary">
                         {q.categoryName}
                       </span>
+                      {q.majorSubject && (
+                        <span className="text-[11.5px] font-medium px-2 py-0.5 rounded-[5px] bg-paper-accent/[0.08] text-paper-accent">
+                          เอก{q.majorSubject}
+                        </span>
+                      )}
                       {q.lawReference && (
                         <span className="font-mono text-[12px] text-paper-muted">
                           [{q.lawReference}]
@@ -348,7 +407,7 @@ export default function QuestionBankPage() {
                         type="button"
                         onClick={() => handleDelete(q.id)}
                         className="text-paper-muted hover:text-paper-fail hover:bg-paper-failBg p-1.5 rounded-[6px] transition-colors duration-150"
-                        title="ลบข้อสอบข้อนี้"
+                        title="ซ่อนข้อสอบข้อนี้จากเครื่องของคุณ"
                       >
                         <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
@@ -513,10 +572,18 @@ export default function QuestionBankPage() {
                     onChange={(e) => {
                       const cat = e.target.value as ExamCategory;
                       const meta = EXAM_CATEGORIES.find((c) => c.id === cat);
+                      const maj =
+                        cat === "major"
+                          ? editingQuestion.majorSubject || MAJOR_SUBJECTS[0]
+                          : undefined;
                       setEditingQuestion({
                         ...editingQuestion,
                         category: cat,
-                        categoryName: meta?.shortName || "ทั่วไป",
+                        majorSubject: maj,
+                        categoryName:
+                          cat === "major" && maj
+                            ? `วิชาเอก: ${maj}`
+                            : meta?.shortName || "ทั่วไป",
                       });
                     }}
                     className="w-full h-9 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink"
@@ -528,6 +595,32 @@ export default function QuestionBankPage() {
                     ))}
                   </select>
                 </div>
+
+                {editingQuestion.category === "major" && (
+                  <div>
+                    <label className="block text-[12px] text-paper-secondary mb-1">
+                      สาขาวิชาเอก
+                    </label>
+                    <select
+                      value={editingQuestion.majorSubject || MAJOR_SUBJECTS[0]}
+                      onChange={(e) => {
+                        const maj = e.target.value;
+                        setEditingQuestion({
+                          ...editingQuestion,
+                          majorSubject: maj,
+                          categoryName: `วิชาเอก: ${maj}`,
+                        });
+                      }}
+                      className="w-full h-9 px-3 rounded-[8px] border border-paper-accent/40 bg-paper-bg text-[13px] text-paper-ink"
+                    >
+                      {availableMajors.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[12px] text-paper-secondary mb-1">

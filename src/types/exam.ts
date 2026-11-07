@@ -21,7 +21,8 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
     name: "กฎหมายการศึกษา & พ.ร.บ. สำคัญ",
     shortName: "กฎหมายการศึกษา",
     part: "ภาค ข",
-    description: "พ.ร.บ.การศึกษาแห่งชาติ, พ.ร.บ.ครูฯ 2547, สภาครู, การศึกษาภาคบังคับ, คุ้มครองเด็ก",
+    description:
+      "พ.ร.บ.การศึกษาแห่งชาติ, พ.ร.บ.ครูฯ 2547, สภาครู, การศึกษาภาคบังคับ, คุ้มครองเด็ก",
     color: "blue",
   },
   {
@@ -29,7 +30,8 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
     name: "ความรู้และลักษณะการเป็นข้าราชการที่ดี",
     shortName: "ข้าราชการที่ดี & วินัย",
     part: "ภาค ก",
-    description: "ระเบียบบริหารราชการแผ่นดิน, บริหารกิจการบ้านเมืองที่ดี, วินัยข้าราชการ, ธรรมาภิบาล",
+    description:
+      "ระเบียบบริหารราชการแผ่นดิน, บริหารกิจการบ้านเมืองที่ดี, วินัยข้าราชการ, ธรรมาภิบาล",
     color: "indigo",
   },
   {
@@ -37,7 +39,8 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
     name: "มาตรฐานความรู้และประสบการณ์วิชาชีพครู",
     shortName: "วิชาชีพครู & การสอน",
     part: "ภาค ข",
-    description: "หลักสูตรแกนกลาง, การจัดการเรียนรู้เชิงรุก, จิตวิทยาการศึกษา, วัดผลและวิจัยในชั้นเรียน",
+    description:
+      "หลักสูตรแกนกลาง, การจัดการเรียนรู้เชิงรุก, จิตวิทยาการศึกษา, วัดผลและวิจัยในชั้นเรียน",
     color: "emerald",
   },
   {
@@ -45,7 +48,8 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
     name: "ความสามารถในการคิดวิเคราะห์ (คณิต & ภาษาไทย)",
     shortName: "คิดวิเคราะห์ (ก.)",
     part: "ภาค ก",
-    description: "อนุกรม, ตรรกศาสตร์, อุปมาอุปไมย, คณิตศาสตร์ทั่วไป, การสะกดคำและสรุปความภาษาไทย",
+    description:
+      "อนุกรม, ตรรกศาสตร์, อุปมาอุปไมย, คณิตศาสตร์ทั่วไป, การสะกดคำและสรุปความภาษาไทย",
     color: "amber",
   },
   {
@@ -53,7 +57,8 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
     name: "ทักษะภาษาอังกฤษเพื่อการสื่อสาร",
     shortName: "ภาษาอังกฤษ (ก.)",
     part: "ภาค ก",
-    description: "บทสนทนาในชั้นเรียนและที่ทำงาน, ไวยากรณ์ (Grammar), คำศัพท์ และการอ่านจับใจความ",
+    description:
+      "บทสนทนาในชั้นเรียนและที่ทำงาน, ไวยากรณ์ (Grammar), คำศัพท์ และการอ่านจับใจความ",
     color: "purple",
   },
   {
@@ -66,10 +71,29 @@ export const EXAM_CATEGORIES: CategoryMeta[] = [
   },
 ];
 
+export const MAJOR_SUBJECTS: string[] = [
+  "ปฐมวัย",
+  "ประถมศึกษา",
+  "ภาษาไทย",
+  "คณิตศาสตร์",
+  "วิทยาศาสตร์ทั่วไป",
+  "ฟิสิกส์ / เคมี / ชีววิทยา",
+  "ภาษาอังกฤษ",
+  "สังคมศึกษา",
+  "คอมพิวเตอร์ / เทคโนโลยี",
+  "พลศึกษา / สุขศึกษา",
+  "ศิลปะ / ดนตรี / นาฏศิลป์",
+  "เกษตร / คหกรรม / อุตสาหกรรม",
+  "แนะแนว / การศึกษาพิเศษ",
+  "วิชาเอกทั่วไป (ไม่ระบุสาขา)",
+];
+
+
 export interface QuestionItem {
   id: string;
   category: ExamCategory;
   categoryName: string;
+  majorSubject?: string;
   sourcePdf?: string;
   question: string;
   options: [string, string, string, string];
@@ -78,6 +102,8 @@ export interface QuestionItem {
   optionAnalysis?: string[];
   lawReference?: string;
   keyTakeaway?: string;
+  verified?: boolean;
+  confidenceScore?: number;
   createdAt?: string;
 }
 

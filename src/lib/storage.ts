@@ -2,12 +2,15 @@ import {
   ActiveExamSession,
   EXAM_CATEGORIES,
   ExamAttempt,
+  MAJOR_SUBJECTS,
   MistakeRecord,
   QuestionItem,
 } from "@/types/exam";
 import { SEED_QUESTIONS } from "@/lib/seed-questions";
 
 const KEYS = {
+  USER_ID: "kru_exam_user_id_v1",
+  SYNC_KEY_CONFIRMED: "kru_exam_sync_key_confirmed_v1",
   CUSTOM_QUESTIONS: "kru_exam_custom_questions_v1",
   EDITED_SEEDS: "kru_exam_edited_seeds_v1",
   DELETED_QUESTION_IDS: "kru_exam_deleted_ids_v1",
@@ -25,6 +28,56 @@ const KEYS = {
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
+}
+
+export function hasConfirmedSyncKey(): boolean {
+  if (!isBrowser()) return true;
+  return localStorage.getItem(KEYS.SYNC_KEY_CONFIRMED) === "1";
+}
+
+export function markSyncKeyConfirmed(): void {
+  if (!isBrowser()) return;
+  localStorage.setItem(KEYS.SYNC_KEY_CONFIRMED, "1");
+}
+
+export function generateReadableSyncKey(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const nums = "23456789";
+  let numPart = "";
+  for (let i = 0; i < 4; i++) {
+    numPart += nums[Math.floor(Math.random() * nums.length)];
+  }
+  let charPart = "";
+  for (let i = 0; i < 2; i++) {
+    charPart += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `kru-${numPart}-${charPart}`.toLowerCase();
+}
+
+export function normalizeSyncKey(raw: string): string {
+  return (raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 48);
+}
+
+export function getOrCreateUserId(): string {
+  if (!isBrowser()) return "server-user";
+  try {
+    let uid = localStorage.getItem(KEYS.USER_ID);
+    if (!uid || (uid.startsWith("kru-") && uid.length > 14 && !hasConfirmedSyncKey())) {
+      uid = generateReadableSyncKey();
+      localStorage.setItem(KEYS.USER_ID, uid);
+    }
+    return normalizeSyncKey(uid) || generateReadableSyncKey();
+  } catch {
+    return "anonymous-user";
+  }
+}
+
+export function getDisplaySyncKey(): string {
+  return getOrCreateUserId().toUpperCase();
 }
 
 // ==========================================
@@ -75,34 +128,198 @@ export function getAllQuestions(): QuestionItem[] {
   return [...custom, ...seeds];
 }
 
-function normalizeQuestionText(text: string): string {
-  return (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+export function getAvailableMajorSubjects(): string[] {
+  const all = getAllQuestions();
+  const fromQuestions = all
+    .filter((q) => q.category === "major" && q.majorSubject)
+    .map((q) => (q.majorSubject || "").trim())
+    .filter(Boolean);
+  return Array.from(new Set([...fromQuestions, ...MAJOR_SUBJECTS]));
+}
+
+export function getQuestionFingerprint(q: {
+  question?: string;
+  options?: string[];
+}): string {
+  return String(q.question || "")
+    .replace(/^(?:ข้อ(?:ที่)?\s*)?\d+\s*[.)]\s*/, "")
+    .replace(/\s+/g, "")
+    .replace(/[.,;!?'"()[\]{}\-_/\\]+/g, "")
+    .toLowerCase();
+}
+
+export function validateAuthenticQuestion(q: QuestionItem): {
+  valid: boolean;
+  reason?: string;
+} {
+  if (!q || typeof q.question !== "string") {
+    return { valid: false, reason: "ไม่พบข้อความโจทย์" };
+  }
+  const cleanStem = q.question
+    .replace(/^(?:ข้อ(?:ที่)?\s*)?\d+\s*[.)]\s*/, "")
+    .trim();
+
+  if (cleanStem.length < 12) {
+    return { valid: false, reason: "โจทย์สั้นเกินไปหรือไม่สมบูรณ์" };
+  }
+
+  if (/(.)\1{5,}/.test(cleanStem)) {
+    return { valid: false, reason: "พบตัวอักษรซ้ำผิดปกติ (ข้อความขยะ)" };
+  }
+
+  const spamPattern =
+    /(?:ติดต่อโฆษณา|สั่งซื้อแนวข้อสอบ|line\s*id|คลิกที่นี่|เว็บพนัน|คาสิโน)/i;
+  if (spamPattern.test(cleanStem)) {
+    return { valid: false, reason: "พบเนื้อหาโฆษณาหรือสแปม" };
+  }
+
+  if (!Array.isArray(q.options) || q.options.length < 4) {
+    return { valid: false, reason: "ตัวเลือกไม่ครบ 4 ข้อ" };
+  }
+
+  const normOpts = q.options.slice(0, 4).map((opt) =>
+    String(opt || "")
+      .replace(/^[กขคงABCD1-4][.)]\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase()
+  );
+
+  if (normOpts.some((o) => o.length === 0)) {
+    return { valid: false, reason: "มีตัวเลือกที่ว่างเปล่า" };
+  }
+
+  if (new Set(normOpts).size < 3) {
+    return { valid: false, reason: "ตัวเลือกซ้ำกันเอง" };
+  }
+
+  if (
+    typeof q.confidenceScore === "number" &&
+    q.confidenceScore > 0 &&
+    q.confidenceScore < 65
+  ) {
+    return { valid: false, reason: "ไม่ผ่านเกณฑ์ความสมจริงของข้อสอบ" };
+  }
+
+  return { valid: true };
+}
+
+export interface AddQuestionsReport {
+  addedCount: number;
+  duplicateCount: number;
+  upgradedCount: number;
+  rejectedCount: number;
+}
+
+export function addCustomQuestionsWithReport(
+  newQuestions: QuestionItem[]
+): AddQuestionsReport {
+  if (!isBrowser()) {
+    return {
+      addedCount: 0,
+      duplicateCount: 0,
+      upgradedCount: 0,
+      rejectedCount: 0,
+    };
+  }
+
+  const existingCustom = getCustomQuestions();
+  const seeds = SEED_QUESTIONS;
+
+  const seedFingerprints = new Set(
+    seeds.map((q) => getQuestionFingerprint(q)).filter(Boolean)
+  );
+  const customMap = new Map<string, QuestionItem>();
+  for (const q of existingCustom) {
+    const fp = getQuestionFingerprint(q);
+    if (fp) customMap.set(fp, q);
+  }
+
+  const newlyAdded: QuestionItem[] = [];
+  let duplicateCount = 0;
+  let upgradedCount = 0;
+  let rejectedCount = 0;
+
+  for (const q of newQuestions) {
+    const check = validateAuthenticQuestion(q);
+    if (!check.valid) {
+      rejectedCount++;
+      continue;
+    }
+
+    const fp = getQuestionFingerprint(q);
+    if (!fp) {
+      rejectedCount++;
+      continue;
+    }
+
+    if (seedFingerprints.has(fp)) {
+      duplicateCount++;
+      continue;
+    }
+
+    const existing = customMap.get(fp);
+    if (existing) {
+      duplicateCount++;
+      const newExpLen = (q.explanation || "").length;
+      const oldExpLen = (existing.explanation || "").length;
+      if (
+        newExpLen > oldExpLen ||
+        (!existing.majorSubject && q.majorSubject)
+      ) {
+        customMap.set(fp, {
+          ...existing,
+          majorSubject: existing.majorSubject || q.majorSubject,
+          categoryName:
+            existing.category === "major" &&
+            (existing.majorSubject || q.majorSubject)
+              ? `วิชาเอก: ${existing.majorSubject || q.majorSubject}`
+              : existing.categoryName,
+          explanation:
+            newExpLen > oldExpLen ? q.explanation : existing.explanation,
+          optionAnalysis:
+            (q.optionAnalysis?.length || 0) >=
+            (existing.optionAnalysis?.length || 0)
+              ? q.optionAnalysis || existing.optionAnalysis
+              : existing.optionAnalysis,
+          lawReference: existing.lawReference || q.lawReference,
+          keyTakeaway: existing.keyTakeaway || q.keyTakeaway,
+          verified: true,
+        });
+        upgradedCount++;
+      }
+      continue;
+    }
+
+    const verifiedItem: QuestionItem = {
+      ...q,
+      verified: true,
+    };
+    customMap.set(fp, verifiedItem);
+    newlyAdded.push(verifiedItem);
+  }
+
+  const newlyAddedFingerprints = new Set(
+    newlyAdded.map((q) => getQuestionFingerprint(q))
+  );
+  const updatedExisting = Array.from(customMap.entries())
+    .filter(([fp]) => !newlyAddedFingerprints.has(fp))
+    .map(([, item]) => item);
+
+  const combined = [...newlyAdded, ...updatedExisting];
+  localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(combined));
+  void pushLocalStateToCloud();
+
+  return {
+    addedCount: newlyAdded.length,
+    duplicateCount,
+    upgradedCount,
+    rejectedCount,
+  };
 }
 
 export function addCustomQuestions(newQuestions: QuestionItem[]): number {
-  if (!isBrowser()) return 0;
-  const existingCustom = getCustomQuestions();
-  const allCurrent = getAllQuestions();
-
-  const existingIds = new Set(existingCustom.map((q) => q.id));
-  const existingTexts = new Set(
-    allCurrent.map((q) => normalizeQuestionText(q.question))
-  );
-
-  const dedupedNew: QuestionItem[] = [];
-  for (const q of newQuestions) {
-    const normText = normalizeQuestionText(q.question);
-    if (!q.id || !normText) continue;
-    if (existingIds.has(q.id) || existingTexts.has(normText)) continue;
-    existingIds.add(q.id);
-    existingTexts.add(normText);
-    dedupedNew.push(q);
-  }
-
-  const combined = [...dedupedNew, ...existingCustom];
-  localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(combined));
-  void pushLocalStateToCloud();
-  return dedupedNew.length;
+  return addCustomQuestionsWithReport(newQuestions).addedCount;
 }
 
 export function updateQuestion(updated: QuestionItem): void {
@@ -155,15 +372,41 @@ export function getExamAttemptById(id: string): ExamAttempt | undefined {
 
 export function saveExamAttempt(attempt: ExamAttempt): void {
   if (!isBrowser()) return;
-  const attempts = getExamAttempts();
-  const updated = [attempt, ...attempts].slice(0, 100); // keep last 100 attempts
-  localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(updated));
 
-  // Update mistake records based on this attempt
+  const leanAttempt: ExamAttempt = {
+    ...attempt,
+    answers: attempt.answers.map((ans) => ({
+      questionId: ans.questionId,
+      questionText: ans.questionText,
+      category: ans.category,
+      categoryName: ans.categoryName,
+      options: ans.options,
+      selectedIndex: ans.selectedIndex,
+      correctIndex: ans.correctIndex,
+      isCorrect: ans.isCorrect,
+      explanation: ans.explanation,
+    })),
+  };
+
+  try {
+    const attempts = getExamAttempts();
+    const updated = [leanAttempt, ...attempts].slice(0, 50);
+    localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Storage quota full, evicting older attempts...", e);
+    try {
+      const attempts = getExamAttempts().slice(0, 15);
+      localStorage.setItem(
+        KEYS.ATTEMPTS_HISTORY,
+        JSON.stringify([leanAttempt, ...attempts])
+      );
+    } catch {
+      // ignore if still full
+    }
+  }
+
   const mistakes = getMistakeRecordsMap();
   attempt.answers.forEach((ans) => {
-    // ในโหมดฝึกซ้อมหรือทบทวนข้อผิด หากกดส่งกระดาษคำตอบก่อนทำถึงข้อนั้น (selectedIndex === null)
-    // ไม่ควรนับว่าตอบผิดหรือล้างสถานะความแม่นยำของข้อที่ยังไม่ได้ทำ
     if (ans.selectedIndex === null && attempt.mode !== "exam") {
       return;
     }
@@ -283,7 +526,9 @@ export function getActiveExamSession(): ActiveExamSession | null {
   }
 }
 
-export function saveActiveExamSession(session: ActiveExamSession | null): void {
+export function saveActiveExamSession(
+  session: ActiveExamSession | null
+): void {
   if (!isBrowser()) return;
   if (!session) {
     localStorage.removeItem(KEYS.ACTIVE_SESSION);
@@ -511,6 +756,7 @@ function buildCloudHeaders(): Record<string, string> {
   const cf = getCloudflareConfig();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "x-kru-user-id": getOrCreateUserId(),
   };
   if (cf.accountId && cf.apiToken) {
     headers["x-cf-account-id"] = cf.accountId;
@@ -601,28 +847,48 @@ export async function syncWithCloudDatabase(): Promise<{
     const localAttempts = getExamAttempts();
     const localMistakes = getMistakeRecordsMap();
 
-    // 1. Merge deleted IDs
+    // 1. Merge deleted IDs (เฉพาะรายการที่ผู้ใช้คนนี้เคยกดซ่อนไว้เอง)
     const mergedDeletedSet = new Set<string>([
       ...localDeleted,
       ...(Array.isArray(remote.deletedIds) ? remote.deletedIds : []),
     ]);
     const mergedDeleted = Array.from(mergedDeletedSet);
 
-    // 2. Merge custom questions (Union by ID, excluding deleted)
-    const questionMap = new Map<string, QuestionItem>();
+    // 2. Merge custom questions from Shared Bank (Deduplicate by Fingerprint, excluding locally hidden)
+    const fingerprintMap = new Map<string, QuestionItem>();
     if (Array.isArray(remote.customQuestions)) {
       remote.customQuestions.forEach((q: QuestionItem) => {
-        if (q?.id && !mergedDeletedSet.has(q.id)) {
-          questionMap.set(q.id, q);
+        if (!q || !validateAuthenticQuestion(q).valid) return;
+        const fp = getQuestionFingerprint(q);
+        if (fp && !mergedDeletedSet.has(q.id)) {
+          fingerprintMap.set(fp, q);
         }
       });
     }
     localCustom.forEach((q) => {
-      if (q?.id && !mergedDeletedSet.has(q.id)) {
-        questionMap.set(q.id, q);
+      if (!q || !validateAuthenticQuestion(q).valid) return;
+      const fp = getQuestionFingerprint(q);
+      if (!fp || mergedDeletedSet.has(q.id)) return;
+      const existing = fingerprintMap.get(fp);
+      if (!existing) {
+        fingerprintMap.set(fp, q);
+      } else {
+        const localExpLen = (q.explanation || "").length;
+        const remExpLen = (existing.explanation || "").length;
+        if (
+          localExpLen > remExpLen ||
+          (!existing.majorSubject && q.majorSubject)
+        ) {
+          fingerprintMap.set(fp, {
+            ...existing,
+            majorSubject: existing.majorSubject || q.majorSubject,
+            explanation:
+              localExpLen > remExpLen ? q.explanation : existing.explanation,
+          });
+        }
       }
     });
-    const mergedCustom = Array.from(questionMap.values());
+    const mergedCustom = Array.from(fingerprintMap.values());
 
     // 3. Merge edited seeds
     const mergedEdited: Record<string, QuestionItem> = {
@@ -635,7 +901,9 @@ export async function syncWithCloudDatabase(): Promise<{
     // 4. Merge exam attempts (Union by ID, respecting historyClearedAt, sort newest first)
     const localClearedAt = localStorage.getItem(KEYS.HISTORY_CLEARED_AT) || "";
     const remoteClearedAt =
-      typeof remote.historyClearedAt === "string" ? remote.historyClearedAt : "";
+      typeof remote.historyClearedAt === "string"
+        ? remote.historyClearedAt
+        : "";
     const effectiveClearedAt =
       localClearedAt > remoteClearedAt ? localClearedAt : remoteClearedAt;
     if (effectiveClearedAt) {
@@ -645,13 +913,19 @@ export async function syncWithCloudDatabase(): Promise<{
     const attemptMap = new Map<string, ExamAttempt>();
     if (Array.isArray(remote.attempts)) {
       remote.attempts.forEach((a: ExamAttempt) => {
-        if (a?.id && (!effectiveClearedAt || (a.date || "") > effectiveClearedAt)) {
+        if (
+          a?.id &&
+          (!effectiveClearedAt || (a.date || "") > effectiveClearedAt)
+        ) {
           attemptMap.set(a.id, a);
         }
       });
     }
     localAttempts.forEach((a) => {
-      if (a?.id && (!effectiveClearedAt || (a.date || "") > effectiveClearedAt)) {
+      if (
+        a?.id &&
+        (!effectiveClearedAt || (a.date || "") > effectiveClearedAt)
+      ) {
         attemptMap.set(a.id, a);
       }
     });
@@ -688,7 +962,10 @@ export async function syncWithCloudDatabase(): Promise<{
     });
 
     // Save merged state to localStorage
-    localStorage.setItem(KEYS.DELETED_QUESTION_IDS, JSON.stringify(mergedDeleted));
+    localStorage.setItem(
+      KEYS.DELETED_QUESTION_IDS,
+      JSON.stringify(mergedDeleted)
+    );
     localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(mergedCustom));
     localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(mergedEdited));
     localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(mergedAttempts));
@@ -703,7 +980,6 @@ export async function syncWithCloudDatabase(): Promise<{
       localStorage.setItem(KEYS.CF_DB_ID, result.databaseId);
     }
 
-    // If local had items or changes not in remote, push merged state back to Cloud
     const remoteCustomCount = Array.isArray(remote.customQuestions)
       ? remote.customQuestions.length
       : 0;
@@ -733,6 +1009,137 @@ export async function syncWithCloudDatabase(): Promise<{
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Cloud Sync Failed",
+    };
+  }
+}
+
+export async function switchUserSyncKey(
+  rawNewKey: string,
+  mode: "pull_replace" | "start_fresh" = "pull_replace"
+): Promise<{
+  ok: boolean;
+  userId: string;
+  attemptCount: number;
+  sharedQuestionCount: number;
+  hasExistingRecord: boolean;
+  error?: string;
+}> {
+  const cleanKey = normalizeSyncKey(rawNewKey);
+  if (!cleanKey || cleanKey.length < 4) {
+    return {
+      ok: false,
+      userId: getOrCreateUserId(),
+      attemptCount: 0,
+      sharedQuestionCount: 0,
+      hasExistingRecord: false,
+      error:
+        "รหัสประจำตัวผู้สอบต้องมีความยาวอย่างน้อย 4 ตัวอักษร (ภาษาอังกฤษหรือตัวเลข)",
+    };
+  }
+
+  localStorage.setItem(KEYS.USER_ID, cleanKey);
+
+  if (mode === "start_fresh") {
+    localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
+    localStorage.removeItem(KEYS.MISTAKE_RECORDS);
+    localStorage.removeItem(KEYS.DELETED_QUESTION_IDS);
+    localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
+    localStorage.removeItem(KEYS.ACTIVE_SESSION);
+  }
+
+  try {
+    const res = await fetch("/api/cloud-sync", {
+      method: "GET",
+      headers: buildCloudHeaders(),
+      cache: "no-store",
+    });
+    const result = await res.json();
+    if (!res.ok || !result.ok) {
+      window.dispatchEvent(new Event("kru-cloud-synced"));
+      return {
+        ok: false,
+        userId: cleanKey,
+        attemptCount: 0,
+        sharedQuestionCount: getCustomQuestions().length,
+        hasExistingRecord: false,
+        error:
+          result.error || result.message || "ไม่สามารถดึงข้อมูลจาก Cloud ได้",
+      };
+    }
+
+    const remote = result.data || {};
+    const remoteAttempts: ExamAttempt[] = Array.isArray(remote.attempts)
+      ? remote.attempts
+      : [];
+    const remoteMistakes: Record<string, MistakeRecord> =
+      remote.mistakes && typeof remote.mistakes === "object"
+        ? (remote.mistakes as Record<string, MistakeRecord>)
+        : {};
+    const remoteDeleted: string[] = Array.isArray(remote.deletedIds)
+      ? remote.deletedIds
+      : [];
+    const remoteClearedAt: string =
+      typeof remote.historyClearedAt === "string"
+        ? remote.historyClearedAt
+        : "";
+
+    localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(remoteAttempts));
+    localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(remoteMistakes));
+    localStorage.setItem(
+      KEYS.DELETED_QUESTION_IDS,
+      JSON.stringify(remoteDeleted)
+    );
+    if (remoteClearedAt) {
+      localStorage.setItem(KEYS.HISTORY_CLEARED_AT, remoteClearedAt);
+    } else {
+      localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
+    }
+    localStorage.removeItem(KEYS.ACTIVE_SESSION);
+
+    const localCustom = getCustomQuestions();
+    const fpMap = new Map<string, QuestionItem>();
+    if (Array.isArray(remote.customQuestions)) {
+      remote.customQuestions.forEach((q: QuestionItem) => {
+        if (q && validateAuthenticQuestion(q).valid) {
+          fpMap.set(getQuestionFingerprint(q), q);
+        }
+      });
+    }
+    localCustom.forEach((q) => {
+      if (q && validateAuthenticQuestion(q).valid) {
+        const fp = getQuestionFingerprint(q);
+        if (!fpMap.has(fp)) fpMap.set(fp, q);
+      }
+    });
+    const mergedCustom = Array.from(fpMap.values());
+    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(mergedCustom));
+
+    const nowIso = new Date().toISOString();
+    localStorage.setItem(KEYS.LAST_CLOUD_SYNC, nowIso);
+    if (result.provider) {
+      localStorage.setItem(KEYS.CLOUD_PROVIDER, result.provider);
+    }
+    if (result.databaseId) {
+      localStorage.setItem(KEYS.CF_DB_ID, result.databaseId);
+    }
+
+    window.dispatchEvent(new Event("kru-cloud-synced"));
+    return {
+      ok: true,
+      userId: cleanKey,
+      attemptCount: remoteAttempts.length,
+      sharedQuestionCount: mergedCustom.length,
+      hasExistingRecord: Boolean(result.hasExistingUserRecord),
+    };
+  } catch (e) {
+    window.dispatchEvent(new Event("kru-cloud-synced"));
+    return {
+      ok: false,
+      userId: cleanKey,
+      attemptCount: 0,
+      sharedQuestionCount: getCustomQuestions().length,
+      hasExistingRecord: false,
+      error: e instanceof Error ? e.message : "Network error",
     };
   }
 }
