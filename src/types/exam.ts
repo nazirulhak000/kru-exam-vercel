@@ -147,6 +147,7 @@ export interface QuestionItem {
   id: string;
   category: ExamCategory;
   categoryName: string;
+  topic?: string;
   majorSubject?: string;
   sourcePdf?: string;
   question: string;
@@ -202,6 +203,7 @@ export interface ExamAttempt {
   mode: "practice" | "exam" | "mistake_review" | "retry";
   feedbackMode?: "instant" | "after_submit";
   isBlueprint?: boolean;
+  topic?: string;
   majorSubject?: string;
   totalQuestions: number;
   correctCount: number;
@@ -353,6 +355,7 @@ export function evaluatePass(attempt: {
   correctCount?: number;
   scorePercent?: number;
   isBlueprint?: boolean;
+  topic?: string;
   majorSubject?: string;
   categoryBreakdown?: Record<
     string,
@@ -519,6 +522,7 @@ export interface ActiveExamSession {
   mode: "practice" | "exam" | "mistake_review" | "retry";
   feedbackMode?: "instant" | "after_submit";
   isBlueprint?: boolean;
+  topic?: string;
   majorSubject?: string;
   questions: QuestionItem[];
   currentIndex: number;
