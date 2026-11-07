@@ -76,7 +76,11 @@ export async function POST(req: NextRequest) {
             p.mistakes &&
             typeof p.mistakes === "object" &&
             Object.keys(p.mistakes).length > 0;
-          if (!hasAttempts && !hasMistakes) {
+          const hasTombstone =
+            Boolean(p.historyClearedAt) ||
+            Boolean(p.mistakesClearedAt) ||
+            (Array.isArray(p.deletedAttemptIds) && p.deletedAttemptIds.length > 0);
+          if (!hasAttempts && !hasMistakes && !hasTombstone) {
             await runD1Query(
               creds,
               `DELETE FROM kru_exam_cloud_state WHERE id = ?;`,
@@ -178,11 +182,20 @@ export async function POST(req: NextRequest) {
         } catch {}
       }
 
-      // รวม attempts (กันซ้ำตาม id หรือ timestamp)
-      const combinedAttempts = [
+      // รวม attempts (dedupe ตาม id และเรียงจากล่าสุดไปเก่าสุด - Topic 5.9)
+      const attemptsMap = new Map<string, any>();
+      const allAttempts = [
         ...(Array.isArray(targetPayload.attempts) ? targetPayload.attempts : []),
         ...(Array.isArray(sourcePayload.attempts) ? sourcePayload.attempts : []),
       ];
+      for (const a of allAttempts) {
+        if (a && a.id && !attemptsMap.has(a.id)) {
+          attemptsMap.set(a.id, a);
+        }
+      }
+      const combinedAttempts = Array.from(attemptsMap.values()).sort(
+        (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
 
       // รวม mistakes
       const combinedMistakes = {
@@ -310,6 +323,11 @@ export async function POST(req: NextRequest) {
         shared.questionComments[questionId] = filtered;
       } else {
         delete shared.questionComments[questionId];
+      }
+      if (commentId) {
+        const delSet = new Set<string>((shared as any).deletedCommentIds || []);
+        delSet.add(commentId);
+        (shared as any).deletedCommentIds = Array.from(delSet);
       }
     } else if (action === "update_question") {
       const updated = body.question as QuestionItem;
