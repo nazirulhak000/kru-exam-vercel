@@ -28,7 +28,7 @@ import {
   markSyncKeyConfirmed,
   switchUserSyncKey,
   syncWithCloudDatabase,
-} from "@/lib/storage";
+} from "@/lib/sync-storage";
 
 const NAV_ITEMS = [
   {
