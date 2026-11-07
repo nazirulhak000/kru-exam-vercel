@@ -1551,18 +1551,29 @@ export default function AdminDashboardPage() {
                 )}
               </div>
 
-              <div className="relative w-full md:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={bankSearch}
-                  onChange={(e) => {
-                    setBankSearch(e.target.value);
-                    setBankPage(1);
-                  }}
-                  placeholder="ค้นหาข้อความโจทย์, รหัส หรือสาขาวิชาเอก..."
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative w-full md:w-72">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={bankSearch}
+                    onChange={(e) => {
+                      setBankSearch(e.target.value);
+                      setBankPage(1);
+                    }}
+                    placeholder="ค้นหาข้อความโจทย์, รหัส หรือสาขาวิชาเอก..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
+                  />
+                </div>
+
+                <Link
+                  href="/upload"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium transition-colors shadow-sm whitespace-nowrap"
+                  title="เปิดหน้านำเข้าข้อสอบจากไฟล์ PDF"
+                >
+                  <FileUp className="w-3.5 h-3.5" />
+                  <span>+ นำเข้า PDF</span>
+                </Link>
               </div>
             </div>
 

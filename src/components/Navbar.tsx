@@ -45,13 +45,6 @@ const NAV_ITEMS = [
     adminOnly: false,
   },
   {
-    href: "/upload",
-    label: "นำเข้าไฟล์ PDF (Admin)",
-    shortLabel: "นำเข้า PDF",
-    icon: FileUp,
-    adminOnly: true,
-  },
-  {
     href: "/bank",
     label: "คลังข้อสอบ",
     shortLabel: "คลังข้อสอบ",
