@@ -320,6 +320,17 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Reset แถว kru_question_stats ของข้อที่เปลี่ยนเฉลย เพื่อไม่ให้ปนสถิติเดิม (3.9)
+      try {
+        await runD1Query(
+          creds,
+          `DELETE FROM kru_question_stats WHERE question_id = ?;`,
+          [updated.id]
+        );
+      } catch (e) {
+        console.warn("Could not reset question stats for updated question:", e);
+      }
+
       const isSeed =
         updated.id.startsWith("kru-") || updated.id.startsWith("seed-");
       if (isSeed) {

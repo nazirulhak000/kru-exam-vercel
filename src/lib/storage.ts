@@ -602,11 +602,98 @@ export function getExamAttempts(): ExamAttempt[] {
     if (!raw) return [];
     const list: ExamAttempt[] = JSON.parse(raw);
     if (!Array.isArray(list)) return [];
-    // คำนวณผ่าน/ไม่ผ่านใหม่ด้วย evaluatePass เสมอ เพื่อให้ attempt เก่าและใหม่ใช้เกณฑ์มาตรฐานเดียวกัน
+
+    const allQuestions = getAllQuestions();
+    const qMap = new Map(allQuestions.map((q) => [q.id, q]));
+
     return list.map((att) => {
-      const evalResult = evaluatePass(att);
+      let isAnyKeyRevised = false;
+      let recalculatedCorrect = 0;
+      let recalculatedWrong = 0;
+      let recalculatedUnanswered = 0;
+      const updatedCatBreakdown: Record<
+        string,
+        { total: number; correct: number; name: string }
+      > = {};
+
+      const answers = (att.answers || []).map((ans) => {
+        const currentQ = qMap.get(ans.questionId);
+        const originalKey =
+          ans.originalCorrectIndex !== undefined
+            ? ans.originalCorrectIndex
+            : ans.correctIndex;
+        let isCorrect = ans.isCorrect;
+        let correctIndex = ans.correctIndex;
+        let isKeyRevised = Boolean(ans.isKeyRevised);
+        let explanation = ans.explanation;
+
+        // ตรวจสอบว่าแอดมินแก้ไขเฉลยข้อนี้ภายหลังหรือไม่ (Topic 3.9)
+        if (currentQ && currentQ.answer !== originalKey) {
+          isKeyRevised = true;
+          isAnyKeyRevised = true;
+          correctIndex = currentQ.answer;
+          explanation = currentQ.explanation || ans.explanation;
+          if (ans.selectedIndex !== null && ans.selectedIndex !== undefined) {
+            isCorrect = ans.selectedIndex === currentQ.answer;
+          }
+        }
+
+        if (ans.selectedIndex === null || ans.selectedIndex === undefined) {
+          recalculatedUnanswered++;
+        } else if (isCorrect) {
+          recalculatedCorrect++;
+        } else {
+          recalculatedWrong++;
+        }
+
+        const cat = ans.category || "general";
+        const catName = ans.categoryName || cat;
+        if (!updatedCatBreakdown[cat]) {
+          updatedCatBreakdown[cat] = { total: 0, correct: 0, name: catName };
+        }
+        updatedCatBreakdown[cat].total += 1;
+        if (isCorrect) {
+          updatedCatBreakdown[cat].correct += 1;
+        }
+
+        return {
+          ...ans,
+          correctIndex,
+          isCorrect,
+          explanation,
+          isKeyRevised,
+          originalCorrectIndex: isKeyRevised ? originalKey : ans.originalCorrectIndex,
+        };
+      });
+
+      const totalQ = answers.length > 0 ? answers.length : att.totalQuestions;
+      const correctCount = isAnyKeyRevised ? recalculatedCorrect : att.correctCount;
+      const wrongCount = isAnyKeyRevised ? recalculatedWrong : att.wrongCount;
+      const unansweredCount = isAnyKeyRevised
+        ? recalculatedUnanswered
+        : (att.unansweredCount ?? 0);
+      const scorePercent =
+        totalQ > 0 ? Number(((correctCount / totalQ) * 100).toFixed(1)) : 0;
+      const categoryBreakdown = isAnyKeyRevised
+        ? updatedCatBreakdown
+        : att.categoryBreakdown;
+
+      const evalResult = evaluatePass({
+        totalQuestions: totalQ,
+        correctCount,
+        scorePercent,
+        isBlueprint: att.isBlueprint,
+        categoryBreakdown,
+      });
+
       return {
         ...att,
+        answers,
+        correctCount,
+        wrongCount,
+        unansweredCount,
+        scorePercent,
+        categoryBreakdown,
         passed: evalResult.passed,
         isEvaluated: evalResult.isEvaluated,
         passReason: evalResult.reason,
@@ -646,6 +733,8 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
       correctIndex: ans.correctIndex,
       isCorrect: ans.isCorrect,
       explanation: ans.explanation,
+      originalCorrectIndex: ans.originalCorrectIndex,
+      isKeyRevised: ans.isKeyRevised,
     })),
   };
 
@@ -826,7 +915,50 @@ export function getMistakeRecordsMap(): Record<string, MistakeRecord> {
   if (!isBrowser()) return {};
   try {
     const raw = localStorage.getItem(KEYS.MISTAKE_RECORDS);
-    return raw ? JSON.parse(raw) : {};
+    const map: Record<string, MistakeRecord> = raw ? JSON.parse(raw) : {};
+
+    // ตรวจสอบกับ attempt ที่อาจมีการแก้ไขเฉลยภายหลัง (Topic 3.9)
+    const attemptsRaw = localStorage.getItem(KEYS.ATTEMPTS_HISTORY);
+    if (!attemptsRaw) return map;
+
+    const allQuestions = getAllQuestions();
+    const qMap = new Map(allQuestions.map((q) => [q.id, q]));
+    const editedSeeds = getEditedSeedMap();
+
+    if (Object.keys(editedSeeds).length > 0) {
+      const attemptsList: ExamAttempt[] = JSON.parse(attemptsRaw || "[]");
+      Object.keys(editedSeeds).forEach((qId) => {
+        const rec = map[qId];
+        if (!rec) return;
+        const curQ = qMap.get(qId);
+        if (!curQ) return;
+
+        let realWrongCount = 0;
+        let hasAnswer = false;
+
+        attemptsList.forEach((att) => {
+          att.answers?.forEach((ans) => {
+            if (ans.questionId === qId) {
+              if (ans.selectedIndex !== null && ans.selectedIndex !== undefined) {
+                hasAnswer = true;
+                if (ans.selectedIndex !== curQ.answer) {
+                  realWrongCount++;
+                }
+              }
+            }
+          });
+        });
+
+        if (hasAnswer) {
+          rec.wrongCount = realWrongCount;
+          if (realWrongCount === 0 && !rec.bookmarked) {
+            delete map[qId];
+          }
+        }
+      });
+    }
+
+    return map;
   } catch {
     return {};
   }

@@ -181,6 +181,8 @@ export interface ExamAttemptAnswer {
   optionAnalysis?: string[];
   lawReference?: string;
   keyTakeaway?: string;
+  originalCorrectIndex?: number;
+  isKeyRevised?: boolean;
 }
 
 export interface PartBreakdownItem {

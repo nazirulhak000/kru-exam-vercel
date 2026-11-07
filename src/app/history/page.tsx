@@ -343,21 +343,28 @@ export default function HistoryAndMistakesPage() {
                               <span className="font-medium text-paper-ink min-w-0 break-words">
                                 ข้อ {idx + 1}. {ans.questionText}
                               </span>
-                              <span
-                                className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 whitespace-nowrap ${
-                                  ans.isCorrect
-                                    ? "bg-paper-passBg text-paper-pass"
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {ans.isKeyRevised && (
+                                  <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 whitespace-nowrap">
+                                    เฉลยถูกแก้ไขภายหลัง
+                                  </span>
+                                )}
+                                <span
+                                  className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 whitespace-nowrap ${
+                                    ans.isCorrect
+                                      ? "bg-paper-passBg text-paper-pass"
+                                      : ans.selectedIndex === null || ans.selectedIndex === undefined
+                                      ? "bg-paper-raised text-paper-secondary"
+                                      : "bg-paper-failBg text-paper-fail"
+                                  }`}
+                                >
+                                  {ans.isCorrect
+                                    ? "ถูก"
                                     : ans.selectedIndex === null || ans.selectedIndex === undefined
-                                    ? "bg-paper-raised text-paper-secondary"
-                                    : "bg-paper-failBg text-paper-fail"
-                                }`}
-                              >
-                                {ans.isCorrect
-                                  ? "ถูก"
-                                  : ans.selectedIndex === null || ans.selectedIndex === undefined
-                                  ? "ไม่ได้ตอบ"
-                                  : "ผิด"}
-                              </span>
+                                    ? "ไม่ได้ตอบ"
+                                    : "ผิด"}
+                                </span>
+                              </div>
                             </div>
 
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-paper-secondary break-words">
@@ -372,7 +379,7 @@ export default function HistoryAndMistakesPage() {
                                       : "text-paper-fail font-medium"
                                   }
                                 >
-                                  {ans.selectedIndex !== null
+                                  {ans.selectedIndex !== null && ans.selectedIndex !== undefined
                                     ? `${letters[ans.selectedIndex]}. ${
                                         ans.options[ans.selectedIndex]
                                       }`
@@ -386,6 +393,11 @@ export default function HistoryAndMistakesPage() {
                                     {letters[ans.correctIndex]}.{" "}
                                     {ans.options[ans.correctIndex]}
                                   </strong>
+                                </span>
+                              )}
+                              {ans.isKeyRevised && ans.originalCorrectIndex !== undefined && (
+                                <span className="text-[12px] text-paper-muted">
+                                  (เฉลยเดิม: {letters[ans.originalCorrectIndex]} → เฉลยใหม่: {letters[ans.correctIndex]})
                                 </span>
                               )}
                             </div>
