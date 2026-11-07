@@ -158,12 +158,22 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
     const recordId = `${userId}:${attemptId}`;
 
+    // คำนวณคะแนนที่ server จาก answers จริง ป้องกัน client ส่ง scorePercent ปลอม (Topic 3.10)
+    let verifiedCorrect = 0;
+    perQuestion.forEach((c) => {
+      if (c === 1) verifiedCorrect++;
+    });
+    const verifiedScorePercent =
+      perQuestion.size > 0
+        ? Number(((verifiedCorrect / perQuestion.size) * 100).toFixed(1))
+        : 0;
+
     const inserted = await runD1Query(
       creds,
       `INSERT OR IGNORE INTO kru_attempt_scores
        (attempt_id, user_id, scope, mode, total_questions, score_percent, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?);`,
-      [recordId, userId, scope, mode, perQuestion.size, scorePercent, nowIso]
+      [recordId, userId, scope, mode, perQuestion.size, verifiedScorePercent, nowIso]
     );
     const isNewAttempt = (inserted.meta.changes || 0) > 0;
 
@@ -187,11 +197,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let comparison: { peers: number; percentile: number } | null = null;
+    let comparison: {
+      peers: number;
+      percentile: number;
+      status: "success" | "insufficient_peers";
+    } | null = null;
     if (perQuestion.size >= MIN_QUESTIONS_FOR_RANKING) {
       const since = new Date(
         Date.now() - PERCENTILE_WINDOW_DAYS * 24 * 60 * 60 * 1000
       ).toISOString();
+      // เปรียบเทียบกับผู้สอบคนอื่นใน scope เดียวกัน โดยไม่นับรอบของตนเอง (user_id != ?)
       const { results } = await runD1Query(
         creds,
         `SELECT
@@ -200,14 +215,14 @@ export async function POST(req: NextRequest) {
            SUM(CASE WHEN score_percent = ? THEN 1 ELSE 0 END) AS equal
          FROM kru_attempt_scores
          WHERE scope = ? AND created_at >= ? AND total_questions >= ?
-           AND attempt_id != ?;`,
+           AND user_id != ?;`,
         [
-          scorePercent,
-          scorePercent,
+          verifiedScorePercent,
+          verifiedScorePercent,
           scope,
           since,
           MIN_QUESTIONS_FOR_RANKING,
-          recordId,
+          userId,
         ]
       );
       const row = results[0] || {};
@@ -218,6 +233,13 @@ export async function POST(req: NextRequest) {
         comparison = {
           peers,
           percentile: Math.round(((below + equal / 2) / peers) * 100),
+          status: "success",
+        };
+      } else {
+        comparison = {
+          peers,
+          percentile: 0,
+          status: "insufficient_peers",
         };
       }
     }

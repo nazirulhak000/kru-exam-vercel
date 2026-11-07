@@ -1149,6 +1149,7 @@ function ExamSimulatorContent() {
       mode: quizMode,
       feedbackMode: quizMode === "exam" ? "after_submit" : feedbackMode,
       isBlueprint,
+      majorSubject: selectedMajor !== "all" ? selectedMajor : undefined,
       totalQuestions: total,
       correctCount,
       wrongCount: wrongCount + unansweredCount,
@@ -2452,27 +2453,31 @@ function ExamSimulatorContent() {
             </div>
           )}
 
-        {/* National Comparison (percentile เทียบผู้สอบหมวดเดียวกันใน 30 วัน) */}
+        {/* National Comparison (percentile เทียบผู้สอบกลุ่มเดียวกันใน 30 วัน) */}
         {comparison?.attemptId === lastAttempt.id &&
-          (comparison.data ? (
+          (comparison.data?.status === "success" ? (
             <div className="p-4 rounded-[10px] bg-paper-accent/[0.05] border border-paper-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="text-[14px] text-paper-ink">
                 คะแนนรอบนี้สูงกว่า{" "}
                 <span className="font-mono font-medium text-paper-accent tabular-nums">
                   {comparison.data.percentile}%
                 </span>{" "}
-                ของผู้สอบที่ทำหมวดเดียวกัน
+                ของผู้สอบในกลุ่มข้อสอบเดียวกัน
               </div>
               <div className="font-mono text-[12px] text-paper-muted tabular-nums">
                 เทียบจาก {comparison.data.peers.toLocaleString("th-TH")} รอบ
-                ใน 30 วันล่าสุด
+                (จากผู้สอบคนอื่นใน 30 วันล่าสุด)
               </div>
+            </div>
+          ) : comparison.data?.status === "error" ? (
+            <div className="text-[12px] text-paper-muted">
+              ไม่สามารถเชื่อมต่อระบบเปรียบเทียบคะแนนกับผู้สอบคนอื่นได้ในขณะนี้
             </div>
           ) : (
             lastAttempt.mode !== "mistake_review" &&
             lastAttempt.totalQuestions >= 10 && (
               <div className="text-[12px] text-paper-muted">
-                ยังมีผู้สอบหมวดนี้ไม่มากพอสำหรับการจัดอันดับ ระบบจะเริ่มเทียบคะแนนเมื่อมีข้อมูลครบ
+                ยังไม่มีข้อมูลผู้สอบคนอื่นในกลุ่มเดียวกันมากพอสำหรับการจัดอันดับ (ต้องการอย่างน้อย 5 รอบ)
               </div>
             )
           ))}
@@ -2542,7 +2547,10 @@ function ExamSimulatorContent() {
             <ShareScoreCard
               attempt={lastAttempt}
               comparison={
-                comparison?.attemptId === lastAttempt.id ? comparison.data : null
+                comparison?.attemptId === lastAttempt.id &&
+                comparison.data?.status === "success"
+                  ? comparison.data
+                  : null
               }
             />
             <button

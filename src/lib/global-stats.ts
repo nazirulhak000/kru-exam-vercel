@@ -15,6 +15,7 @@ export type GlobalStatsMap = Record<string, QuestionGlobalStat>;
 export interface AttemptComparison {
   peers: number;
   percentile: number; // สัดส่วนรอบที่คะแนนต่ำกว่ารอบนี้ (0-100)
+  status?: "success" | "insufficient_peers" | "error";
 }
 
 const CACHE_KEY = "kru_exam_global_stats_cache_v1";
@@ -90,22 +91,71 @@ export async function fetchGlobalQuestionStats(): Promise<GlobalStatsMap> {
   return inflight;
 }
 
-// ขอบเขตการเทียบคะแนน: เทียบเฉพาะรอบที่ทำหมวด/สาขาเดียวกัน
+function getMajorSlug(major?: string | null): string {
+  if (!major || major === "ทุกวิชาเอก / ไม่ระบุ" || major === "all") return "all";
+  if (/คณิต/.test(major)) return "math";
+  if (/ไทย/.test(major)) return "thai";
+  if (/อังกฤษ/.test(major)) return "eng";
+  if (/ปฐมวัย|อนุบาล/.test(major)) return "early";
+  if (/วิทย/.test(major)) return "sci";
+  if (/สังคม/.test(major)) return "soc";
+  if (/คอม|เทคโน/.test(major)) return "com";
+  if (/พละ|พลศึกษา/.test(major)) return "pe";
+  let h = 0;
+  for (let i = 0; i < major.length; i++) {
+    h = (Math.imul(31, h) + major.charCodeAt(i)) | 0;
+  }
+  return `m${(h >>> 0).toString(36)}`;
+}
+
+// ขอบเขตการเทียบคะแนน: mode + blueprint + ขนาดชุด + วิชาเอก (Topic 3.10)
 export function getAttemptScope(attempt: ExamAttempt): string {
-  if (attempt.isBlueprint) return "blueprint";
-  const cats = Array.from(new Set(attempt.answers.map((a) => a.category)));
-  return cats.length === 1 ? `cat:${cats[0]}` : "mixed";
+  const mode = attempt.mode === "exam" ? "exam" : "practice";
+  const bp = attempt.isBlueprint ? "bp" : "std";
+  const size = attempt.totalQuestions;
+  const sizeBucket =
+    size >= 150
+      ? "200"
+      : size >= 80
+      ? "100"
+      : size >= 40
+      ? "50"
+      : size >= 25
+      ? "30"
+      : size >= 15
+      ? "20"
+      : "10";
+
+  let contentScope = "mixed";
+  if (attempt.isBlueprint) {
+    const majorSlug = getMajorSlug(attempt.majorSubject);
+    contentScope = `bp:${majorSlug}`;
+  } else {
+    const cats = Array.from(new Set(attempt.answers.map((a) => a.category)));
+    if (cats.length === 1) {
+      if (cats[0] === "major") {
+        contentScope = `cat:major_${getMajorSlug(attempt.majorSubject)}`;
+      } else {
+        contentScope = `cat:${cats[0]}`;
+      }
+    } else {
+      contentScope = "mixed";
+    }
+  }
+
+  return `${mode}|${bp}|${sizeBucket}|${contentScope}`;
 }
 
 export async function submitAttemptStats(
   attempt: ExamAttempt
 ): Promise<AttemptComparison | null> {
   if (typeof window === "undefined") return null;
-  // ทบทวนข้อที่เคยผิดมีแต่ข้อยาก จะทำให้สถิติรวมเพี้ยน จึงไม่นับ
+  // ทบทวนข้อที่เคยผิดและรอบซ้อมซ้ำ ไม่ส่ง stats/percentile
   if (attempt.mode !== "practice" && attempt.mode !== "exam") return null;
+  if (attempt.feedbackMode === "instant") return null;
 
   const answers = attempt.answers
-    .filter((a) => a.selectedIndex !== null)
+    .filter((a) => a.selectedIndex !== null && a.selectedIndex !== undefined)
     .map((a) => ({ q: a.questionId, c: a.isCorrect ? 1 : 0 }));
   if (answers.length === 0) return null;
 
@@ -125,7 +175,9 @@ export async function submitAttemptStats(
       }),
     });
     const json = await res.json();
-    if (!res.ok || !json.ok) return null;
+    if (!res.ok || !json.ok) {
+      return { peers: 0, percentile: 0, status: "error" };
+    }
     // ข้อมูลรายข้อเปลี่ยนแล้ว ให้ดึงใหม่รอบถัดไป
     memoryCache = null;
     try {
@@ -133,8 +185,15 @@ export async function submitAttemptStats(
     } catch {
       // ignore
     }
-    return json.comparison || null;
+    if (json.comparison) {
+      return {
+        peers: json.comparison.peers,
+        percentile: json.comparison.percentile,
+        status: json.comparison.status || "success",
+      };
+    }
+    return { peers: 0, percentile: 0, status: "insufficient_peers" };
   } catch {
-    return null;
+    return { peers: 0, percentile: 0, status: "error" };
   }
 }
