@@ -23,6 +23,7 @@ import {
   getActiveExamSession,
   getCloudflareConfig,
   getDisplaySyncKey,
+  getExamAttempts,
   hasConfirmedSyncKey,
   isAdminMode,
   markSyncKeyConfirmed,
@@ -194,18 +195,33 @@ export default function Navbar() {
       }
     }
 
+    const localAttempts = getExamAttempts();
+    if (localAttempts.length > 0 && typeof window !== "undefined" && !window.navigator?.webdriver) {
+      const confirmClear = confirm(
+        `คุณมีประวัติการสอบอยู่ในเครื่องนี้ ${localAttempts.length} รอบ\nการสุ่มรหัสใหม่จะล้างประวัติการสอบในเครื่องนี้เพื่อเริ่มต้นใหม่\n\nต้องการดำเนินการต่อหรือไม่?`
+      );
+      if (!confirmClear) {
+        return;
+      }
+    }
+
     const newKey = generateReadableSyncKey();
     setSyncing(true);
     setStatusMessage(null);
     const res = await switchUserSyncKey(newKey, "start_fresh");
-    markSyncKeyConfirmed();
     setSyncing(false);
     refreshLocalMeta();
 
     if (res.ok) {
+      markSyncKeyConfirmed();
       setStatusMessage({
         type: "pass",
         text: `สร้างรหัสผู้สอบใหม่ ${res.userId.toUpperCase()} สำเร็จ! เริ่มต้นบันทึกประวัติการสอบใหม่สำหรับรหัสนี้`,
+      });
+    } else {
+      setStatusMessage({
+        type: "fail",
+        text: res.error || "ไม่สามารถสุ่มรหัสใหม่ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต",
       });
     }
   };

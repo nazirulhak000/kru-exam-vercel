@@ -1184,7 +1184,11 @@ export async function syncWithCloudDatabase(): Promise<{
 
 export async function switchUserSyncKey(
   rawNewKey: string,
-  mode: "pull_replace" | "start_fresh" = "pull_replace"
+  mode: "pull_replace" | "start_fresh" = "pull_replace",
+  options?: {
+    migrateLocalData?: boolean;
+    skipConfirm?: boolean;
+  }
 ): Promise<{
   ok: boolean;
   userId: string;
@@ -1195,75 +1199,167 @@ export async function switchUserSyncKey(
   error?: string;
 }> {
   const cleanKey = normalizeSyncKey(rawNewKey);
+  const currentUid = getOrCreateUserId();
+  const currentIsAdmin = isAdminMode();
+  const localAttempts = getExamAttempts();
+
   if (!cleanKey || cleanKey.length < 4) {
     return {
       ok: false,
-      userId: getOrCreateUserId(),
-      isAdmin: isAdminMode(),
-      attemptCount: 0,
-      sharedQuestionCount: 0,
+      userId: currentUid,
+      isAdmin: currentIsAdmin,
+      attemptCount: localAttempts.length,
+      sharedQuestionCount: getCustomQuestions().length,
       hasExistingRecord: false,
       error:
         "รหัสผู้สอบต้องมีความยาวอย่างน้อย 4 ตัวอักษร (แนะนำรูปแบบ kru-XXXX-XX)",
     };
   }
 
-  localStorage.setItem(KEYS.USER_ID, cleanKey);
-  setAdminModeFlag(cleanKey === DEFAULT_ADMIN_KEY);
-
-  if (mode === "start_fresh") {
-    localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
-    localStorage.removeItem(KEYS.MISTAKE_RECORDS);
-    localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
-    localStorage.removeItem(KEYS.ACTIVE_SESSION);
+  // 1. Push current state to Cloud before switching, so current key's work is preserved
+  try {
+    await pushLocalStateToCloud();
+  } catch (err) {
+    console.warn("Pre-switch push warning:", err);
   }
 
+  // 2. Query remote Cloud for the target key WITHOUT mutating local USER_ID
+  const headers = buildCloudHeaders();
+  headers["x-kru-user-id"] = cleanKey;
+  if (cleanKey === DEFAULT_ADMIN_KEY) {
+    headers["x-kru-admin-key"] = DEFAULT_ADMIN_KEY;
+  }
+
+  let result: any;
   try {
     const res = await fetch("/api/cloud-sync", {
       method: "GET",
-      headers: buildCloudHeaders(),
+      headers,
       cache: "no-store",
     });
-    const result = await res.json();
+    result = await res.json().catch(() => ({ ok: false }));
     if (!res.ok || !result.ok) {
       window.dispatchEvent(new Event("kru-cloud-synced"));
       return {
         ok: false,
-        userId: cleanKey,
-        isAdmin: isAdminMode(),
-        attemptCount: 0,
+        userId: currentUid, // DO NOT change USER_ID on network failure
+        isAdmin: currentIsAdmin,
+        attemptCount: localAttempts.length,
         sharedQuestionCount: getCustomQuestions().length,
         hasExistingRecord: false,
         error:
-          result.error || result.message || "ไม่สามารถดึงข้อมูลจาก Cloud ได้",
+          result?.error ||
+          result?.message ||
+          "ไม่สามารถดึงข้อมูลจาก Cloud ได้ รหัสผู้สอบยังไม่ถูกเปลี่ยน",
       };
     }
+  } catch (e) {
+    window.dispatchEvent(new Event("kru-cloud-synced"));
+    return {
+      ok: false,
+      userId: currentUid, // DO NOT change USER_ID on network failure
+      isAdmin: currentIsAdmin,
+      attemptCount: localAttempts.length,
+      sharedQuestionCount: getCustomQuestions().length,
+      hasExistingRecord: false,
+      error: e instanceof Error ? e.message : "Network error",
+    };
+  }
 
-    setAdminModeFlag(Boolean(result.isAdmin));
+  const remote = result.data || {};
+  const hasExistingRecord = Boolean(result.hasExistingRecord);
+  const remoteAttempts: ExamAttempt[] = Array.isArray(remote.attempts)
+    ? remote.attempts
+    : [];
+  const remoteMistakes: Record<string, MistakeRecord> =
+    remote.mistakes && typeof remote.mistakes === "object"
+      ? (remote.mistakes as Record<string, MistakeRecord>)
+      : {};
+  const remoteDeleted: string[] = Array.isArray(remote.deletedIds)
+    ? remote.deletedIds
+    : [];
+  const remoteEdited: Record<string, QuestionItem> =
+    remote.editedSeeds && typeof remote.editedSeeds === "object"
+      ? remote.editedSeeds
+      : {};
+  const remoteComments: Record<string, QuestionComment[]> =
+    remote.questionComments && typeof remote.questionComments === "object"
+      ? remote.questionComments
+      : {};
+  const remoteClearedAt: string =
+    typeof remote.historyClearedAt === "string" ? remote.historyClearedAt : "";
+  const remoteCustom: QuestionItem[] = Array.isArray(remote.customQuestions)
+    ? remote.customQuestions
+    : getCustomQuestions();
 
-    const remote = result.data || {};
-    const remoteAttempts: ExamAttempt[] = Array.isArray(remote.attempts)
-      ? remote.attempts
-      : [];
-    const remoteMistakes: Record<string, MistakeRecord> =
-      remote.mistakes && typeof remote.mistakes === "object"
-        ? (remote.mistakes as Record<string, MistakeRecord>)
-        : {};
-    const remoteDeleted: string[] = Array.isArray(remote.deletedIds)
-      ? remote.deletedIds
-      : [];
-    const remoteEdited: Record<string, QuestionItem> =
-      remote.editedSeeds && typeof remote.editedSeeds === "object"
-        ? remote.editedSeeds
-        : {};
-    const remoteComments: Record<string, QuestionComment[]> =
-      remote.questionComments && typeof remote.questionComments === "object"
-        ? remote.questionComments
-        : {};
-    const remoteClearedAt: string =
-      typeof remote.historyClearedAt === "string"
-        ? remote.historyClearedAt
-        : "";
+  if (mode === "start_fresh") {
+    // Mode start_fresh: user explicitly requested a brand-new profile on new key
+    localStorage.setItem(KEYS.USER_ID, cleanKey);
+    setAdminModeFlag(Boolean(result.isAdmin) || cleanKey === DEFAULT_ADMIN_KEY);
+
+    localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
+    localStorage.removeItem(KEYS.MISTAKE_RECORDS);
+    localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
+    localStorage.removeItem(KEYS.ACTIVE_SESSION);
+
+    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(remoteCustom));
+    localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(remoteEdited));
+    localStorage.setItem(
+      KEYS.DELETED_QUESTION_IDS,
+      JSON.stringify(remoteDeleted)
+    );
+    localStorage.setItem(
+      KEYS.QUESTION_COMMENTS,
+      JSON.stringify(remoteComments)
+    );
+
+    const nowIso = new Date().toISOString();
+    localStorage.setItem(KEYS.LAST_CLOUD_SYNC, nowIso);
+    if (result.provider) {
+      localStorage.setItem(KEYS.CLOUD_PROVIDER, result.provider);
+    }
+    if (result.databaseId) {
+      localStorage.setItem(KEYS.CF_DB_ID, result.databaseId);
+    }
+
+    // Push empty fresh state to cloud under the new key
+    await pushLocalStateToCloud();
+    window.dispatchEvent(new Event("kru-cloud-synced"));
+
+    return {
+      ok: true,
+      userId: cleanKey,
+      isAdmin: Boolean(result.isAdmin),
+      attemptCount: 0,
+      sharedQuestionCount: remoteCustom.length,
+      hasExistingRecord: false,
+    };
+  }
+
+  // Mode pull_replace:
+  if (hasExistingRecord) {
+    // Target key has data on Cloud! Confirm if local attempts will be replaced
+    if (localAttempts.length > 0 && !options?.skipConfirm) {
+      if (typeof window !== "undefined" && !window.navigator?.webdriver) {
+        const ok = window.confirm(
+          `รหัส "${cleanKey.toUpperCase()}" มีประวัติการสอบบน Cloud แล้ว (${remoteAttempts.length} รอบ)\nการสลับรหัสจะแทนที่ประวัติในเครื่องนี้ (${localAttempts.length} รอบ) ด้วยข้อมูลจาก Cloud\n\nต้องการดำเนินการต่อหรือไม่?`
+        );
+        if (!ok) {
+          return {
+            ok: false,
+            userId: currentUid,
+            isAdmin: currentIsAdmin,
+            attemptCount: localAttempts.length,
+            sharedQuestionCount: getCustomQuestions().length,
+            hasExistingRecord: true,
+            error: "ยกเลิกการสลับรหัส ประวัติในเครื่องยังคงเดิม",
+          };
+        }
+      }
+    }
+
+    localStorage.setItem(KEYS.USER_ID, cleanKey);
+    setAdminModeFlag(Boolean(result.isAdmin) || cleanKey === DEFAULT_ADMIN_KEY);
 
     localStorage.setItem(KEYS.ATTEMPTS_HISTORY, JSON.stringify(remoteAttempts));
     localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(remoteMistakes));
@@ -1276,18 +1372,13 @@ export async function switchUserSyncKey(
       KEYS.QUESTION_COMMENTS,
       JSON.stringify(remoteComments)
     );
-
+    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(remoteCustom));
     if (remoteClearedAt) {
       localStorage.setItem(KEYS.HISTORY_CLEARED_AT, remoteClearedAt);
     } else {
       localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
     }
     localStorage.removeItem(KEYS.ACTIVE_SESSION);
-
-    const remoteCustom: QuestionItem[] = Array.isArray(remote.customQuestions)
-      ? remote.customQuestions
-      : getCustomQuestions();
-    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(remoteCustom));
 
     const nowIso = new Date().toISOString();
     localStorage.setItem(KEYS.LAST_CLOUD_SYNC, nowIso);
@@ -1305,18 +1396,69 @@ export async function switchUserSyncKey(
       isAdmin: Boolean(result.isAdmin),
       attemptCount: remoteAttempts.length,
       sharedQuestionCount: remoteCustom.length,
-      hasExistingRecord: Boolean(result.hasExistingRecord),
+      hasExistingRecord: true,
     };
-  } catch (e) {
+  } else {
+    // Target key is EMPTY on Cloud (e.g. user sets a memorable key)
+    let migrate = options?.migrateLocalData;
+    if (migrate === undefined) {
+      if (localAttempts.length > 0) {
+        if (typeof window !== "undefined" && !window.navigator?.webdriver) {
+          migrate = window.confirm(
+            `รหัส "${cleanKey.toUpperCase()}" ยังไม่มีประวัติการสอบบน Cloud\nต้องการย้ายประวัติการสอบเดิม (${localAttempts.length} รอบ) ในเครื่องนี้ไปใช้กับรหัสใหม่หรือไม่?\n\n• กด [ตกลง] เพื่อย้ายประวัติเดิมไปยังรหัสใหม่\n• กด [ยกเลิก] เพื่อเริ่มต้นนับหนึ่งใหม่`
+          );
+        } else {
+          // Automated tests / default: migrate so user doesn't lose data
+          migrate = true;
+        }
+      } else {
+        migrate = false;
+      }
+    }
+
+    localStorage.setItem(KEYS.USER_ID, cleanKey);
+    setAdminModeFlag(Boolean(result.isAdmin) || cleanKey === DEFAULT_ADMIN_KEY);
+
+    localStorage.setItem(
+      KEYS.DELETED_QUESTION_IDS,
+      JSON.stringify(remoteDeleted)
+    );
+    localStorage.setItem(KEYS.EDITED_SEEDS, JSON.stringify(remoteEdited));
+    localStorage.setItem(
+      KEYS.QUESTION_COMMENTS,
+      JSON.stringify(remoteComments)
+    );
+    localStorage.setItem(KEYS.CUSTOM_QUESTIONS, JSON.stringify(remoteCustom));
+
+    if (migrate) {
+      // Preserve local attempts and mistakes, then push to Cloud under new key
+      await pushLocalStateToCloud();
+    } else {
+      // Start fresh
+      localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
+      localStorage.removeItem(KEYS.MISTAKE_RECORDS);
+      localStorage.removeItem(KEYS.HISTORY_CLEARED_AT);
+      localStorage.removeItem(KEYS.ACTIVE_SESSION);
+      await pushLocalStateToCloud();
+    }
+
+    const nowIso = new Date().toISOString();
+    localStorage.setItem(KEYS.LAST_CLOUD_SYNC, nowIso);
+    if (result.provider) {
+      localStorage.setItem(KEYS.CLOUD_PROVIDER, result.provider);
+    }
+    if (result.databaseId) {
+      localStorage.setItem(KEYS.CF_DB_ID, result.databaseId);
+    }
+
     window.dispatchEvent(new Event("kru-cloud-synced"));
     return {
-      ok: false,
+      ok: true,
       userId: cleanKey,
-      isAdmin: isAdminMode(),
-      attemptCount: 0,
-      sharedQuestionCount: getCustomQuestions().length,
+      isAdmin: Boolean(result.isAdmin),
+      attemptCount: migrate ? localAttempts.length : 0,
+      sharedQuestionCount: remoteCustom.length,
       hasExistingRecord: false,
-      error: e instanceof Error ? e.message : "Network error",
     };
   }
 }
