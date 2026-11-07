@@ -305,10 +305,16 @@ export default function HistoryAndMistakesPage() {
                                 className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 whitespace-nowrap ${
                                   ans.isCorrect
                                     ? "bg-paper-passBg text-paper-pass"
+                                    : ans.selectedIndex === null || ans.selectedIndex === undefined
+                                    ? "bg-paper-raised text-paper-secondary"
                                     : "bg-paper-failBg text-paper-fail"
                                 }`}
                               >
-                                {ans.isCorrect ? "ถูก" : "ผิด"}
+                                {ans.isCorrect
+                                  ? "ถูก"
+                                  : ans.selectedIndex === null || ans.selectedIndex === undefined
+                                  ? "ไม่ได้ตอบ"
+                                  : "ผิด"}
                               </span>
                             </div>
 
@@ -319,6 +325,8 @@ export default function HistoryAndMistakesPage() {
                                   className={
                                     ans.isCorrect
                                       ? "text-paper-pass font-medium"
+                                      : ans.selectedIndex === null || ans.selectedIndex === undefined
+                                      ? "text-paper-secondary font-medium"
                                       : "text-paper-fail font-medium"
                                   }
                                 >

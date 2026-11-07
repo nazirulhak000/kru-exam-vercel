@@ -630,7 +630,8 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
 
   const mistakes = getMistakeRecordsMap();
   attempt.answers.forEach((ans) => {
-    if (ans.selectedIndex === null && attempt.mode !== "exam") {
+    // ข้อที่ไม่ได้ตอบ จะไม่ถูกบันทึกเข้าสมุดข้อผิดในทุกโหมด
+    if (ans.selectedIndex === null || ans.selectedIndex === undefined) {
       return;
     }
 

@@ -2103,10 +2103,16 @@ function ExamSimulatorContent() {
                       className={`font-mono text-[12px] px-2 py-0.5 rounded-[5px] shrink-0 ${
                         ans.isCorrect
                           ? "bg-paper-passBg text-paper-pass"
+                          : ans.selectedIndex === null || ans.selectedIndex === undefined
+                          ? "bg-paper-raised text-paper-secondary"
                           : "bg-paper-failBg text-paper-fail"
                       }`}
                     >
-                      {ans.isCorrect ? "ถูก" : "ผิด"}
+                      {ans.isCorrect
+                        ? "ถูก"
+                        : ans.selectedIndex === null || ans.selectedIndex === undefined
+                        ? "ไม่ได้ตอบ"
+                        : "ผิด"}
                     </span>
                     <h3 className="min-w-0 break-words text-[15px] leading-[24px] font-medium text-paper-ink">
                       {ans.questionText}
