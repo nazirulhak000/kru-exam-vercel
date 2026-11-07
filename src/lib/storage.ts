@@ -852,7 +852,29 @@ export function getActiveExamSession(): ActiveExamSession | null {
   if (!isBrowser()) return null;
   try {
     const raw = localStorage.getItem(KEYS.ACTIVE_SESSION);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    if (!session || typeof session !== "object") return null;
+
+    if (Array.isArray(session.questions) && session.questions.length > 0) {
+      const firstQ = session.questions[0];
+      // หากข้อสอบถูกเก็บในรูป lean (ไม่มี question หรือ explanation) ให้ hydrate คืนจากคลัง
+      if (firstQ && (!firstQ.question || !firstQ.explanation)) {
+        const allQuestions = getAllQuestions();
+        const bankMap = new Map(allQuestions.map((q) => [q.id, q]));
+        session.questions = session.questions.map((item: any) => {
+          const bankQ = bankMap.get(item.id);
+          if (!bankQ) return item;
+          return {
+            ...bankQ,
+            options: item.options || bankQ.options,
+            answer: item.answer !== undefined ? item.answer : bankQ.answer,
+          };
+        });
+      }
+    }
+
+    return session as ActiveExamSession;
   } catch {
     return null;
   }
@@ -860,12 +882,50 @@ export function getActiveExamSession(): ActiveExamSession | null {
 
 export function saveActiveExamSession(
   session: ActiveExamSession | null
-): void {
-  if (!isBrowser()) return;
+): boolean {
+  if (!isBrowser()) return false;
   if (!session) {
-    localStorage.removeItem(KEYS.ACTIVE_SESSION);
-  } else {
-    localStorage.setItem(KEYS.ACTIVE_SESSION, JSON.stringify(session));
+    try {
+      localStorage.removeItem(KEYS.ACTIVE_SESSION);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  try {
+    // เก็บเป็น lean format เพื่อประหยัดพื้นที่ storage และป้องกัน quota exceeded
+    // โดยเฉพาะกรณีเลือกทำ "ทั้งหมด" (หลายพันข้อ)
+    const leanQuestions = session.questions.map((q) => ({
+      id: q.id,
+      answer: q.answer,
+      options: q.options,
+    }));
+
+    const leanSession = {
+      ...session,
+      questions: leanQuestions,
+    };
+
+    localStorage.setItem(KEYS.ACTIVE_SESSION, JSON.stringify(leanSession));
+    return true;
+  } catch (err) {
+    console.warn("saveActiveExamSession: storage quota exceeded, falling back to ultra-lean", err);
+    try {
+      const ultraLeanQuestions = session.questions.map((q) => ({
+        id: q.id,
+        answer: q.answer,
+      }));
+      const ultraLean = {
+        ...session,
+        questions: ultraLeanQuestions,
+      };
+      localStorage.setItem(KEYS.ACTIVE_SESSION, JSON.stringify(ultraLean));
+      return true;
+    } catch (finalErr) {
+      console.error("saveActiveExamSession: failed to save session to storage", finalErr);
+      return false;
+    }
   }
 }
 

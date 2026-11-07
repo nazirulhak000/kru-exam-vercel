@@ -383,7 +383,7 @@ function ExamSimulatorContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsElapsed, screen, quizMode, examTimeLimit]);
 
-  // 3. Auto-save สถานะห้องสอบลง LocalStorage
+  // 3. Auto-save สถานะห้องสอบลง LocalStorage (มี debounce 300ms เพื่อลดภาระ disk I/O)
   useEffect(() => {
     if (
       screen !== "active" ||
@@ -392,31 +392,37 @@ function ExamSimulatorContent() {
     ) {
       return;
     }
-    const currentInStorage = getActiveExamSession();
-    // ป้องกันกรณีเปิดหลายแท็บ: หากเซสชันใน storage ถูกล้าง (ส่งข้อสอบจากแท็บอื่นแล้ว) หรือ id ไม่ตรงกัน
-    // ห้ามเขียนเซสชันเก่ากลับคืนลงไปใน storage เด็ดขาด
-    if (!currentInStorage || currentInStorage.id !== currentSessionId) {
-      return;
-    }
-    const session: ActiveExamSession = {
-      id: currentSessionId,
-      title: quizTitle,
-      mode: quizMode,
-      feedbackMode: quizMode === "exam" ? "after_submit" : feedbackMode,
-      isBlueprint,
-      questions: activeQuiz,
-      currentIndex,
-      userAnswers,
-      flaggedIndices,
-      strikethroughMap,
-      secondsElapsed,
-      examTimeLimit,
-      startedAt: sessionStartedAtRef.current || sessionStartedAt,
-      deadlineAt: deadlineAt || undefined,
-      lastActiveAt: new Date().toISOString(),
-      isPaused,
-    };
-    saveActiveExamSession(session);
+
+    const timer = setTimeout(() => {
+      if (isSubmittingRef.current) return;
+      const currentInStorage = getActiveExamSession();
+      // ป้องกันกรณีเปิดหลายแท็บ: หากเซสชันใน storage ถูกล้าง (ส่งข้อสอบจากแท็บอื่นแล้ว) หรือ id ไม่ตรงกัน
+      // ห้ามเขียนเซสชันเก่ากลับคืนลงไปใน storage เด็ดขาด
+      if (!currentInStorage || currentInStorage.id !== currentSessionId) {
+        return;
+      }
+      const session: ActiveExamSession = {
+        id: currentSessionId,
+        title: quizTitle,
+        mode: quizMode,
+        feedbackMode: quizMode === "exam" ? "after_submit" : feedbackMode,
+        isBlueprint,
+        questions: activeQuiz,
+        currentIndex,
+        userAnswers,
+        flaggedIndices,
+        strikethroughMap,
+        secondsElapsed,
+        examTimeLimit,
+        startedAt: sessionStartedAtRef.current || sessionStartedAt,
+        deadlineAt: deadlineAt || undefined,
+        lastActiveAt: new Date().toISOString(),
+        isPaused,
+      };
+      saveActiveExamSession(session);
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [
     screen,
     currentSessionId,
