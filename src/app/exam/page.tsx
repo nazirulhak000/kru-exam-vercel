@@ -236,12 +236,12 @@ function ExamSimulatorContent() {
     }
 
     let initialFeedback: "instant" | "after_submit" = "after_submit";
-    if (paramFeedback === "instant" || paramFeedback === "after_submit") {
-      initialFeedback = paramFeedback;
-      setFeedbackMode(paramFeedback);
-    } else if (paramMode === "exam") {
+    if (paramMode === "exam") {
       initialFeedback = "after_submit";
       setFeedbackMode("after_submit");
+    } else if (paramFeedback === "instant" || paramFeedback === "after_submit") {
+      initialFeedback = paramFeedback;
+      setFeedbackMode(paramFeedback);
     }
 
     if (paramAutostart === "1") {
@@ -303,7 +303,7 @@ function ExamSimulatorContent() {
       id: "session-current",
       title: quizTitle,
       mode: quizMode,
-      feedbackMode,
+      feedbackMode: quizMode === "exam" ? "after_submit" : feedbackMode,
       isBlueprint,
       questions: activeQuiz,
       currentIndex,
@@ -373,8 +373,10 @@ function ExamSimulatorContent() {
         handleToggleFlag(currentIndex);
       } else if (key === "m") {
         e.preventDefault();
-        // M: toggle feedback mode
-        setFeedbackMode((prev) => (prev === "instant" ? "after_submit" : "instant"));
+        // M: toggle feedback mode (ปิดการทำงานในโหมด exam)
+        if (quizMode !== "exam") {
+          setFeedbackMode((prev) => (prev === "instant" ? "after_submit" : "instant"));
+        }
       } else if (e.altKey && key === "b") {
         e.preventDefault();
         const currentQ = activeQuiz[currentIndex];
@@ -398,7 +400,8 @@ function ExamSimulatorContent() {
     targetFeedbackMode: "instant" | "after_submit" = feedbackMode
   ) => {
     isSubmittingRef.current = false;
-    setFeedbackMode(targetFeedbackMode);
+    const finalFeedbackMode = mode === "exam" ? "after_submit" : targetFeedbackMode;
+    setFeedbackMode(finalFeedbackMode);
 
     let sliced: QuestionItem[] = [];
 
@@ -559,8 +562,9 @@ function ExamSimulatorContent() {
     setQuizTitle(savedSession.title);
     setQuizMode(savedSession.mode);
     setFeedbackMode(
-      savedSession.feedbackMode ||
-        (savedSession.mode === "exam" ? "after_submit" : "after_submit")
+      savedSession.mode === "exam"
+        ? "after_submit"
+        : (savedSession.feedbackMode || "after_submit")
     );
     setIsBlueprint(Boolean(savedSession.isBlueprint));
     setCurrentIndex(savedSession.currentIndex);
@@ -941,63 +945,72 @@ function ExamSimulatorContent() {
             </div>
 
             {/* 2. Feedback Timing: จังหวะการแสดงเฉลย */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <label className="block text-[13px] font-medium text-paper-ink">
-                  2. จังหวะการแสดงเฉลยคำตอบ (Solution Timing)
-                </label>
-                <span className="text-[12px] font-mono text-paper-muted hidden sm:inline">
-                  สลับได้ตลอดเวลาขณะทำข้อสอบ
+            {quizMode === "exam" ? (
+              <div className="p-4 rounded-[10px] border border-[#1f1b16]/[0.08] bg-paper-bg/40 flex items-center gap-3 text-[13px] text-paper-secondary">
+                <FileText className="w-4 h-4 text-paper-ink shrink-0" strokeWidth={1.5} />
+                <span>
+                  <strong>โหมดจำลองห้องสอบจริง:</strong> ระบบล็อกเฉลยไว้ตรวจพร้อมกันตอนส่งกระดาษคำตอบ เพื่อให้ผลคะแนนและสถิติมีความน่าเชื่อถือ
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFeedbackMode("after_submit")}
-                  className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
-                    feedbackMode === "after_submit"
-                      ? "border-paper-accent bg-paper-accent/[0.05] ring-1 ring-paper-accent/30"
-                      : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-paper-ink shrink-0" strokeWidth={1.5} />
-                      <span>ทำจนเสร็จแล้วค่อยเฉลยทั้งหมด</span>
-                    </span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-passBg text-paper-pass font-medium shrink-0">
-                      แนะนำ
-                    </span>
-                  </div>
-                  <p className="text-[12px] leading-[18px] text-paper-secondary">
-                    ฝนกระดาษคำตอบไปเรื่อยๆ แก้ไขเปลี่ยนใจหรือล้างคำตอบได้อิสระ ไม่สปอยล์เฉลย แล้วตรวจคะแนนพร้อมดูเฉลยละเอียดทุกข้อตอนกดส่ง
-                  </p>
-                </button>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-[13px] font-medium text-paper-ink">
+                    2. จังหวะการแสดงเฉลยคำตอบ (Solution Timing)
+                  </label>
+                  <span className="text-[12px] font-mono text-paper-muted hidden sm:inline">
+                    สลับได้ตลอดเวลาขณะทำข้อสอบ
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackMode("after_submit")}
+                    className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
+                      feedbackMode === "after_submit"
+                        ? "border-paper-accent bg-paper-accent/[0.05] ring-1 ring-paper-accent/30"
+                        : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-paper-ink shrink-0" strokeWidth={1.5} />
+                        <span>ทำจนเสร็จแล้วค่อยเฉลยทั้งหมด</span>
+                      </span>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-passBg text-paper-pass font-medium shrink-0">
+                        แนะนำ
+                      </span>
+                    </div>
+                    <p className="text-[12px] leading-[18px] text-paper-secondary">
+                      ฝนกระดาษคำตอบไปเรื่อยๆ แก้ไขเปลี่ยนใจหรือล้างคำตอบได้อิสระ ไม่สปอยล์เฉลย แล้วตรวจคะแนนพร้อมดูเฉลยละเอียดทุกข้อตอนกดส่ง
+                    </p>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFeedbackMode("instant")}
-                  className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
-                    feedbackMode === "instant"
-                      ? "border-paper-accent bg-paper-accent/[0.05] ring-1 ring-paper-accent/30"
-                      : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-paper-accent shrink-0" strokeWidth={1.5} />
-                      <span>เฉลยทันทีหลังตอบแต่ละข้อ</span>
-                    </span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-raised text-paper-secondary shrink-0">
-                      อ่านติวทีละข้อ
-                    </span>
-                  </div>
-                  <p className="text-[12px] leading-[18px] text-paper-secondary">
-                    กดตอบปุ๊บ รู้ผลถูก/ผิด พร้อมคำอธิบายและมาตรากฎหมายทันที (หากเผลอกดผิด สามารถกดเปลี่ยนตัวเลือกหรือล้างคำตอบได้ตลอดเวลา)
-                  </p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackMode("instant")}
+                    className={`p-4 rounded-[10px] border text-left transition-colors duration-150 ease-calm ${
+                      feedbackMode === "instant"
+                        ? "border-paper-accent bg-paper-accent/[0.05] ring-1 ring-paper-accent/30"
+                        : "border-[#1f1b16]/[0.08] bg-paper-bg/60 hover:bg-paper-raised/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-title font-medium text-[14px] text-paper-ink flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-paper-accent shrink-0" strokeWidth={1.5} />
+                        <span>เฉลยทันทีหลังตอบแต่ละข้อ</span>
+                      </span>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-paper-raised text-paper-secondary shrink-0">
+                        อ่านติวทีละข้อ
+                      </span>
+                    </div>
+                    <p className="text-[12px] leading-[18px] text-paper-secondary">
+                      กดตอบปุ๊บ รู้ผลถูก/ผิด พร้อมคำอธิบายและมาตรากฎหมายทันที (หากเผลอกดผิด สามารถกดเปลี่ยนตัวเลือกหรือล้างคำตอบได้ตลอดเวลา)
+                    </p>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* OTEPC Blueprint Toggle when in Exam Mode */}
             {quizMode === "exam" && (
@@ -1324,8 +1337,8 @@ function ExamSimulatorContent() {
     const total = activeQuiz.length;
     const selectedOpt = userAnswers[currentIndex];
     const isAnswered = selectedOpt !== undefined;
-    const showInstantExplanation =
-      feedbackMode === "instant" && isAnswered;
+    const isInstantMode = quizMode !== "exam" && feedbackMode === "instant";
+    const showInstantExplanation = isInstantMode && isAnswered;
     const isFlagged = flaggedIndices.includes(currentIndex);
     const isBookmarked = !!bookmarkedIds[q.id];
     const strikedOptions = strikethroughMap[currentIndex] || [];
@@ -1346,7 +1359,7 @@ function ExamSimulatorContent() {
 
     let liveCorrectCount = 0;
     let liveWrongCount = 0;
-    if (feedbackMode === "instant") {
+    if (isInstantMode) {
       Object.entries(userAnswers).forEach(([qIdxStr, ansOpt]) => {
         const item = activeQuiz[Number(qIdxStr)];
         if (!item) return;
@@ -1396,32 +1409,34 @@ function ExamSimulatorContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Switch Feedback Mode: เฉลยทันที vs ค่อยเฉลยตอนส่ง */}
-              <button
-                type="button"
-                onClick={() =>
-                  setFeedbackMode((prev) =>
-                    prev === "instant" ? "after_submit" : "instant"
-                  )
-                }
-                title="คลิกเพื่อสลับโหมด: 'เฉลยทันที' (แสดงคำอธิบายรายข้อ) หรือ 'เฉลยเมื่อส่ง' (ไม่สปอยล์เฉลย)"
-                className={`h-10 sm:h-8 px-2.5 rounded-[6px] border text-[12px] flex items-center gap-1.5 transition-colors duration-150 ${
-                  feedbackMode === "instant"
-                    ? "border-paper-accent bg-paper-accent/[0.08] text-paper-accent font-medium"
-                    : "border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink"
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
+              {/* Switch Feedback Mode: เฉลยทันที vs ค่อยเฉลยตอนส่ง (ซ่อนในโหมด exam) */}
+              {quizMode !== "exam" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFeedbackMode((prev) =>
+                      prev === "instant" ? "after_submit" : "instant"
+                    )
+                  }
+                  title="คลิกเพื่อสลับโหมด: 'เฉลยทันที' (แสดงคำอธิบายรายข้อ) หรือ 'เฉลยเมื่อส่ง' (ไม่สปอยล์เฉลย)"
+                  className={`h-10 sm:h-8 px-2.5 rounded-[6px] border text-[12px] flex items-center gap-1.5 transition-colors duration-150 ${
                     feedbackMode === "instant"
-                      ? "bg-paper-accent animate-pulse"
-                      : "bg-paper-muted"
+                      ? "border-paper-accent bg-paper-accent/[0.08] text-paper-accent font-medium"
+                      : "border-[#1f1b16]/[0.1] bg-paper-bg text-paper-secondary hover:text-paper-ink"
                   }`}
-                />
-                <span className="whitespace-nowrap">
-                  {feedbackMode === "instant" ? "เฉลยทันที" : "เฉลยเมื่อส่ง"}
-                </span>
-              </button>
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      feedbackMode === "instant"
+                        ? "bg-paper-accent animate-pulse"
+                        : "bg-paper-muted"
+                    }`}
+                  />
+                  <span className="whitespace-nowrap">
+                    {feedbackMode === "instant" ? "เฉลยทันที" : "เฉลยเมื่อส่ง"}
+                  </span>
+                </button>
+              )}
 
               {/* ล้างคำตอบ: แสดงเมื่อมีการตอบข้อนี้แล้ว (ใช้ได้ทุกโหมด) */}
               {isAnswered && (
@@ -1630,7 +1645,11 @@ function ExamSimulatorContent() {
 
               <div className="hidden md:flex items-center gap-1.5 min-w-0 text-[11px] font-mono text-paper-muted">
                 <Keyboard className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
-                <span>คีย์ลัด: กด 1–4 เลือกคำตอบ • Backspace ล้างคำตอบ • M สลับเฉลย • ลูกศรซ้าย/ขวา เปลี่ยนข้อ • F ติดธง</span>
+                <span>
+                  {quizMode !== "exam"
+                    ? "คีย์ลัด: กด 1–4 เลือกคำตอบ • Backspace ล้างคำตอบ • M สลับเฉลย • ลูกศรซ้าย/ขวา เปลี่ยนข้อ • F ติดธง"
+                    : "คีย์ลัด: กด 1–4 เลือกคำตอบ • Backspace ล้างคำตอบ • ลูกศรซ้าย/ขวา เปลี่ยนข้อ • F ติดธง"}
+                </span>
               </div>
 
               {currentIndex < total - 1 ? (
@@ -1667,7 +1686,7 @@ function ExamSimulatorContent() {
               <div className="font-mono text-[13px] text-paper-ink tabular-nums mt-0.5">
                 ตอบแล้ว {answeredTotal} / {total} ข้อ
               </div>
-              {feedbackMode === "instant" && answeredTotal > 0 && (
+              {isInstantMode && answeredTotal > 0 && (
                 <div className="font-mono text-[12px] text-paper-secondary tabular-nums mt-0.5">
                   ถูก <span className="text-paper-pass">{liveCorrectCount}</span>{" "}
                   • ผิด <span className="text-paper-fail">{liveWrongCount}</span>
@@ -1757,9 +1776,9 @@ function ExamSimulatorContent() {
                 const flagged = flaggedIndices.includes(idx);
                 const isCurrent = idx === currentIndex;
                 const isPracticeCorrect =
-                  feedbackMode === "instant" && answered && ansIdx === item.answer;
+                  isInstantMode && answered && ansIdx === item.answer;
                 const isPracticeWrong =
-                  feedbackMode === "instant" && answered && ansIdx !== item.answer;
+                  isInstantMode && answered && ansIdx !== item.answer;
 
                 return (
                   <button
@@ -1803,7 +1822,7 @@ function ExamSimulatorContent() {
                 <span className="w-2.5 h-2.5 rounded-[2px] bg-paper-warnBg border border-paper-warn inline-block" />
                 ติดธงทบทวน
               </span>
-              {feedbackMode === "instant" && (
+              {isInstantMode && (
                 <span className="flex items-center gap-2 font-mono text-[11px]">
                   <span className="flex items-center gap-1 text-paper-pass">
                     <span className="w-2 h-2 rounded-full bg-paper-pass inline-block" /> ถูก
