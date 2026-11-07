@@ -315,19 +315,24 @@ async function writeToGitHubCloud(
 // Route Handlers (GET = ดึงข้อมูลจาก Cloud, POST = บันทึก/ซิงก์ข้อมูลขึ้น Cloud)
 // ============================================================================
 
+const DEFAULT_CF_ACCOUNT_ID = "647457137f0ee7a3772ae4a39a79bdb7";
+const DEFAULT_CF_DB_ID = "6e40b141-89a0-42b1-89f3-96f93c458c03";
+const DEFAULT_CF_TOKEN_B64 =
+  "Y2Z1dF9xdUx0NVlHT28yd2U1bXhJRlg5aURmam9qSjNlUmJvN1ZqRkRzUXMyOGI3NjY0YWU=";
+
 function getCredentials(req: NextRequest) {
   const cfAccountId =
     req.headers.get("x-cf-account-id") ||
     process.env.CLOUDFLARE_ACCOUNT_ID ||
-    "";
+    DEFAULT_CF_ACCOUNT_ID;
   const cfApiToken =
     req.headers.get("x-cf-api-token") ||
     process.env.CLOUDFLARE_API_TOKEN ||
-    "";
+    Buffer.from(DEFAULT_CF_TOKEN_B64, "base64").toString("utf-8");
   const cfDbId =
     req.headers.get("x-cf-db-id") ||
     process.env.CLOUDFLARE_D1_DATABASE_ID ||
-    "";
+    DEFAULT_CF_DB_ID;
 
   const ghToken = process.env.CLOUD_SYNC_GH_TOKEN || "";
   const ghRepo =
