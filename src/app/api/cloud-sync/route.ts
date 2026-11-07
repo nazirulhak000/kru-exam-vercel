@@ -22,6 +22,9 @@ interface CloudPayload {
   version: number;
   updatedAt: string;
   historyClearedAt?: string;
+  mistakesClearedAt?: string;
+  deletedAttemptIds?: string[];
+  deletedCommentIds?: string[];
   customQuestions: unknown[];
   editedSeeds: Record<string, unknown>;
   deletedIds: string[];
@@ -166,10 +169,16 @@ function mergeQuestionComments(
   existingMap: Record<string, CommentPayloadItem[]> = {},
   incomingMap: Record<string, CommentPayloadItem[]> = {},
   isAdmin: boolean,
-  replaceAllComments: boolean
+  replaceAllComments: boolean,
+  deletedCommentIdsSet: Set<string> = new Set()
 ): Record<string, CommentPayloadItem[]> {
   if (isAdmin && replaceAllComments) {
-    return incomingMap || {};
+    const res: Record<string, CommentPayloadItem[]> = {};
+    for (const [qId, list] of Object.entries(incomingMap || {})) {
+      const filtered = (list || []).filter((c) => c && c.id && !deletedCommentIdsSet.has(c.id));
+      if (filtered.length > 0) res[qId] = filtered;
+    }
+    return res;
   }
 
   const result: Record<string, CommentPayloadItem[]> = {};
@@ -184,25 +193,23 @@ function mergeQuestionComments(
     const byId = new Map<string, CommentPayloadItem>();
 
     for (const c of existingArr) {
-      if (c && c.id && typeof c.message === "string" && c.message.trim()) {
+      if (c && c.id && !deletedCommentIdsSet.has(c.id) && typeof c.message === "string" && c.message.trim()) {
         byId.set(c.id, c);
       }
     }
 
     for (const c of incomingArr) {
-      if (!c || !c.id || typeof c.message !== "string" || !c.message.trim()) {
+      if (!c || !c.id || deletedCommentIdsSet.has(c.id) || typeof c.message !== "string" || !c.message.trim()) {
         continue;
       }
       const prev = byId.get(c.id);
       if (!prev) {
-        // อนุญาตให้ผู้ใช้ทุกคนเพิ่มคอมเมนต์ใหม่ได้
         byId.set(c.id, {
           ...c,
           message: c.message.trim().slice(0, 1000),
           status: c.type === "report_wrong" ? c.status || "pending" : undefined,
         });
       } else if (isAdmin) {
-        // เฉพาะแอดมินที่อัปเดตสถานะคอมเมนต์เดิมได้ (เช่น กดยืนยันตรวจสอบแล้ว)
         byId.set(c.id, {
           ...prev,
           ...c,
@@ -435,6 +442,9 @@ async function readHybridStateFromD1(
     version: 1,
     updatedAt: userRecord?.updatedAt || sharedRecord.updatedAt,
     historyClearedAt: userRecord?.historyClearedAt || "",
+    mistakesClearedAt: userRecord?.mistakesClearedAt || "",
+    deletedAttemptIds: userRecord?.deletedAttemptIds || [],
+    deletedCommentIds: sharedRecord?.deletedCommentIds || [],
     customQuestions: activeSharedCustom,
     editedSeeds: sharedRecord.editedSeeds || {},
     deletedIds: sharedRecord.deletedIds || [],
@@ -477,80 +487,208 @@ async function writeHybridStateToD1(
       SHARED_BANK_RECORD_ID
     )) || EMPTY_PAYLOAD;
 
-  // 1. สิทธิ์การจัดการคลังข้อสอบกลาง (เฉพาะ Admin เท่านั้นที่เพิ่ม/แก้ไข/ลบข้อสอบได้)
-  let nextDeletedIds = existingShared.deletedIds || [];
-  let nextEditedSeeds = existingShared.editedSeeds || {};
+  // 1. Check if incoming actually modifies shared bank (Topic 5.7 optimization)
+  const mergedDeletedCommentIds = new Set<string>([
+    ...(existingShared.deletedCommentIds || []),
+    ...(Array.isArray(incoming.deletedCommentIds) ? incoming.deletedCommentIds : []),
+  ]);
+
+  const hasIncomingComments =
+    incoming.questionComments && Object.keys(incoming.questionComments).length > 0;
+  const hasIncomingDeletedComments =
+    Array.isArray(incoming.deletedCommentIds) && incoming.deletedCommentIds.length > 0;
+  const hasAdminQuestionChanges =
+    isAdmin &&
+    ((Array.isArray(incoming.customQuestions) && incoming.customQuestions.length > 0) ||
+      (incoming.editedSeeds && Object.keys(incoming.editedSeeds).length > 0) ||
+      (Array.isArray(incoming.deletedIds) && incoming.deletedIds.length > 0) ||
+      incoming.adminAction === "replace_shared_bank");
+
+  let updatedSharedPayload = existingShared;
   let nextCustomQuestions = existingShared.customQuestions || [];
 
-  if (isAdmin) {
-    const mergedDeletedSet = new Set<string>([
-      ...(existingShared.deletedIds || []),
-      ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds : []),
-    ]);
-    nextDeletedIds = Array.from(mergedDeletedSet);
+  if (hasIncomingComments || hasIncomingDeletedComments || hasAdminQuestionChanges) {
+    let nextDeletedIds = existingShared.deletedIds || [];
+    let nextEditedSeeds = existingShared.editedSeeds || {};
 
-    nextEditedSeeds = {
-      ...(existingShared.editedSeeds || {}),
-      ...(incoming.editedSeeds && typeof incoming.editedSeeds === "object"
-        ? incoming.editedSeeds
-        : {}),
+    if (isAdmin) {
+      const mergedDeletedSet = new Set<string>([
+        ...(existingShared.deletedIds || []),
+        ...(Array.isArray(incoming.deletedIds) ? incoming.deletedIds : []),
+      ]);
+      nextDeletedIds = Array.from(mergedDeletedSet);
+
+      nextEditedSeeds = {
+        ...(existingShared.editedSeeds || {}),
+        ...(incoming.editedSeeds && typeof incoming.editedSeeds === "object"
+          ? incoming.editedSeeds
+          : {}),
+      };
+
+      if (incoming.adminAction === "replace_shared_bank") {
+        nextCustomQuestions = mergeSharedQuestions(
+          [],
+          Array.isArray(incoming.customQuestions) ? incoming.customQuestions : [],
+          mergedDeletedSet
+        );
+      } else {
+        nextCustomQuestions = mergeSharedQuestions(
+          existingShared.customQuestions || [],
+          Array.isArray(incoming.customQuestions) ? incoming.customQuestions : [],
+          mergedDeletedSet
+        );
+      }
+    }
+
+    const nextComments = mergeQuestionComments(
+      existingShared.questionComments || {},
+      incoming.questionComments || {},
+      isAdmin,
+      incoming.adminAction === "replace_shared_bank",
+      mergedDeletedCommentIds
+    );
+
+    updatedSharedPayload = {
+      ...EMPTY_PAYLOAD,
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      customQuestions: nextCustomQuestions,
+      editedSeeds: nextEditedSeeds,
+      deletedIds: nextDeletedIds,
+      deletedCommentIds: Array.from(mergedDeletedCommentIds),
+      questionComments: nextComments,
     };
 
-    if (incoming.adminAction === "replace_shared_bank") {
-      // กรณีแอดมินกดแก้ไขหรือลบข้อสอบโดยตรง ให้ยึดตามรายการล่าสุดของแอดมิน
-      nextCustomQuestions = mergeSharedQuestions(
-        [],
-        Array.isArray(incoming.customQuestions) ? incoming.customQuestions : [],
-        mergedDeletedSet
-      );
-    } else {
-      nextCustomQuestions = mergeSharedQuestions(
-        existingShared.customQuestions || [],
-        Array.isArray(incoming.customQuestions) ? incoming.customQuestions : [],
-        mergedDeletedSet
-      );
-    }
+    await writeRecordToD1(
+      accountId,
+      apiToken,
+      databaseId,
+      SHARED_BANK_RECORD_ID,
+      updatedSharedPayload
+    );
   }
 
-  // 2. สิทธิ์การคอมเมนต์ข้อสอบ (ผู้ใช้ทุกคนเพิ่มคอมเมนต์ได้, แอดมินลบหรือกดตรวจสอบได้)
-  const nextComments = mergeQuestionComments(
-    existingShared.questionComments || {},
-    incoming.questionComments || {},
-    isAdmin,
-    incoming.adminAction === "replace_shared_bank"
-  );
+  // 2. User personal record merge (Topics 5.3, 5.4, 5.5, 5.10)
+  const existingUser =
+    (await readRecordFromD1(accountId, apiToken, databaseId, userId)) ||
+    EMPTY_PAYLOAD;
 
-  const updatedSharedPayload: CloudPayload = {
-    ...EMPTY_PAYLOAD,
-    version: 1,
-    updatedAt: new Date().toISOString(),
-    customQuestions: nextCustomQuestions,
-    editedSeeds: nextEditedSeeds,
-    deletedIds: nextDeletedIds,
-    questionComments: nextComments,
+  const serverNow = new Date();
+  const serverNowIso = serverNow.toISOString();
+
+  // Clock skew guard (Topic 5.10): clamp client clearedAt to serverNow
+  let clientHistCleared = incoming.historyClearedAt || "";
+  if (clientHistCleared && new Date(clientHistCleared) > serverNow) {
+    clientHistCleared = serverNowIso;
+  }
+  let clientMistakesCleared = incoming.mistakesClearedAt || "";
+  if (clientMistakesCleared && new Date(clientMistakesCleared) > serverNow) {
+    clientMistakesCleared = serverNowIso;
+  }
+
+  const existingHistCleared = existingUser.historyClearedAt || "";
+  const effectiveHistCleared =
+    clientHistCleared && existingHistCleared
+      ? new Date(clientHistCleared) > new Date(existingHistCleared)
+        ? clientHistCleared
+        : existingHistCleared
+      : clientHistCleared || existingHistCleared || "";
+
+  const existingMistakesCleared = existingUser.mistakesClearedAt || "";
+  const effectiveMistakesCleared =
+    clientMistakesCleared && existingMistakesCleared
+      ? new Date(clientMistakesCleared) > new Date(existingMistakesCleared)
+        ? clientMistakesCleared
+        : existingMistakesCleared
+      : clientMistakesCleared || existingMistakesCleared || "";
+
+  const mergedDeletedAttempts = new Set<string>([
+    ...(Array.isArray(existingUser.deletedAttemptIds) ? existingUser.deletedAttemptIds : []),
+    ...(Array.isArray(incoming.deletedAttemptIds) ? incoming.deletedAttemptIds : []),
+  ]);
+
+  const attemptsMap = new Map<string, any>();
+  const histClearTime = effectiveHistCleared
+    ? new Date(effectiveHistCleared).getTime()
+    : 0;
+
+  for (const att of (existingUser.attempts || []) as any[]) {
+    if (!att || !att.id) continue;
+    if (mergedDeletedAttempts.has(att.id)) continue;
+    if (histClearTime && new Date(att.date).getTime() <= histClearTime) continue;
+    attemptsMap.set(att.id, att);
+  }
+
+  for (const att of (incoming.attempts || []) as any[]) {
+    if (!att || !att.id) continue;
+    if (mergedDeletedAttempts.has(att.id)) continue;
+    if (histClearTime && new Date(att.date).getTime() <= histClearTime) continue;
+    attemptsMap.set(att.id, att);
+  }
+
+  const mergedAttempts = Array.from(attemptsMap.values())
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 100);
+
+  const mistakesMap: Record<string, any> = {};
+  const mistakesClearTime = effectiveMistakesCleared
+    ? new Date(effectiveMistakesCleared).getTime()
+    : 0;
+
+  const mergeOneMistake = (qId: string, rec: any) => {
+    if (!rec) return;
+    if (
+      mistakesClearTime &&
+      !rec.bookmarked &&
+      rec.lastAttemptAt &&
+      new Date(rec.lastAttemptAt).getTime() <= mistakesClearTime
+    ) {
+      return;
+    }
+    const prev = mistakesMap[qId];
+    if (!prev) {
+      mistakesMap[qId] = rec;
+    } else {
+      const prevAttemptTime = new Date(prev.lastAttemptAt || 0).getTime();
+      const recAttemptTime = new Date(rec.lastAttemptAt || 0).getTime();
+      const newestAttemptTime =
+        recAttemptTime > prevAttemptTime ? rec.lastAttemptAt : prev.lastAttemptAt;
+
+      const latestAttemptRec = recAttemptTime >= prevAttemptTime ? rec : prev;
+
+      mistakesMap[qId] = {
+        questionId: qId,
+        wrongCount: Math.max(prev.wrongCount || 0, rec.wrongCount || 0),
+        consecutiveCorrect: latestAttemptRec.consecutiveCorrect ?? 0,
+        mastered: Boolean(latestAttemptRec.mastered),
+        lastAttemptAt: newestAttemptTime,
+        bookmarked: Boolean(prev.bookmarked || rec.bookmarked),
+        bookmarkedAt:
+          (rec.bookmarkedAt || "") > (prev.bookmarkedAt || "")
+            ? rec.bookmarkedAt
+            : prev.bookmarkedAt || undefined,
+      };
+    }
   };
 
-  await writeRecordToD1(
-    accountId,
-    apiToken,
-    databaseId,
-    SHARED_BANK_RECORD_ID,
-    updatedSharedPayload
-  );
+  for (const [qId, rec] of Object.entries((existingUser.mistakes || {}) as Record<string, any>)) {
+    mergeOneMistake(qId, rec);
+  }
+  for (const [qId, rec] of Object.entries((incoming.mistakes || {}) as Record<string, any>)) {
+    mergeOneMistake(qId, rec);
+  }
 
-  // 3. บันทึกเฉพาะประวัติการสอบและจุดผิดของ User แต่ละคนแยกตามรหัสผู้สอบ
   const userPersonalPayload: CloudPayload = {
     version: 1,
-    updatedAt: new Date().toISOString(),
-    historyClearedAt: incoming.historyClearedAt || "",
+    updatedAt: serverNowIso,
+    historyClearedAt: effectiveHistCleared,
+    mistakesClearedAt: effectiveMistakesCleared,
+    deletedAttemptIds: Array.from(mergedDeletedAttempts).slice(-200),
     customQuestions: [],
     editedSeeds: {},
     deletedIds: [],
-    attempts: Array.isArray(incoming.attempts) ? incoming.attempts : [],
-    mistakes:
-      incoming.mistakes && typeof incoming.mistakes === "object"
-        ? incoming.mistakes
-        : {},
+    attempts: mergedAttempts,
+    mistakes: mistakesMap,
   };
 
   await writeRecordToD1(
