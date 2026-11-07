@@ -135,7 +135,7 @@ function ExamSimulatorContent() {
   const [selectedCount, setSelectedCount] = useState<number | "all">(20);
   const [customCountInput, setCustomCountInput] = useState<string>("");
   const [quizMode, setQuizMode] = useState<
-    "practice" | "exam" | "mistake_review"
+    "practice" | "exam" | "mistake_review" | "retry"
   >("practice");
   const [feedbackMode, setFeedbackMode] = useState<"instant" | "after_submit">(
     "after_submit"
@@ -404,7 +404,7 @@ function ExamSimulatorContent() {
     mistakesPool: QuestionItem[],
     cat: string,
     source: string,
-    mode: "practice" | "exam" | "mistake_review",
+    mode: "practice" | "exam" | "mistake_review" | "retry",
     blueprintFlag: boolean,
     major: string = selectedMajor,
     targetFeedbackMode: "instant" | "after_submit" = feedbackMode
@@ -552,7 +552,7 @@ function ExamSimulatorContent() {
       shuffleQuestions ? shuffleArray(retryPool) : retryPool,
       shuffleOptions
     );
-    setQuizMode("practice");
+    setQuizMode("retry");
     setFeedbackMode("after_submit");
     setIsBlueprint(false);
     setActiveQuiz(prepared);

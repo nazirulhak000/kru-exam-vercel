@@ -651,12 +651,15 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
       prev.lastAttemptAt = attempt.date;
       mistakes[ans.questionId] = prev;
     } else if (mistakes[ans.questionId]) {
-      prev.consecutiveCorrect += 1;
-      if (prev.consecutiveCorrect >= 2) {
-        prev.mastered = true;
+      // รอบซ้อมซ้ำ (retry) ที่เพิ่งดูเฉลยมา จะไม่นับความก้าวหน้า consecutiveCorrect เพื่อป้องกัน mastered ทันที
+      if (attempt.mode !== "retry") {
+        prev.consecutiveCorrect += 1;
+        if (prev.consecutiveCorrect >= 2) {
+          prev.mastered = true;
+        }
+        prev.lastAttemptAt = attempt.date;
+        mistakes[ans.questionId] = prev;
       }
-      prev.lastAttemptAt = attempt.date;
-      mistakes[ans.questionId] = prev;
     }
   });
 
@@ -931,6 +934,8 @@ export function getReadinessStats(): ReadinessStats {
 
   const catTotals: Record<string, { attempted: number; correct: number }> = {};
   attempts.forEach((att) => {
+    // ข้ามรอบซ้อมซ้ำ (retry) ไม่นับเข้า readiness ของแดชบอร์ด
+    if (att.mode === "retry") return;
     Object.entries(att.categoryBreakdown || {}).forEach(([catId, data]) => {
       if (!catTotals[catId]) {
         catTotals[catId] = { attempted: 0, correct: 0 };
