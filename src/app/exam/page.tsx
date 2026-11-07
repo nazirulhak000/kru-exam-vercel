@@ -248,6 +248,23 @@ function ExamSimulatorContent() {
     }
 
     if (paramAutostart === "1") {
+      // ตรวจสอบว่ามีชุดที่ทำค้างอยู่หรือไม่ หากมีให้ถามยืนยันก่อนเริ่มใหม่
+      const existingSession = getActiveExamSession();
+      if (existingSession) {
+        const discard = confirm(
+          `คุณมีชุดข้อสอบ "${existingSession.title}" ที่ทำค้างไว้ ต้องการยกเลิกชุดเดิมเพื่อเริ่มชุดใหม่หรือไม่?`
+        );
+        if (!discard) {
+          // หากผู้ใช้ไม่ต้องการยกเลิกชุดเดิม ล้าง query param และเปิดให้ทำต่อ
+          if (typeof window !== "undefined") {
+            window.history.replaceState(null, "", "/exam");
+          }
+          return;
+        }
+        saveActiveExamSession(null);
+        setSavedSession(null);
+      }
+
       // ล้างพารามิเตอร์ autostart ออกจาก URL เพื่อป้องกันการรีเฟรชหน้าเว็บแล้วเริ่มสอบใหม่ทับเซสชัน
       if (typeof window !== "undefined") {
         window.history.replaceState(null, "", "/exam");
@@ -526,6 +543,14 @@ function ExamSimulatorContent() {
   };
 
   const handleStartQuiz = () => {
+    if (
+      savedSession &&
+      !confirm(
+        `คุณมีชุดข้อสอบ "${savedSession.title}" ที่ทำค้างไว้ การเริ่มชุดใหม่จะยกเลิกชุดเดิม ต้องการเริ่มชุดใหม่หรือไม่?`
+      )
+    ) {
+      return;
+    }
     startNewQuizWithParams(
       allQuestions,
       mistakePool,

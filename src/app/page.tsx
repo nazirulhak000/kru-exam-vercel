@@ -4,16 +4,26 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, FileUp, Play, RotateCcw } from "lucide-react";
 import {
+  getActiveExamSession,
   getAllQuestions,
   getExamAttempts,
   getReadinessStats,
   isAdminMode,
   ReadinessStats,
+  saveActiveExamSession,
 } from "@/lib/storage";
-import { ExamAttempt, QuestionItem, getExplanationLabel } from "@/types/exam";
+import {
+  ActiveExamSession,
+  ExamAttempt,
+  QuestionItem,
+  getExplanationLabel,
+} from "@/types/exam";
 
 export default function HomeDashboardPage() {
   const [stats, setStats] = useState<ReadinessStats | null>(null);
+  const [activeSession, setActiveSession] = useState<ActiveExamSession | null>(
+    null
+  );
   const [recentAttempts, setRecentAttempts] = useState<ExamAttempt[]>([]);
   const [sampleQuestion, setSampleQuestion] = useState<QuestionItem | null>(
     null
@@ -23,6 +33,7 @@ export default function HomeDashboardPage() {
   useEffect(() => {
     const loadDashboard = () => {
       setStats(getReadinessStats());
+      setActiveSession(getActiveExamSession());
       setRecentAttempts(getExamAttempts().slice(0, 5));
       setIsAdmin(isAdminMode());
       const all = getAllQuestions();
@@ -47,6 +58,44 @@ export default function HomeDashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Active Unfinished Exam Session Banner */}
+      {activeSession && (
+        <section className="p-4 sm:p-5 rounded-[12px] bg-paper-accent/[0.08] border border-paper-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-paper-accent animate-pulse shrink-0" />
+              <span className="font-title font-medium text-[14px] text-paper-ink">
+                คุณมีชุดข้อสอบที่ทำค้างไว้
+              </span>
+            </div>
+            <p className="text-[13px] text-paper-secondary truncate">
+              {activeSession.title} (ตอบแล้ว {Object.keys(activeSession.userAnswers || {}).length} จาก {activeSession.questions.length} ข้อ)
+            </p>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Link
+              href="/exam"
+              className="h-9 px-4 rounded-[6px] bg-paper-accent hover:bg-paper-accentHover text-paper-card text-[12px] font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <span>ทำต่อจากข้อเดิม</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm("ต้องการยกเลิกชุดข้อสอบที่ทำค้างอยู่นี้หรือไม่?")) {
+                  saveActiveExamSession(null);
+                  setActiveSession(null);
+                }
+              }}
+              className="h-9 px-3 rounded-[6px] border border-[#1f1b16]/[0.15] bg-paper-bg hover:bg-paper-raised text-paper-secondary hover:text-paper-ink text-[12px] transition-colors"
+            >
+              ยกเลิกชุดนี้
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Top Asymmetric Header & Compact Stat Row */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end pb-6 border-b border-[#1f1b16]/[0.08]">
         <div className="lg:col-span-7 space-y-3 min-w-0">
