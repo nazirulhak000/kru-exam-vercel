@@ -131,6 +131,7 @@ function ExamSimulatorContent() {
   const [selectedMajor, setSelectedMajor] = useState<string>("all");
   const [selectedSource, setSelectedSource] = useState<string>("all");
   const [selectedCount, setSelectedCount] = useState<number | "all">(20);
+  const [customCountInput, setCustomCountInput] = useState<string>("");
   const [quizMode, setQuizMode] = useState<
     "practice" | "exam" | "mistake_review"
   >("practice");
@@ -1188,25 +1189,71 @@ function ExamSimulatorContent() {
           {/* Right 5 Columns */}
           <div className="lg:col-span-5 flex flex-col justify-between space-y-6 min-w-0 lg:pl-6 lg:border-l border-[#1f1b16]/[0.08]">
             <div className="space-y-5">
-              <div>
-                <label className="block text-[13px] font-medium text-paper-ink mb-2">
-                  4. จำนวนข้อต่อรอบการสอบ
-                </label>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-[13px] font-medium text-paper-ink">
+                    4. จำนวนข้อต่อรอบการสอบ
+                  </label>
+                  <span className="text-[12px] font-mono text-paper-muted">
+                    เลือกค่าด่วน หรือระบุตัวเลขเอง
+                  </span>
+                </div>
                 <div className="grid grid-cols-5 gap-2">
-                  {([10, 20, 35, 50, "all"] as const).map((cnt) => (
-                    <button
-                      key={String(cnt)}
-                      type="button"
-                      onClick={() => setSelectedCount(cnt)}
-                      className={`h-11 sm:h-10 min-w-0 px-1 rounded-[8px] border font-mono text-[13px] tabular-nums transition-colors duration-150 ${
-                        selectedCount === cnt
-                          ? "border-paper-accent bg-paper-accent text-paper-card font-medium"
-                          : "border-[#1f1b16]/[0.12] bg-paper-bg text-paper-ink hover:bg-paper-raised"
-                      }`}
-                    >
-                      {cnt === "all" ? "ทั้งหมด" : `${cnt}`}
-                    </button>
-                  ))}
+                  {([10, 20, 35, 50, "all"] as const).map((cnt) => {
+                    const isSelected =
+                      selectedCount === cnt &&
+                      (selectedCount === "all" || [10, 20, 35, 50].includes(selectedCount as number));
+                    return (
+                      <button
+                        key={String(cnt)}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCount(cnt);
+                          setCustomCountInput("");
+                        }}
+                        className={`h-11 sm:h-10 min-w-0 px-1 rounded-[8px] border font-mono text-[13px] tabular-nums transition-colors duration-150 ${
+                          isSelected
+                            ? "border-paper-accent bg-paper-accent text-paper-card font-medium"
+                            : "border-[#1f1b16]/[0.12] bg-paper-bg text-paper-ink hover:bg-paper-raised"
+                        }`}
+                      >
+                        {cnt === "all" ? "ทั้งหมด" : `${cnt}`}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* กล่องระบุจำนวนข้อสอบแบบกำหนดเอง (Custom Count) */}
+                <div className="p-3 rounded-[10px] bg-paper-bg border border-[#1f1b16]/[0.08] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[12.5px] text-paper-ink font-medium shrink-0">
+                      หรือกำหนดเอง:
+                    </span>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={matchingCount > 0 ? matchingCount : 2400}
+                        value={customCountInput}
+                        onChange={(e) => {
+                          const valStr = e.target.value;
+                          setCustomCountInput(valStr);
+                          const valNum = parseInt(valStr, 10);
+                          if (!isNaN(valNum) && valNum > 0) {
+                            setSelectedCount(valNum);
+                          }
+                        }}
+                        placeholder="เช่น 15, 25, 40"
+                        className="w-24 sm:w-28 h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/15 bg-paper-card text-[13px] font-mono text-paper-ink focus:outline-none focus:border-paper-accent tabular-nums"
+                      />
+                      <span className="ml-1.5 text-[12px] font-mono text-paper-muted">ข้อ</span>
+                    </div>
+                  </div>
+                  {selectedCount !== "all" && ![10, 20, 35, 50].includes(selectedCount as number) && (
+                    <span className="text-[11.5px] font-mono px-2 py-0.5 rounded bg-paper-accent/[0.08] text-paper-accent font-medium shrink-0">
+                      ใช้ {selectedCount} ข้อ
+                    </span>
+                  )}
                 </div>
               </div>
 

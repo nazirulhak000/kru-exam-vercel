@@ -22,6 +22,7 @@ const KEYS = {
   ATTEMPTS_HISTORY: "kru_exam_attempts_v1",
   HISTORY_CLEARED_AT: "kru_exam_history_cleared_at_v1",
   MISTAKE_RECORDS: "kru_exam_mistakes_v1",
+  MISTAKES_CLEARED_AT: "kru_exam_mistakes_cleared_at_v1",
   ACTIVE_SESSION: "kru_exam_active_session_v1",
   GEMINI_API_KEY: "kru_exam_gemini_api_key_v1",
   CF_ACCOUNT_ID: "kru_exam_cf_account_id_v1",
@@ -654,11 +655,116 @@ export function saveExamAttempt(attempt: ExamAttempt): void {
   void pushLocalStateToCloud();
 }
 
-export function clearExamAttempts(): void {
+export function deleteExamAttempt(
+  attemptId: string,
+  cleanAssociatedMistakes: boolean = true
+): void {
+  if (!isBrowser()) return;
+  const attempts = getExamAttempts();
+  const target = attempts.find((a) => a.id === attemptId);
+  if (!target) return;
+
+  const remainingAttempts = attempts.filter((a) => a.id !== attemptId);
+  localStorage.setItem(
+    KEYS.ATTEMPTS_HISTORY,
+    JSON.stringify(remainingAttempts)
+  );
+
+  if (cleanAssociatedMistakes && target.answers) {
+    const mistakeMap = getMistakeRecordsMap();
+    // รวบรวมข้อที่ตอบผิดในการสอบรอบอื่นที่ยังเหลืออยู่
+    const wrongInOtherAttempts = new Set<string>();
+    remainingAttempts.forEach((att) => {
+      att.answers?.forEach((ans) => {
+        if (!ans.isCorrect) wrongInOtherAttempts.add(ans.questionId);
+      });
+    });
+
+    target.answers.forEach((ans) => {
+      if (!ans.isCorrect && mistakeMap[ans.questionId]) {
+        // หากข้อนี้ไม่ได้ตอบผิดในรอบอื่น และไม่ได้ติดดาวไว้ ให้ลบออกจากสมุดทบทวน
+        if (
+          !wrongInOtherAttempts.has(ans.questionId) &&
+          !mistakeMap[ans.questionId].bookmarked
+        ) {
+          delete mistakeMap[ans.questionId];
+        } else if (mistakeMap[ans.questionId].wrongCount > 1) {
+          mistakeMap[ans.questionId].wrongCount -= 1;
+        }
+      }
+    });
+
+    localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(mistakeMap));
+  }
+
+  void pushLocalStateToCloud();
+  window.dispatchEvent(new Event("kru-cloud-synced"));
+}
+
+export function clearExamAttempts(options?: {
+  clearMistakes?: boolean;
+  keepBookmarks?: boolean;
+}): void {
   if (!isBrowser()) return;
   localStorage.removeItem(KEYS.ATTEMPTS_HISTORY);
-  localStorage.setItem(KEYS.HISTORY_CLEARED_AT, new Date().toISOString());
+  const now = new Date().toISOString();
+  localStorage.setItem(KEYS.HISTORY_CLEARED_AT, now);
+
+  const shouldClearMistakes = options?.clearMistakes ?? true;
+  if (shouldClearMistakes) {
+    const keepBookmarks = options?.keepBookmarks ?? true;
+    const mistakeMap = getMistakeRecordsMap();
+    const newMistakes: Record<string, MistakeRecord> = {};
+    if (keepBookmarks) {
+      Object.entries(mistakeMap).forEach(([qId, rec]) => {
+        if (rec.bookmarked) {
+          newMistakes[qId] = {
+            ...rec,
+            wrongCount: 0,
+            mastered: false,
+          };
+        }
+      });
+    }
+    localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(newMistakes));
+    localStorage.setItem(KEYS.MISTAKES_CLEARED_AT, now);
+  }
+
   void pushLocalStateToCloud();
+  window.dispatchEvent(new Event("kru-cloud-synced"));
+}
+
+export function clearMistakeNotebook(keepBookmarks: boolean = false): void {
+  if (!isBrowser()) return;
+  const mistakeMap = getMistakeRecordsMap();
+  const newMistakes: Record<string, MistakeRecord> = {};
+  if (keepBookmarks) {
+    Object.entries(mistakeMap).forEach(([qId, rec]) => {
+      if (rec.bookmarked) {
+        newMistakes[qId] = {
+          ...rec,
+          wrongCount: 0,
+          mastered: false,
+        };
+      }
+    });
+  }
+  const now = new Date().toISOString();
+  localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(newMistakes));
+  localStorage.setItem(KEYS.MISTAKES_CLEARED_AT, now);
+  void pushLocalStateToCloud();
+  window.dispatchEvent(new Event("kru-cloud-synced"));
+}
+
+export function removeMistakeRecord(questionId: string): void {
+  if (!isBrowser()) return;
+  const map = getMistakeRecordsMap();
+  if (map[questionId]) {
+    delete map[questionId];
+    localStorage.setItem(KEYS.MISTAKE_RECORDS, JSON.stringify(map));
+    void pushLocalStateToCloud();
+    window.dispatchEvent(new Event("kru-cloud-synced"));
+  }
 }
 
 // ==========================================
@@ -1220,7 +1326,21 @@ export async function syncWithCloudDatabase(): Promise<{
       remote.mistakes && typeof remote.mistakes === "object"
         ? (remote.mistakes as Record<string, MistakeRecord>)
         : {};
-    const mergedMistakes: Record<string, MistakeRecord> = { ...remoteMistakes };
+    const mistakesClearedAt = localStorage.getItem(KEYS.MISTAKES_CLEARED_AT);
+    const mergedMistakes: Record<string, MistakeRecord> = {};
+
+    Object.entries(remoteMistakes).forEach(([qId, remRec]) => {
+      if (
+        mistakesClearedAt &&
+        !remRec.bookmarked &&
+        remRec.lastAttemptAt &&
+        new Date(remRec.lastAttemptAt) <= new Date(mistakesClearedAt)
+      ) {
+        return;
+      }
+      mergedMistakes[qId] = remRec;
+    });
+
     Object.entries(localMistakes).forEach(([qId, localRec]) => {
       const remRec = mergedMistakes[qId];
       if (!remRec) {

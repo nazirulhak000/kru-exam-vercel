@@ -153,9 +153,41 @@ export default function QuestionBankPage() {
     return () => window.removeEventListener("kru-cloud-synced", loadData);
   }, []);
 
-  const sources = Array.from(
-    new Set(questions.map((q) => q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ."))
-  );
+  // คำนวณชุดข้อสอบที่มีอยู่ในหมวดที่เลือก (Cascading Filter: ช่องสองอิงจากช่องแรก)
+  const sourceCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    questions.forEach((q) => {
+      if (selectedCat !== "all" && q.category !== selectedCat) return;
+      if (
+        selectedCat === "major" &&
+        selectedMajor !== "all" &&
+        (q.majorSubject || "วิชาเอกทั่วไป (ไม่ระบุสาขา)") !== selectedMajor
+      ) {
+        return;
+      }
+      const src = q.sourcePdf || "คลังข้อสอบมาตรฐาน ก.ค.ศ.";
+      map.set(src, (map.get(src) || 0) + 1);
+    });
+    return map;
+  }, [questions, selectedCat, selectedMajor]);
+
+  const visibleSources = useMemo(() => {
+    return Array.from(sourceCounts.keys()).sort((a, b) => {
+      const matchA = a.match(/\d+/);
+      const matchB = b.match(/\d+/);
+      if (matchA && matchB) {
+        return parseInt(matchA[0], 10) - parseInt(matchB[0], 10);
+      }
+      return a.localeCompare(b);
+    });
+  }, [sourceCounts]);
+
+  // หากเปลี่ยนหมวดวิชา แล้วชุดเอกสารเดิมที่เลือกไว้ไม่มีข้อสอบในหมวดใหม่ ให้รีเซ็ตกลับเป็น "all" อัตโนมัติ
+  useEffect(() => {
+    if (selectedSource !== "all" && (sourceCounts.get(selectedSource) || 0) === 0) {
+      setSelectedSource("all");
+    }
+  }, [selectedCat, selectedMajor, sourceCounts, selectedSource]);
 
   // นับจำนวนข้อที่มีการท้วงติงรอตรวจสอบ และข้อที่มีคอมเมนต์ทั้งหมด
   const pendingReportQuestionCount = questions.filter((q) => {
@@ -425,10 +457,14 @@ export default function QuestionBankPage() {
               onChange={(e) => setSelectedSource(e.target.value)}
               className="w-full min-w-0 h-10 px-3 rounded-[8px] border border-[#1f1b16]/[0.12] bg-paper-bg text-[13px] text-paper-ink focus:outline-none focus:border-paper-accent"
             >
-              <option value="all">ทุกชุดเอกสารต้นทาง</option>
-              {sources.map((src) => (
+              <option value="all">
+                {selectedCat === "all"
+                  ? `ทุกชุดเอกสารต้นทาง (${visibleSources.length} ชุด)`
+                  : `ทุกชุดเอกสารในหมวดนี้ (${visibleSources.length} ชุด)`}
+              </option>
+              {visibleSources.map((src) => (
                 <option key={src} value={src}>
-                  {src}
+                  {src} ({sourceCounts.get(src) || 0} ข้อ)
                 </option>
               ))}
             </select>

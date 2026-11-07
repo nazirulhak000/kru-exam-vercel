@@ -18,9 +18,12 @@ import {
 import { ExamAttempt, MistakeRecord, QuestionItem } from "@/types/exam";
 import {
   clearExamAttempts,
+  clearMistakeNotebook,
+  deleteExamAttempt,
   getExamAttempts,
   getMistakeQuestions,
   getMistakeRecordsMap,
+  removeMistakeRecord,
   setMistakeMastered,
   toggleBookmarkQuestion,
 } from "@/lib/storage";
@@ -59,11 +62,42 @@ export default function HistoryAndMistakesPage() {
 
   const handleClearHistory = () => {
     if (
-      !confirm("ต้องการล้างประวัติการสอบทั้งหมดหรือไม่ (คลังข้อสอบจะไม่ถูกลบ)")
+      !confirm(
+        "ต้องการล้างประวัติการสอบทั้งหมดและรีเซ็ตสมุดข้อผิดหรือไม่?\n(ข้อที่ติดดาวไว้จะยังคงอยู่)"
+      )
     ) {
       return;
     }
-    clearExamAttempts();
+    clearExamAttempts({ clearMistakes: true, keepBookmarks: true });
+    loadHistory();
+  };
+
+  const handleDeleteAttempt = (attemptId: string) => {
+    if (
+      !confirm(
+        "ยืนยันลบประวัติการสอบรอบนี้หรือไม่?\nระบบจะลบข้อผิดของรอบนี้ออกจากสมุดทบทวนให้อัตโนมัติ"
+      )
+    ) {
+      return;
+    }
+    deleteExamAttempt(attemptId, true);
+    loadHistory();
+  };
+
+  const handleClearMistakes = () => {
+    if (
+      !confirm(
+        "ต้องการล้างข้อสอบในสมุดทบทวนทั้งหมดหรือไม่?\n(ข้อที่ติดดาวไว้จะยังคงอยู่)"
+      )
+    ) {
+      return;
+    }
+    clearMistakeNotebook(true);
+    loadHistory();
+  };
+
+  const handleRemoveMistake = (qId: string) => {
+    removeMistakeRecord(qId);
     loadHistory();
   };
 
@@ -219,7 +253,7 @@ export default function HistoryAndMistakesPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+                    <div className="flex items-center justify-between md:justify-end gap-2.5 sm:gap-3 shrink-0">
                       <div className="text-left md:text-right font-mono tabular-nums">
                         <div className="text-[18px] font-medium text-paper-ink whitespace-nowrap">
                           {att.correctCount}/{att.totalQuestions} (
@@ -229,6 +263,19 @@ export default function HistoryAndMistakesPage() {
                           ถูก {att.correctCount} • ผิด {att.wrongCount}
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAttempt(att.id);
+                        }}
+                        title="ลบผลการสอบรอบนี้ (จะล้างข้อผิดของรอบนี้ออกจากสมุดทบทวนด้วย)"
+                        className="w-10 h-10 md:w-8 md:h-8 rounded-[6px] border border-[#1f1b16]/10 hover:border-paper-fail/30 hover:bg-paper-failBg text-paper-muted hover:text-paper-fail flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
+
                       <div className="w-10 h-10 md:w-8 md:h-8 rounded-[6px] bg-paper-raised flex items-center justify-center text-paper-secondary shrink-0">
                         {isExpanded ? (
                           <ChevronUp className="w-4 h-4" strokeWidth={1.5} />
@@ -353,30 +400,42 @@ export default function HistoryAndMistakesPage() {
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setHideMistakeAnswers((v) => !v);
-                  setRecallAnswers({});
-                }}
-                className={`h-10 sm:h-8 px-3 rounded-[6px] text-[12px] font-medium flex items-center gap-1.5 transition-colors ${
-                  hideMistakeAnswers
-                    ? "bg-paper-accent text-paper-card"
-                    : "bg-paper-raised text-paper-ink hover:bg-paper-hover"
-                }`}
-              >
-                {hideMistakeAnswers ? (
-                  <>
-                    <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    <span>แสดงเฉลยทุกข้อ</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    <span>ปิดเฉลยเพื่อฝึกตอบเอง</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHideMistakeAnswers((v) => !v);
+                    setRecallAnswers({});
+                  }}
+                  className={`h-10 sm:h-8 px-3 rounded-[6px] text-[12px] font-medium flex items-center gap-1.5 transition-colors ${
+                    hideMistakeAnswers
+                      ? "bg-paper-accent text-paper-card"
+                      : "bg-paper-raised text-paper-ink hover:bg-paper-hover"
+                  }`}
+                >
+                  {hideMistakeAnswers ? (
+                    <>
+                      <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <span>แสดงเฉลยทุกข้อ</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <span>ปิดเฉลยเพื่อฝึกตอบเอง</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearMistakes}
+                  title="ล้างข้อสอบในสมุดทบทวน (ข้อที่ติดดาวไว้จะยังคงอยู่)"
+                  className="h-10 sm:h-8 px-2.5 rounded-[6px] border border-[#1f1b16]/10 hover:border-paper-fail/30 hover:bg-paper-failBg text-paper-muted hover:text-paper-fail text-[12px] flex items-center gap-1 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span className="hidden sm:inline">ล้างสมุด</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -450,6 +509,16 @@ export default function HistoryAndMistakesPage() {
                       >
                         <Bookmark className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
                         <span>{rec?.bookmarked ? "ติดดาวไว้" : "ติดดาว"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMistake(q.id)}
+                        title="นำข้อนี้ออกจากสมุดทบทวน"
+                        className="h-10 sm:h-7 px-2 rounded-[5px] border border-[#1f1b16]/10 hover:border-paper-fail/30 hover:bg-paper-failBg text-paper-muted hover:text-paper-fail flex items-center gap-1 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
+                        <span className="hidden sm:inline">นำออก</span>
                       </button>
                     </div>
                   </div>
